@@ -1,0 +1,12 @@
+[Unit]
+Description=Gunicorn instance to serve myapp
+After=network.target
+
+[Service]
+User=root
+Group=root
+WorkingDirectory=/root/brian
+ExecStart=/root/brian/venv/bin/gunicorn -b 0.0.0.0:5000 -w 4 run:app
+
+[Install]
+WantedBy=multi-user.target
