@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Farm Management App</title>
+</head>
+<body>
+    <header>
+        <h1>Welcome to the Farm Management App</h1>
+        <p>Your solution for efficient farm management.</p>
+    </header>
+    
+    <main>
+        <section>
+            <h2>Introduction</h2>
+            <p>This app helps you manage your farm data efficiently. Track your crops, monitor yields, and generate QR codes for your produce.</p>
+        </section>
+        
+        <section>
+            <h2>Get Started</h2>
+            <div>
+                <a href="{{ url_for('auth.login') }}">Login</a>
+            </div>
+            <div>
+                <a href="{{ url_for('auth.signup') }}">Sign Up</a>
+            </div>
+        </section>
+    </main>
+    
+    <footer>
+        <p>&copy; 2024 Farm Management App. All rights reserved.</p>
+    </footer>
+</body>
+</html>

@@ -11,15 +11,6 @@ def dashboard():
     # Handle farm dashboard logic
     return render_template('home.html')
 
-@bp.route('/generate_qr', methods=['POST'])
-@login_required
-def generate_qr():
-    # Get the Farm ID from the form
-    farm_id = request.form['farm_id']
-    # Generate QR codes
-    qr_zip_file = generate_qr_codes(farm_id)
-    # Return the QR code image as binary data for rendering
-    return send_file(qr_zip_file, as_attachment=True, download_name=f"QR_{farm_id}.zip")
 
 @bp.route('/boundaries/<region_name>/<farm_id>')
 @login_required

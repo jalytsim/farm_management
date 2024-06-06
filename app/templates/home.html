@@ -1,11 +1,29 @@
+<!-- templates/index.html -->
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Home</title>
+    <title>Agriyields Map Visualisation Data</title>
+    <link rel="stylesheet" href="{{url_for('static',filename='css/output.css')}}">
+
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
-<body>
-    <h1>Welcome to the Home Page!</h1>
+
+<body class="bg-gray-100">
+    <div class="flex h-screen justify-center items-center">
+        <div class="text-center">
+            <h1 class="text-4xl font-bold mb-4">Welcome to Agriyields</h1>
+            <p class="text-gray-700 text-lg mb-8">Choose an option below:</p>
+            <div class="flex justify-center space-x-4">
+                <a href="{{ url_for('map.map') }}"
+                    class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Go to Map</a>
+                <a href="{{ url_for('qr.qrcode') }}"
+                    class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">Generate QR Code</a>
+            </div>
+        </div>
+    </div>
 </body>
+
 </html>

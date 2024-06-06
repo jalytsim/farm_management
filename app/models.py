@@ -3,32 +3,33 @@ from flask_login import UserMixin
 from app import db
 
 class User(UserMixin, db.Model):
+    __tablename__ = 'user'
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(150), unique=True, nullable=False)
     email = db.Column(db.String(150), unique=True, nullable=False)
     password = db.Column(db.String(150), nullable=False)
 
 class District(db.Model):
+    __tablename__ = 'district'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False)
     region = db.Column(db.String(255), nullable=False)
-    soils = db.relationship('SoilData', backref='district', lazy=True)
-    points = db.relationship('Point', backref='district', lazy=True)
-    farms = db.relationship('Farm', backref='district', lazy=True)
+    
 
 class FarmerGroup(db.Model):
+    __tablename__ = 'farmergroup'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False)
     description = db.Column(db.Text, nullable=True)
-    farms = db.relationship('Farm', backref='farmergroup', lazy=True)
-
+    
 class ProduceCategory(db.Model):
+    __tablename__ = 'producecategory'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False)
     grade = db.Column(db.Integer, nullable=False)
-    crops = db.relationship('Crop', backref='category', lazy=True)
 
 class SoilData(db.Model):
+    __tablename__ = 'soildata'
     id = db.Column(db.Integer, primary_key=True)
     district_id = db.Column(db.Integer, db.ForeignKey('district.id'), nullable=False)
     internal_id = db.Column(db.Integer, nullable=False)
@@ -45,23 +46,24 @@ class SoilData(db.Model):
     date = db.Column(db.Date, nullable=False)
 
 class Crop(db.Model):
+    __tablename__ = 'crop'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False)
     weight = db.Column(db.Float, nullable=False)
-    category_id = db.Column(db.Integer, db.ForeignKey('produce_category.id'), nullable=False)
-    farm_data = db.relationship('FarmData', backref='crop', lazy=True)
+    category_id = db.Column(db.Integer, db.ForeignKey('producecategory.id'), nullable=False)
 
 class Farm(db.Model):
+    __tablename__ = 'farm'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False)
     subcounty = db.Column(db.String(255), nullable=False)
-    farmergroup_id = db.Column(db.Integer, db.ForeignKey('farmer_group.id'), nullable=False)
+    farmergroup_id = db.Column(db.Integer, db.ForeignKey('farmergroup.id'), nullable=False)
     district_id = db.Column(db.Integer, db.ForeignKey('district.id'), nullable=False)
     geolocation = db.Column(db.String(255), nullable=False)
-    farm_data = db.relationship('FarmData', backref='farm', lazy=True)
-    points = db.relationship('Point', backref='farm', lazy=True)
+
 
 class FarmData(db.Model):
+    __tablename__ = 'farmdata'
     id = db.Column(db.Integer, primary_key=True)
     farm_id = db.Column(db.Integer, db.ForeignKey('farm.id'), nullable=False)
     crop_id = db.Column(db.Integer, db.ForeignKey('crop.id'), nullable=False)
@@ -79,11 +81,12 @@ class FarmData(db.Model):
     customer_name = db.Column(db.String(255), nullable=False)
 
 class Forest(db.Model):
+    __tablename__ = 'forest'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False)
-    points = db.relationship('Point', backref='forest', lazy=True)
 
 class Point(db.Model):
+    __tablename__ = 'point'
     id = db.Column(db.Integer, primary_key=True)
     longitude = db.Column(db.Float, nullable=False)
     latitude = db.Column(db.Float, nullable=False)
