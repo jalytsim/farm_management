@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forest and Point Management</title>
+</head>
+<body>
+    <h1>Forest and Point Management</h1>
+    <a href="{{ url_for('forest.view') }}">view forest</a>
+           
+    <h2>Forests</h2>
+    <form action="{{ url_for('forest.handle_create_forest') }}" method="post">
+        <input type="text" name="name" placeholder="Forest Name">
+        <button type="submit">Create Forest</button>
+    </form>
+    <table border="1">
+        <thead>
+            <tr>
+                <th>Forest Name</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for forest in forests %}
+            <tr>
+                <td>
+                    <form action="{{ url_for('forest.handle_update_forest', id=forest.id) }}" method="post">
+                        <input type="text" name="name" value="{{ forest.name }}">
+                        <button type="submit">Update</button>
+                    </form>
+                </td>
+                <td>
+                    <form action="{{ url_for('forest.handle_delete_forest', id=forest.id) }}" method="post" style="display:inline;">
+                        <button type="submit">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2>Points</h2>
+    <form action="{{ url_for('point.handle_create_point') }}" method="post">
+        <input type="text" name="longitude" placeholder="Longitude">
+        <input type="text" name="latitude" placeholder="Latitude">
+        <input type="text" name="district_id" placeholder="District ID">
+        <input type="text" name="owner_type" placeholder="Owner Type">
+        <input type="text" name="owner_id" placeholder="Owner ID">
+        <button type="submit">Create Point</button>
+    </form>
+    <table border="1">
+        <thead>
+            <tr>
+                <th>Longitude</th>
+                <th>Latitude</th>
+                <th>District ID</th>
+                <th>Owner Type</th>
+                <th>Owner ID</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for point in points %}
+            <tr>
+                <td>
+                    <form action="{{ url_for('point.handle_update_point', id=point.id) }}" method="post">
+                        <input type="text" name="longitude" value="{{ point.longitude }}">
+                </td>
+                <td>
+                        <input type="text" name="latitude" value="{{ point.latitude }}">
+                </td>
+                <td>
+                        <input type="text" name="district_id" value="{{ point.district_id }}">
+                </td>
+                <td>
+                        <input type="text" name="owner_type" value="{{ point.owner_type }}">
+                </td>
+                <td>
+                        <input type="text" name="owner_id" value="{{ point.owner_id }}">
+                </td>
+                <td>
+                        <button type="submit">Update</button>
+                    </form>
+                    <form action="{{ url_for('point.handle_delete_point', id=point.id) }}" method="post" style="display:inline;">
+                        <button type="submit">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

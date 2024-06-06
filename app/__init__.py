@@ -26,12 +26,14 @@ def create_app():
     with app.app_context():
         from app.models import User  # Ensure models are imported for database creation
 
-    from app.routes import auth, farm, qr, map, main
+    from app.routes import auth, farm, qr, map, main, forest, point
     app.register_blueprint(auth.bp)
     app.register_blueprint(farm.bp)
     app.register_blueprint(qr.bp)
     app.register_blueprint(map.bp)
     app.register_blueprint(main.bp)
+    app.register_blueprint(forest.bp)
+    app.register_blueprint(point.bp)
     
     from app.routes.testDb import test
     app.register_blueprint(test)

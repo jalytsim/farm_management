@@ -79,7 +79,7 @@ Serial Number: {serial_number}"""
 
                 # Draw the QR code onto the PDF
                 pdf.drawInlineImage(qr_file, 150, 300, width=300, height=300)
-                pdf.setTitle(f'QR_{farmer_name}_{crop_name}')
+                pdf.setTitle(f'QR_{farmer_name}_{crop_id}')
                 pdf.showPage()
                 if os.path.exists(qr_file):
                     os.remove(qr_file)
