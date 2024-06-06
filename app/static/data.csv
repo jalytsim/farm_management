@@ -1,0 +1,4 @@
+FarmID,FarmName,District,Subcounty,Crop,TilledLandSize,PlantingDate,Season,HarvestDate,ExpectedYield,ActualYield
+1,Jane Smith Farm,Mbale,Manafwa,Beans,3.5,2023-06-15 00:00:00,2,2023-09-13 00:00:00,6.3,8.0
+2,Robert Johnson Farm,Gulu,Nwoya,Rice,7.0,2023-04-10 00:00:00,1,2023-09-07 00:00:00,15.4,15.5
+3,John Doe Farm,Kampala,Wakiso,Maize,5.0,2023-05-01 00:00:00,1,2023-08-29 00:00:00,12.5,12.0

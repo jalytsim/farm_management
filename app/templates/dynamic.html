@@ -1,0 +1,64 @@
+<!-- dynamic.html -->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agriyields Map Visualisation Data</title>
+    <link rel="stylesheet" href="{{url_for('static',filename='dist/css/output.css')}}">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
+    <script src="{{ url_for('static', filename='plotly-2.27.0.min.js') }}"></script>
+</head>
+
+<body class="bg-gray-100">
+    <div class="container mx-auto p-4">
+        <div class="flex justify-between items-center mb-4">
+            <h1 class="text-2xl font-bold">Agriyields Map Visualisation Data</h1>
+            <div class="space-x-4">
+                <button class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                    onclick="window.location.href='/soil'">Soil</button>
+                <button class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                    onclick="window.location.href='/combined_map'">Combined</button>
+                <button class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                    onclick="window.location.href='/dynamicsearch'">Dynamics</button>
+                <button class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                    onclick="window.location.href='/soil'">home</button>
+            </div>
+        </div>
+        <div>
+            <form action="/dynamicsearch" method="GET" class="mb-4">
+                <label for="data_variable" class="mr-2">Data Variable:</label>
+                <select id="data_variable" name="data_variable" class="mr-2">
+                    <option value="actual_yield">Actual Yield</option>
+                    <option value="tilled_land_size">Tilled Land Size</option>
+                    <option value="expected_yield">Expected Yield</option>
+                </select>
+                <label for="start_date" class="mr-2">Start Date:</label>
+                <input type="date" id="start_date" name="start_date" class="mr-2">
+                <label for="end_date" class="mr-2">End Date:</label>
+                <input type="date" id="end_date" name="end_date" class="mr-2">
+                <label for="crop-select">Select a crop:</label>
+                <select id="crop-select" name="crop">
+                    <option value="">All</option>
+                    <option value="1">Maize</option>
+                    <option value="2">Beans</option>
+                    <option value="3">Coffee</option>
+                    <option value="4">Cassava</option>
+                    <option value="5">Rice</option>
+                    <option value="6">Bananas</option>
+                </select>
+                <button type="submit"
+                    class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Search</button>
+            </form>
+            <!-- Choropleth map will be embedded here -->
+            {% if choropleth_map %}
+            {{ choropleth_map|safe }}
+            {% else %}
+            <p class="text-lg font-bold text-gray-800 mb-2">Please choose the type of data you want to load:</p>
+            {% endif %}
+        </div>
+    </div>
+</body>
+
+</html>
