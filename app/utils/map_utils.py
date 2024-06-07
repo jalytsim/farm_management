@@ -224,8 +224,7 @@ def create_mapbox_html(geojson_file, points):
                     fill="toself",
                     lon=[coord[0] for coord in polygon],
                     lat=[coord[1] for coord in polygon],
-                    text=f"{subcounty_name}: {
-                        other_property}",  # Dynamic hover text
+                    text=f'{subcounty_name}: {other_property}',
                     marker={'size': 5, 'color': "green"},
                     line=dict(width=2),
                     hoverinfo='text'
