@@ -5,8 +5,8 @@ After=network.target
 [Service]
 User=root
 Group=root
-WorkingDirectory=/root/brian
-ExecStart=/root/brian/venv/bin/gunicorn -b 0.0.0.0:5000 -w 4 run:app
+WorkingDirectory=/root/farm_management
+ExecStart=/root/farm_management/venv/bin/gunicorn -b 0.0.0.0:5000 -w 4 run:app
 
 [Install]
 WantedBy=multi-user.target
