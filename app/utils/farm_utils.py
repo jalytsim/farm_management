@@ -29,3 +29,25 @@ def get_farmProperties(farm_id):
     except Exception as e:
         print(f"Error fetching farm properties: {e}")
         return None
+
+
+def get_all_farms():
+    return Farm.query.all()
+
+def create_farm(name, subcounty, farmergroup_id, district_id, geolocation):
+    farm = Farm(name=name, subcounty=subcounty, farmergroup_id=farmergroup_id, district_id=district_id, geolocation=geolocation)
+    db.session.add(farm)
+    db.session.commit()
+    return farm
+
+def update_farm(farm, name, subcounty, farmergroup_id, district_id, geolocation):
+    farm.name = name
+    farm.subcounty = subcounty
+    farm.farmergroup_id = farmergroup_id
+    farm.district_id = district_id
+    farm.geolocation = geolocation
+    db.session.commit()
+
+def delete_farm(farm):
+    db.session.delete(farm)
+    db.session.commit()

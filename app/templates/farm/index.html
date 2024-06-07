@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forest and Point Management</title>
+</head>
+<body>
+    <h1>Farm Management</h1>
+
+    <table border="1">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Subcounty</th>
+                <th>Farmer Group ID</th>
+                <th>District ID</th>
+                <th>Geolocation</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for farm in farms %}
+            <tr>
+                <td>{{ farm.name }}</td>
+                <td>{{ farm.subcounty }}</td>
+                <td>{{ farm.farmergroup_id }}</td>
+                <td>{{ farm.district_id }}</td>
+                <td>{{ farm.geolocation }}</td>
+                <td>
+                    <form action="{{ url_for('farm.edit_farm', farm_id=farm.id) }}" method="post" style="display:inline;">
+                        <input type="text" name="name" value="{{ farm.name }}">
+                        <input type="text" name="subcounty" value="{{ farm.subcounty }}">
+                        <input type="text" name="farmergroup_id" value="{{ farm.farmergroup_id }}">
+                        <input type="text" name="district_id" value="{{ farm.district_id }}">
+                        <input type="text" name="geolocation" value="{{ farm.geolocation }}">
+                        <button type="submit">Update</button>
+                    </form>
+                    <form action="{{ url_for('farm.delete_farm', farm_id=farm.id) }}" method="post" style="display:inline;">
+                        <button type="submit">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>
