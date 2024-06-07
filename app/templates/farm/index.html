@@ -8,6 +8,21 @@
 <body>
     <h1>Farm Management</h1>
 
+    <h1>Create Farm</h1>
+    <form action="{{ url_for('farm.create_farm') }}" method="POST">
+        <label for="name">Name:</label>
+        <input type="text" id="name" name="name">
+        <label for="subcounty">Subcounty:</label>
+        <input type="text" id="subcounty" name="subcounty">
+        <label for="farmergroup_id">Farmer Group :</label>
+        <input type="text" id="farmergroup_id" name="farmergroup_id">
+        <label for="district_id">District ID:</label>
+        <input type="text" id="district_id" name="district_id">
+        <label for="geolocation">Geolocation:</label>
+        <input type="text" id="geolocation" name="geolocation">
+        <button type="submit">Create Farm</button>
+    </form>
+
     <table border="1">
         <thead>
             <tr>
