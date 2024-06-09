@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Forest and Point Management</title>
+    <title>Farm Management</title>
     <link href="{{ url_for('static', filename='css/output.css') }}" rel="stylesheet">
 </head>
 
@@ -75,6 +75,7 @@
                             <form action="{{ url_for('farm.delete_farm', farm_id=farm.id) }}" method="post" class="inline-block">
                                 <button type="submit" class="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded">Delete</button>
                             </form>
+                            <a href="{{ url_for('farmdata.index', farm_id=farm.id) }}" class="bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-2 rounded">Add fd</a>
                         </td>
                     </tr>
                     {% endfor %}

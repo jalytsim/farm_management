@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit FarmData</title>
+    <link href="{{ url_for('static', filename='css/output.css') }}" rel="stylesheet">
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center py-10">
+    <div class="container mx-auto px-4">
+        <h1 class="text-4xl font-bold mb-8 text-center">Edit FarmData</h1>
+        <form method="POST" class="bg-white p-6 rounded-lg shadow-md">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label for="farm_id" class="block text-gray-700">Farm:</label>
+                    <select id="farm_id" name="farm_id" class="w-full p-2 border border-gray-300 rounded mt-1" required>
+                        {% for farm in farms %}
+                            <option value="{{ farm.id }}" {% if farm.id == farmdata.farm_id %}selected{% endif %}>{{ farm.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label for="crop_id" class="block text-gray-700">Crop:</label>
+                    <select id="crop_id" name="crop_id" class="w-full p-2 border border-gray-300 rounded mt-1" required>
+                        {% for crop in crops %}
+                            <option value="{{ crop.id }}" {% if crop.id == farmdata.crop_id %}selected{% endif %}>{{ crop.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label for="tilled_land_size" class="block text-gray-700">Tilled Land Size (hectares):</label>
+                    <input type="number" step="0.01" id="tilled_land_size" name="tilled_land_size" value="{{ farmdata.tilled_land_size }}" class="w-full p-2 border border-gray-300 rounded mt-1" required>
+                </div>
+                <div>
+                    <label for="planting_date" class="block text-gray-700">Planting Date:</label>
+                    <input type="date" id="planting_date" name="planting_date" value="{{ farmdata.planting_date }}" class="w-full p-2 border border-gray-300 rounded mt-1" required>
+                </div>
+                <div>
+                    <label for="season" class="block text-gray-700">Season:</label>
+                    <input type="number" id="season" name="season" value="{{ farmdata.season }}" class="w-full p-2 border border-gray-300 rounded mt-1" required>
+                </div>
+                <div>
+                    <label for="quality" class="block text-gray-700">Quality:</label>
+                    <input type="text" id="quality" name="quality" value="{{ farmdata.quality }}" class="w-full p-2 border border-gray-300 rounded mt-1" required>
+                </div>
+                <div>
+                    <label for="quantity" class="block text-gray-700">Quantity (units):</label>
+                    <input type="number" id="quantity" name="quantity" value="{{ farmdata.quantity }}" class="w-full p-2 border border-gray-300 rounded mt-1" required>
+                </div>
+                <div>
+                    <label for="harvest_date" class="block text-gray-700">Harvest Date:</label>
+                    <input type="date" id="harvest_date" name="harvest_date" value="{{ farmdata.harvest_date }}" class="w-full p-2 border border-gray-300 rounded mt-1" required>
+                </div>
+                <div>
+                    <label for="expected_yield" class="block text-gray-700">Expected Yield (tons):</label>
+                    <input type="number" step="0.01" id="expected_yield" name="expected_yield" value="{{ farmdata.expected_yield }}" class="w-full p-2 border border-gray-300 rounded mt-1" required>
+                </div>
+                <div>
+                    <label for="actual_yield" class="block text-gray-700">Actual Yield (tons):</label>
+                    <input type="number" step="0.01" id="actual_yield" name="actual_yield" value="{{ farmdata.actual_yield }}" class="w-full p-2 border border-gray-300 rounded mt-1" required>
+                </div>
+                <div>
+                    <label for="timestamp" class="block text-gray-700">Timestamp:</label>
+                    <input type="datetime-local" id="timestamp" name="timestamp" value="{{ farmdata.timestamp }}" class="w-full p-2 border border-gray-300 rounded mt-1" required>
+                </div>
+                <div>
+                    <label for="channel_partner" class="block text-gray-700">Channel Partner:</label>
+                    <input type="text" id="channel_partner" name="channel_partner" value="{{ farmdata.channel_partner }}" class="w-full p-2 border border-gray-300 rounded mt-1" required>
+                </div>
+                <div>
+                    <label for="destination_country" class="block text-gray-700">Destination Country:</label>
+                    <input type="text" id="destination_country" name="destination_country" value="{{ farmdata.destination_country }}" class="w-full p-2 border border-gray-300 rounded mt-1" required>
+                </div>
+                <div>
+                    <label for="customer_name" class="block text-gray-700">Customer Name:</label>
+                    <input type="text" id="customer_name" name="customer_name" value="{{ farmdata.customer_name }}" class="w-full p-2 border border-gray-300 rounded mt-1" required>
+                </div>
+            </div>
+            <button type="submit" class="mt-4 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Update</button>
+        </form>
+    </div>
+</body>
+</html>

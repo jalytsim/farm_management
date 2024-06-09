@@ -1,0 +1,25 @@
+<!-- app/templates/farmdata/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FarmData List</title>
+    <link href="{{ url_for('static', filename='css/output.css') }}" rel="stylesheet">
+</head>
+<body>
+    <h1>FarmData List</h1>
+    <a href="{{ url_for('farmdata.create_farmdata') }}">Create New FarmData</a>
+    <ul>
+        {% for farmdata in farmdata_list %}
+            <li>
+                Farm ID: {{ farmdata.farm_id }}, Crop ID: {{ farmdata.crop_id }}
+                <a href="{{ url_for('farmdata.edit_farmdata', id=farmdata.id) }}">Edit</a>
+                <form method="POST" action="{{ url_for('farmdata.delete_farmdata', id=farmdata.id) }}" style="display:inline;">
+                    <button type="submit">Delete</button>
+                </form>
+            </li>
+        {% endfor %}
+    </ul>
+</body>
+</html>
