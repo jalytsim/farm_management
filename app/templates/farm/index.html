@@ -1,63 +1,84 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Forest and Point Management</title>
+    <link href="{{ url_for('static', filename='css/output.css') }}" rel="stylesheet">
 </head>
-<body>
-    <h1>Farm Management</h1>
 
-    <h1>Create Farm</h1>
-    <form action="{{ url_for('farm.create_farm') }}" method="POST">
-        <label for="name">Name:</label>
-        <input type="text" id="name" name="name">
-        <label for="subcounty">Subcounty:</label>
-        <input type="text" id="subcounty" name="subcounty">
-        <label for="farmergroup_id">Farmer Group :</label>
-        <input type="text" id="farmergroup_id" name="farmergroup_id">
-        <label for="district_id">District ID:</label>
-        <input type="text" id="district_id" name="district_id">
-        <label for="geolocation">Geolocation:</label>
-        <input type="text" id="geolocation" name="geolocation">
-        <button type="submit">Create Farm</button>
-    </form>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center py-10">
+    <div class="container mx-auto px-4">
+        <h1 class="text-4xl font-bold mb-8 text-center">Farm Management</h1>
 
-    <table border="1">
-        <thead>
-            <tr>
-                <th>Name</th>
-                <th>Subcounty</th>
-                <th>Farmer Group ID</th>
-                <th>District ID</th>
-                <th>Geolocation</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for farm in farms %}
-            <tr>
-                <td>{{ farm.name }}</td>
-                <td>{{ farm.subcounty }}</td>
-                <td>{{ farm.farmergroup_id }}</td>
-                <td>{{ farm.district_id }}</td>
-                <td>{{ farm.geolocation }}</td>
-                <td>
-                    <form action="{{ url_for('farm.edit_farm', farm_id=farm.id) }}" method="post" style="display:inline;">
-                        <input type="text" name="name" value="{{ farm.name }}">
-                        <input type="text" name="subcounty" value="{{ farm.subcounty }}">
-                        <input type="text" name="farmergroup_id" value="{{ farm.farmergroup_id }}">
-                        <input type="text" name="district_id" value="{{ farm.district_id }}">
-                        <input type="text" name="geolocation" value="{{ farm.geolocation }}">
-                        <button type="submit">Update</button>
-                    </form>
-                    <form action="{{ url_for('farm.delete_farm', farm_id=farm.id) }}" method="post" style="display:inline;">
-                        <button type="submit">Delete</button>
-                    </form>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+        <h2 class="text-2xl font-bold mb-4">Create Farm</h2>
+        <form action="{{ url_for('farm.create_farm') }}" method="POST" class="bg-white p-6 rounded-lg shadow-md mb-8">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label for="name" class="block text-gray-700">Name:</label>
+                    <input type="text" id="name" name="name" class="w-full p-2 border border-gray-300 rounded mt-1">
+                </div>
+                <div>
+                    <label for="subcounty" class="block text-gray-700">Subcounty:</label>
+                    <input type="text" id="subcounty" name="subcounty" class="w-full p-2 border border-gray-300 rounded mt-1">
+                </div>
+                <div>
+                    <label for="farmergroup_id" class="block text-gray-700">Farmer Group:</label>
+                    <input type="text" id="farmergroup_id" name="farmergroup_id" class="w-full p-2 border border-gray-300 rounded mt-1">
+                </div>
+                <div>
+                    <label for="district_id" class="block text-gray-700">District ID:</label>
+                    <input type="text" id="district_id" name="district_id" class="w-full p-2 border border-gray-300 rounded mt-1">
+                </div>
+                <div class="md:col-span-2">
+                    <label for="geolocation" class="block text-gray-700">Geolocation:</label>
+                    <input type="text" id="geolocation" name="geolocation" class="w-full p-2 border border-gray-300 rounded mt-1">
+                </div>
+            </div>
+            <button type="submit" class="mt-4 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create Farm</button>
+        </form>
+
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h2 class="text-2xl font-bold mb-4">Farm List</h2>
+            <table class="w-full table-auto border-collapse">
+                <thead>
+                    <tr class="bg-gray-200">
+                        <th class="px-4 py-2">Name</th>
+                        <th class="px-4 py-2">Subcounty</th>
+                        <th class="px-4 py-2">Farmer Group ID</th>
+                        <th class="px-4 py-2">District ID</th>
+                        <th class="px-4 py-2">Geolocation</th>
+                        <th class="px-4 py-2">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for farm in farms %}
+                    <tr class="bg-white hover:bg-gray-100">
+                        <td class="border px-4 py-2">{{ farm.name }}</td>
+                        <td class="border px-4 py-2">{{ farm.subcounty }}</td>
+                        <td class="border px-4 py-2">{{ farm.farmergroup_id }}</td>
+                        <td class="border px-4 py-2">{{ farm.district_id }}</td>
+                        <td class="border px-4 py-2">{{ farm.geolocation }}</td>
+                        <td class="border px-4 py-2 flex space-x-2">
+                            <form action="{{ url_for('farm.edit_farm', farm_id=farm.id) }}" method="post" class="inline-block">
+                                <input type="text" name="name" value="{{ farm.name }}" class="hidden">
+                                <input type="text" name="subcounty" value="{{ farm.subcounty }}" class="hidden">
+                                <input type="text" name="farmergroup_id" value="{{ farm.farmergroup_id }}" class="hidden">
+                                <input type="text" name="district_id" value="{{ farm.district_id }}" class="hidden">
+                                <input type="text" name="geolocation" value="{{ farm.geolocation }}" class="hidden">
+                                <button type="submit" class="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-2 rounded">Update</button>
+                            </form>
+                            <form action="{{ url_for('farm.delete_farm', farm_id=farm.id) }}" method="post" class="inline-block">
+                                <button type="submit" class="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
 </body>
+
 </html>

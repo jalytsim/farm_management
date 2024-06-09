@@ -19,7 +19,7 @@ def login():
             return redirect(url_for('main.home'))
         else:
             flash('Login Unsuccessful. Please check email and password', 'danger')
-    return render_template('login.html')
+    return render_template('main/login.html')
 
 @bp.route('/signup', methods=['GET', 'POST'])
 def signup():
