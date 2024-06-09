@@ -20,7 +20,7 @@
                     <input type="text" id="name" name="name" class="w-full p-2 border border-gray-300 rounded mt-1">
                 </div>
                 <div>
-                    <label for="subcounty" class="block text-gray-700">Subcounty:</label>
+                    <label for="subcounty" class="block text-gray-700">District:</label>
                     <input type="text" id="subcounty" name="subcounty" class="w-full p-2 border border-gray-300 rounded mt-1">
                 </div>
                 <div>
@@ -45,7 +45,7 @@
                 <thead>
                     <tr class="bg-gray-200">
                         <th class="px-4 py-2">Name</th>
-                        <th class="px-4 py-2">Subcounty</th>
+                        <th class="px-4 py-2">District</th>
                         <th class="px-4 py-2">Farmer Group ID</th>
                         <th class="px-4 py-2">District ID</th>
                         <th class="px-4 py-2">Geolocation</th>
@@ -55,20 +55,23 @@
                 <tbody>
                     {% for farm in farms %}
                     <tr class="bg-white hover:bg-gray-100">
-                        <td class="border px-4 py-2">{{ farm.name }}</td>
-                        <td class="border px-4 py-2">{{ farm.subcounty }}</td>
-                        <td class="border px-4 py-2">{{ farm.farmergroup_id }}</td>
-                        <td class="border px-4 py-2">{{ farm.district_id }}</td>
-                        <td class="border px-4 py-2">{{ farm.geolocation }}</td>
+                        <td class="border px-4 py-2">
+                            <input type="text" value="{{ farm.name }}" class="w-full p-2 border border-gray-300 rounded mt-1 farm-name" data-id="{{ farm.id }}">
+                        </td>
+                        <td class="border px-4 py-2">
+                            <input type="text" value="{{ farm.subcounty }}" class="w-full p-2 border border-gray-300 rounded mt-1 farm-subcounty" data-id="{{ farm.id }}">
+                        </td>
+                        <td class="border px-4 py-2">
+                            <input type="text" value="{{ farm.farmergroup_id }}" class="w-full p-2 border border-gray-300 rounded mt-1 farm-farmergroup-id" data-id="{{ farm.id }}">
+                        </td>
+                        <td class="border px-4 py-2">
+                            <input type="text" value="{{ farm.district_id }}" class="w-full p-2 border border-gray-300 rounded mt-1 farm-district-id" data-id="{{ farm.id }}">
+                        </td>
+                        <td class="border px-4 py-2">
+                            <input type="text" value="{{ farm.geolocation }}" class="w-full p-2 border border-gray-300 rounded mt-1 farm-geolocation" data-id="{{ farm.id }}">
+                        </td>
                         <td class="border px-4 py-2 flex space-x-2">
-                            <form action="{{ url_for('farm.edit_farm', farm_id=farm.id) }}" method="post" class="inline-block">
-                                <input type="text" name="name" value="{{ farm.name }}" class="hidden">
-                                <input type="text" name="subcounty" value="{{ farm.subcounty }}" class="hidden">
-                                <input type="text" name="farmergroup_id" value="{{ farm.farmergroup_id }}" class="hidden">
-                                <input type="text" name="district_id" value="{{ farm.district_id }}" class="hidden">
-                                <input type="text" name="geolocation" value="{{ farm.geolocation }}" class="hidden">
-                                <button type="submit" class="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-2 rounded">Update</button>
-                            </form>
+                            <button onclick="updateFarm({{ farm.id }})" class="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-2 rounded">Update</button>
                             <form action="{{ url_for('farm.delete_farm', farm_id=farm.id) }}" method="post" class="inline-block">
                                 <button type="submit" class="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded">Delete</button>
                             </form>
@@ -79,6 +82,38 @@
             </table>
         </div>
     </div>
+
+    <script>
+        function updateFarm(farmId) {
+            const name = document.querySelector(`.farm-name[data-id='${farmId}']`).value;
+            const subcounty = document.querySelector(`.farm-subcounty[data-id='${farmId}']`).value;
+            const farmergroup_id = document.querySelector(`.farm-farmergroup-id[data-id='${farmId}']`).value;
+            const district_id = document.querySelector(`.farm-district-id[data-id='${farmId}']`).value;
+            const geolocation = document.querySelector(`.farm-geolocation[data-id='${farmId}']`).value;
+
+            fetch(`/farm/${farmId}/update`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    name: name,
+                    subcounty: subcounty,
+                    farmergroup_id: farmergroup_id,
+                    district_id: district_id,
+                    geolocation: geolocation
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Farm updated successfully');
+                } else {
+                    alert('Error updating farm');
+                }
+            });
+        }
+    </script>
 </body>
 
 </html>
