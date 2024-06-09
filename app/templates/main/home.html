@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agriyields Map Visualisation Data</title>
+    <link href="{{url_for('static',filename='css/output.css')}}" rel="stylesheet">
+</head>
+
+<body class="bg-gray-100">
+    <div class="flex h-screen justify-center items-center">
+        <div class="text-center">
+            <h1 class="text-4xl font-bold mb-8">Welcome to Agriyields</h1>
+            <p class="text-gray-700 text-lg mb-8">Choose an option below:</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="bg-white p-6 rounded-lg shadow-lg transform transition-transform hover:scale-105 hover:shadow-2xl">
+                    <h2 class="text-2xl font-bold mb-2">Map Visualization</h2>
+                    <p class="text-gray-700 mb-4">View and analyze your farm's geographical data.</p>
+                    <a href="{{ url_for('map.map') }}" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Go to Map</a>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-lg transform transition-transform hover:scale-105 hover:shadow-2xl">
+                    <h2 class="text-2xl font-bold mb-2">Forest Management</h2>
+                    <p class="text-gray-700 mb-4">Manage and monitor your forest areas efficiently.</p>
+                    <a href="{{ url_for('forest.index') }}" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">Forest Forest</a>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-lg transform transition-transform hover:scale-105 hover:shadow-2xl">
+                    <h2 class="text-2xl font-bold mb-2">QR Code Generation</h2>
+                    <p class="text-gray-700 mb-4">Generate QR codes for your farm produce.</p>
+                    <a href="{{ url_for('qr.qrcode') }}" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded">Generate QR Code</a>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-lg transform transition-transform hover:scale-105 hover:shadow-2xl">
+                    <h2 class="text-2xl font-bold mb-2">Farm Management</h2>
+                    <p class="text-gray-700 mb-4">Track and manage your farm data effectively.</p>
+                    <a href="{{ url_for('farm.index') }}" class="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded">Farm Farmer</a>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-lg transform transition-transform hover:scale-105 hover:shadow-2xl">
+                    <h2 class="text-2xl font-bold mb-2">Admin Dashboard</h2>
+                    <p class="text-gray-700 mb-4">Access administrative functionalities.</p>
+                    <a href="{{ url_for('admin.admin_dashboard') }}" class="bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded">Admin Dashboard</a>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-lg transform transition-transform hover:scale-105 hover:shadow-2xl">
+                    <h2 class="text-2xl font-bold mb-2">Logout</h2>
+                    <p class="text-gray-700 mb-4">End your session securely.</p>
+                    <a href="{{ url_for('auth.logout') }}" class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">Logout</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

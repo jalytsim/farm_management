@@ -1,3 +1,4 @@
+<!-- templates/admin/dashboard.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,7 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard</title>
     <link href="{{url_for('static',filename='css/output.css')}}" rel="stylesheet">
-    <script src="{{ url_for('static', filename='plotly-2.27.0.min.js') }}"></script></head>
+    <script src="{{ url_for('static', filename='plotly-2.27.0.min.js') }}"></script>
+</head>
 <body class="bg-gray-100 text-gray-900">
     <div class="min-h-screen flex flex-col">
         <header class="bg-blue-600 text-white py-4 shadow-md">
@@ -29,6 +31,9 @@
                 </ul>
                 <a href="{{ url_for('auth.logout') }}" class="inline-block bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">Logout</a>
             </div>
+
+            <!-- Include List of Users -->
+            {% include 'admin/user_list.html' %}
         </main>
     </div>
 </body>

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Farm Management App</title>
+    <link href="{{ url_for('static', filename='css/output.css') }}" rel="stylesheet">
+</head>
+<body class="bg-gray-100 text-gray-900">
+    <header class="bg-green-600 text-white py-6 shadow-md">
+        <div class="container mx-auto px-4 text-center">
+            <h1 class="text-3xl font-bold">Welcome to the Agriyields Traceability Portal</h1>
+            <p class="mt-2">Your solution for efficient farm management.</p>
+        </div>
+    </header>
+    
+    <main class="container mx-auto px-4 py-8">
+        <section class="mb-8">
+            <h2 class="text-2xl font-bold mb-4">Introduction</h2>
+            <p class="text-lg">This app helps you manage your farm data efficiently. Track your crops, monitor yields, and generate QR codes for your produce.</p>
+        </section>
+        
+        <section>
+            <h2 class="text-2xl font-bold mb-4">Get Started</h2>
+            <div class="flex space-x-4">
+                <a href="{{ url_for('auth.login') }}" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Login</a>
+                <a href="#" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700">Contact us to Register</a>
+            </div>
+        </section>
+    </main>
+    
+    <footer class="bg-gray-800 text-white py-4">
+        <div class="container mx-auto px-4 text-center">
+            <p>&copy; 2024 Farm Management App. All rights reserved.</p>
+        </div>
+    </footer>
+</body>
+</html>

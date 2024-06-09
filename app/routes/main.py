@@ -5,9 +5,9 @@ bp = Blueprint('main', __name__)
 
 @bp.route('/')
 def landing():
-    return render_template('landing.html')
+    return render_template('main/landing.html')
 @bp.route('/home')
 @login_required
 def home():
-    return render_template('home.html')
+    return render_template('main/home.html')
 
