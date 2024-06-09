@@ -17,6 +17,8 @@ INSERT INTO crop (id, name, weight, category_id) VALUES (3,'Coffee',25,3);
 INSERT INTO crop (id, name, weight, category_id) VALUES (4,'Cassava',30,4);
 INSERT INTO crop (id, name, weight, category_id) VALUES (5,'Rice',20,5);
 INSERT INTO crop (id, name, weight, category_id) VALUES (6,'Bananas',15,6);
+INSERT INTO crop (id, name, weight, category_id) VALUES (6,'Bananas',15,6);
+
 
 DROP TABLE IF EXISTS district;
 CREATE TABLE district (
@@ -152,6 +154,8 @@ INSERT INTO district (id, name, region) VALUES (122,'Tororo','East');
 INSERT INTO district (id, name, region) VALUES (123,'Wakiso','Central');
 INSERT INTO district (id, name, region) VALUES (124,'Yumbe','West');
 INSERT INTO district (id, name, region) VALUES (125,'Zombo','West');
+INSERT INTO district (id, name, region) VALUES (126,'BUIKWE','West');
+
 
 DROP TABLE IF EXISTS farm;
 
@@ -908,14 +912,14 @@ INSERT INTO soildata (id, district_id, internal_id, device, owner, nitrogen, pho
 INSERT INTO soildata (id, district_id, internal_id, device, owner, nitrogen, phosphorus, potassium, ph, temperature, humidity, conductivity, signal_level, date) VALUES (374,12,1376,'Device376','Owner376',0.6,0.5,0.6,11,26.5,63,115,-67,'2024-02-01');
 
 DROP TABLE IF EXISTS user;
-CREATE TABLE `user` (
-  id int NOT NULL AUTO_INCREMENT,
-  username varchar(150) NOT NULL,
-  email varchar(150) NOT NULL,
-  `password` varchar(150) NOT NULL,
-  PRIMARY KEY (id),
-  UNIQUE KEY username (username),
-  UNIQUE KEY email (email)
+CREATE TABLE user (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(150) NOT NULL UNIQUE,
+    email VARCHAR(150) NOT NULL UNIQUE,
+    password VARCHAR(150) NOT NULL,
+    phonenumber VARCHAR(20),
+    user_type VARCHAR(50) NOT NULL,
+    is_admin BOOLEAN DEFAULT FALSE
 );
 
 INSERT INTO user (id, username, email, password) VALUES (1,'test','test@gmail.com','$5$rounds=535000$oURh/oAV39V4uKwG$lDLn2b/XaOgwtcjxTjtQ6SZkM9b6Qgp8QRx9kQbsjDC');

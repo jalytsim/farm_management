@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <h1>Admin Dashboard</h1>
+    <p>Welcome, {{ current_user.username }}!</p>
+    <ul>
+        <li><a href="{{ url_for('admin.create_user') }}">Create New User</a></li>
+        <li><a href="{{ url_for('forest.index') }}">Forest Management</a></li>
+        <li><a href="{{ url_for('farm.index') }}">Farmer Management</a></li>
+    </ul>
+    <a href="{{ url_for('auth.logout') }}">Logout</a>
+</body>
+</html>

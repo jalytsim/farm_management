@@ -25,20 +25,33 @@ def login():
 def signup():
     if current_user.is_authenticated:
         return redirect(url_for('main.home'))
+    
     if request.method == 'POST':
         username = request.form.get('username')
         email = request.form.get('email')
         password = request.form.get('password')
+        phonenumber = request.form.get('phonenumber')
+        user_type = request.form.get('user_type')
         user = User.query.filter_by(email=email).first()
+        
         if user:
             flash('Email address already exists', 'danger')
             return redirect(url_for('auth.signup'))
 
-        new_user = User(username=username, email=email, password=generate_password_hash(password, method='pbkdf2:sha256'))
+        new_user = User(
+            username=username,
+            email=email,
+            password=generate_password_hash(password, method='pbkdf2:sha256'),
+            phonenumber=phonenumber,
+            user_type=user_type
+        )
+        
         db.session.add(new_user)
         db.session.commit()
         login_user(new_user)
+        
         return redirect(url_for('main.home'))
+    
     return render_template('signup.html')
 
 @bp.route('/logout')
@@ -46,3 +59,14 @@ def signup():
 def logout():
     logout_user()
     return redirect(url_for('auth.login'))
+
+@bp.route('/dashboard')
+@login_required
+def dashboard():
+    if current_user.user_type == 'farmer':
+        return render_template('farmer_dashboard.html')
+    elif current_user.user_type == 'forest':
+        return render_template('forest_dashboard.html')
+    else:
+        flash('Invalid user type', 'danger')
+        return redirect(url_for('auth.logout'))

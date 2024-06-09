@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create User</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <h1>Create User</h1>
+    <form method="POST" action="{{ url_for('admin.create_user') }}">
+        <label for="username">Username:</label>
+        <input type="text" id="username" name="username" required>
+        <br>
+        <label for="email">Email:</label>
+        <input type="email" id="email" name="email" required>
+        <br>
+        <label for="phonenumber">Phone number:</label>
+        <input type="text" id="phonenumber" name="phonenumber" required>
+        <br>
+        <label for="user_type">User Type:</label>
+        <select id="user_type" name="user_type" required>
+            <option value="farmer">Farmer</option>
+            <option value="forest">Forest</option>
+            <option value="admin">Admin</option>
+        </select>
+        <br>
+        <label for="is_admin">Admin:</label>
+        <input type="checkbox" id="is_admin" name="is_admin">
+        <br>
+        <label for="password">Password:</label>
+        <input type="password" id="password" name="password" required>
+        <br>
+        <button type="submit">Create User</button>
+    </form>
+    <a href="{{ url_for('admin.admin_dashboard') }}">Back to Dashboard</a>
+</body>
+</html>
