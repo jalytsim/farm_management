@@ -4,16 +4,32 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-</head>
-<body>
-    <h1>Admin Dashboard</h1>
-    <p>Welcome, {{ current_user.username }}!</p>
-    <ul>
-        <li><a href="{{ url_for('admin.create_user') }}">Create New User</a></li>
-        <li><a href="{{ url_for('forest.index') }}">Forest Management</a></li>
-        <li><a href="{{ url_for('farm.index') }}">Farmer Management</a></li>
-    </ul>
-    <a href="{{ url_for('auth.logout') }}">Logout</a>
+    <link href="{{url_for('static',filename='css/output.css')}}" rel="stylesheet">
+    <script src="{{ url_for('static', filename='plotly-2.27.0.min.js') }}"></script></head>
+<body class="bg-gray-100 text-gray-900">
+    <div class="min-h-screen flex flex-col">
+        <header class="bg-blue-600 text-white py-4 shadow-md">
+            <div class="container mx-auto px-4">
+                <h1 class="text-2xl font-bold">Admin Dashboard</h1>
+            </div>
+        </header>
+        <main class="flex-grow container mx-auto px-4 py-6">
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <p class="text-lg mb-4">Welcome, <span class="font-semibold">{{ current_user.username }}</span>!</p>
+                <ul class="space-y-3 mb-6">
+                    <li>
+                        <a href="{{ url_for('admin.create_user') }}" class="text-blue-600 hover:underline">Create New User</a>
+                    </li>
+                    <li>
+                        <a href="{{ url_for('forest.index') }}" class="text-blue-600 hover:underline">Forest Management</a>
+                    </li>
+                    <li>
+                        <a href="{{ url_for('farm.index') }}" class="text-blue-600 hover:underline">Farmer Management</a>
+                    </li>
+                </ul>
+                <a href="{{ url_for('auth.logout') }}" class="inline-block bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">Logout</a>
+            </div>
+        </main>
+    </div>
 </body>
 </html>
