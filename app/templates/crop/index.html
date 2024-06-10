@@ -1,0 +1,72 @@
+<!-- templates/crop/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crop Management</title>
+    <link href="{{ url_for('static', filename='css/output.css') }}" rel="stylesheet">
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center py-10">
+    <div class="container mx-auto px-4">
+        <h1 class="text-4xl font-bold mb-8 text-center">Crop Management</h1>
+        <div class="flex justify-between mb-8">
+            <button onclick="openModal('cropModal')" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create Crop</button>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow-md w-full">
+            <h2 class="text-2xl font-bold mb-4">Crop List</h2>
+            <table class="w-full table-auto border-collapse">
+                <thead>
+                    <tr class="bg-gray-200">
+                        <th class="px-4 py-2">Name</th>
+                        <th class="px-4 py-2">Weight</th>
+                        <th class="px-4 py-2">Category</th>
+                        <th class="px-4 py-2">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for crop in crops %}
+                    <tr class="bg-white hover:bg-gray-100">
+                        <td class="border px-4 py-2">{{ crop.name }}</td>
+                        <td class="border px-4 py-2">{{ crop.weight }}</td>
+                        <td class="border px-4 py-2">{{ crop.category_id }}</td>
+                        <td class="border px-4 py-2 flex space-x-2">
+                            <button onclick="openModal('cropModal', {{ crop.id }})" class="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-2 rounded">Edit</button>
+                            <form action="{{ url_for('crop.delete_crop', id=crop.id) }}" method="post" class="inline-block">
+                                <button type="submit" class="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% include 'crop/_crop_form_modal.html' %}
+    <script>
+        function openModal(modalId, cropId = null) {
+            if (cropId) {
+                fetch(`/crop/${cropId}/edit`)
+                    .then(response => response.json())
+                    .then(data => {
+                        document.getElementById('name').value = data.name;
+                        document.getElementById('weight').value = data.weight;
+                        document.getElementById('category_id').value = data.category_id;
+                    });
+            } else {
+                // Reset form for creating new crop
+                document.getElementById('name').value = '';
+                document.getElementById('weight').value = '';
+                document.getElementById('category_id').value = '';
+            }
+            document.getElementById(modalId).classList.remove('hidden');
+        }
+    
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.add('hidden');
+        }
+    </script>
+    
+</body>
+</html>

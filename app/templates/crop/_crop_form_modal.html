@@ -1,0 +1,28 @@
+<!-- templates/crop/_crop_form_modal.html -->
+<div id="cropModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center">
+    <div class="bg-white p-6 rounded-lg shadow-md w-full max-w-lg">
+        <h1 class="text-2xl font-bold mb-4">{% if crop %}Edit{% else %}Create{% endif %} Crop</h1>
+        <form method="POST" action="{% if crop %}{{ url_for('crop.update_crop', id=crop.id) }}{% else %}{{ url_for('crop.create_crop') }}{% endif %}" class="bg-white p-6 rounded-lg shadow-md">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label for="name" class="block text-gray-700">Name:</label>
+                    <input type="text" id="name" name="name" value="" class="w-full p-2 border border-gray-300 rounded mt-1" required>
+                </div>
+                <div>
+                    <label for="weight" class="block text-gray-700">Weight:</label>
+                    <input type="number" step="0.01" id="weight" name="weight" value="" class="w-full p-2 border border-gray-300 rounded mt-1" required>
+                </div>
+                <div>
+                    <label for="category_id" class="block text-gray-700">Category:</label>
+                    <select id="category_id" name="category_id" class="w-full p-2 border border-gray-300 rounded mt-1" required>
+                        {% for category in categories %}
+                            <option value="{{ category.id }}">{{ category.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <button type="button" onclick="closeModal('cropModal')" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded mr-2">Cancel</button>
+            <button type="submit" class="mt-4 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">{% if crop %}Update{% else %}Create{% endif %}</button>
+        </form>
+    </div>
+</div>

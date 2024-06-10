@@ -1,0 +1,21 @@
+<div id="farmerGroupModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center">
+    <div class="bg-white p-6 rounded-lg shadow-md w-full max-w-lg">
+        <h2 class="text-2xl font-bold mb-4">Create Farmer Group</h2>
+        <form action="{{ url_for('farmergroup.create_farmergroup') }}" method="POST">
+            <div class="grid grid-cols-1 gap-6">
+                <div>
+                    <label for="name" class="block text-gray-700">Name:</label>
+                    <input type="text" id="name" name="name" class="w-full p-2 border border-gray-300 rounded mt-1">
+                </div>
+                <div>
+                    <label for="description" class="block text-gray-700">Description:</label>
+                    <textarea id="description" name="description" class="w-full p-2 border border-gray-300 rounded mt-1"></textarea>
+                </div>
+            </div>
+            <div class="flex justify-end mt-4">
+                <button type="button" onclick="closeModal('farmerGroupModal')" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded mr-2">Cancel</button>
+                <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create Farmer Group</button>
+            </div>
+        </form>
+    </div>
+</div>

@@ -1,6 +1,6 @@
 from flask import Blueprint, flash, render_template, redirect, request, url_for, send_file
 from flask_login import current_user, login_required
-from app.models import Farm
+from app.models import District, Farm, FarmerGroup, ProduceCategory
 from app.utils import farm_utils
 from app.utils.qr_generator import generate_qr_codes
 from app.utils.map_utils import generate_choropleth_map
@@ -22,27 +22,37 @@ def farmer_or_admin_required(f):
 @login_required
 @farmer_or_admin_required
 def index():
-    farms = farm_utils.get_all_farms()
-    return render_template('farm/index.html', farms=farms)
-
+    farms = Farm.query.all()
+    districts = District.query.all()
+    farmergroups = FarmerGroup.query.all()
+    categories = ProduceCategory.query.all()
+    return render_template('farm/index.html', farms=farms, districts=districts, farmergroups=farmergroups,categories=categories)
 @bp.route('/farm/create', methods=['GET', 'POST'])
 @login_required
 @farmer_or_admin_required
 def create_farm():
     if request.method == 'POST':
         name = request.form['name']
-        subcounty = request.form['subcounty']
-        farmergroup_id = request.form['farmergroup_id']
         district_id = request.form['district_id']
-        geolocation = request.form['geolocation']
-        farm_utils.create_farm(name, subcounty, farmergroup_id, district_id, geolocation)
-        return redirect(url_for('farm.index'))
-    return render_template('farm/create.html')
+        farmergroup_id = request.form['farmergroup_id']
+        longitude = request.form['longitude']
+        latitude = request.form['latitude']
+        geolocation = f"{latitude},{longitude}"
 
+        farm_utils.create_farm(name, district_id, farmergroup_id, district_id, geolocation)
+        return redirect(url_for('farm.index'))
+
+    districts = District.query.all()
+    farmergroups = FarmerGroup.query.all()
+    return render_template('farm/create.html', districts=districts, farmergroups=farmergroups)
 @bp.route('/farm/<int:farm_id>/edit', methods=['GET', 'POST'])
 @login_required
 @farmer_or_admin_required
 def edit_farm(farm_id):
+    farms = Farm.query.all()
+    districts = District.query.all()
+    farmergroups = FarmerGroup.query.all()
+    categories = ProduceCategory.query.all()
     farm = Farm.query.get_or_404(farm_id)
     if request.method == 'POST':
         name = request.form['name']
@@ -52,7 +62,7 @@ def edit_farm(farm_id):
         geolocation = request.form['geolocation']
         farm_utils.update_farm(farm, name, subcounty, farmergroup_id, district_id, geolocation)
         return redirect(url_for('farm.index'))
-    return render_template('farm/index.html', farms=farm)
+    return render_template('farm/index.html', farms=farms, districts=districts, farmergroups=farmergroups,categories=categories)
 
 @bp.route('/farm/<int:farm_id>/delete', methods=['POST'])
 @login_required

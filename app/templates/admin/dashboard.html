@@ -1,4 +1,3 @@
-<!-- templates/admin/dashboard.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -16,11 +15,11 @@
             </div>
         </header>
         <main class="flex-grow container mx-auto px-4 py-6">
-            <div class="bg-white p-6 rounded-lg shadow-md">
+            <div class="bg-white p-6 rounded-lg shadow-md mb-6">
                 <p class="text-lg mb-4">Welcome, <span class="font-semibold">{{ current_user.username }}</span>!</p>
                 <ul class="space-y-3 mb-6">
                     <li>
-                        <a href="{{ url_for('admin.create_user') }}" class="text-blue-600 hover:underline">Create New User</a>
+                        <button onclick="openModal('userModal')" class="text-blue-600 hover:underline">Create New User</button>
                     </li>
                     <li>
                         <a href="{{ url_for('forest.index') }}" class="text-blue-600 hover:underline">Forest Management</a>
@@ -31,10 +30,19 @@
                 </ul>
                 <a href="{{ url_for('auth.logout') }}" class="inline-block bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">Logout</a>
             </div>
-
+            {% include 'admin/create_user.html' %}
             <!-- Include List of Users -->
             {% include 'admin/user_list.html' %}
         </main>
     </div>
+    <script>
+        function openModal(modalId) {
+            document.getElementById(modalId).classList.remove('hidden');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.add('hidden');
+        }
+    </script>
 </body>
 </html>

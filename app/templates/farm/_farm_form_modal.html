@@ -1,0 +1,47 @@
+<div id="farmModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center">
+    <div class="bg-white p-6 rounded-lg shadow-md w-full max-w-lg">
+        <h2 class="text-2xl font-bold mb-4">Create Farm</h2>
+        <form action="{{ url_for('farm.create_farm') }}" method="POST">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label for="farm_id" class="block text-gray-700">ID:</label>
+                    <input type="number" id="farm_id" name="farm_id" class="w-full p-2 border border-gray-300 rounded mt-1">
+                </div>
+                <div>
+                    <label for="name" class="block text-gray-700">Name:</label>
+                    <input type="text" id="name" name="name" class="w-full p-2 border border-gray-300 rounded mt-1">
+                </div>
+                <div>
+                    <label for="district_id" class="block text-gray-700">District:</label>
+                    <select id="district_id" name="district_id" class="w-full p-2 border border-gray-300 rounded mt-1">
+                        <option value="">Select District</option>
+                        {% for district in districts %}
+                            <option value="{{ district.id }}">{{ district.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label for="farmergroup_id" class="block text-gray-700">Farmer Group:</label>
+                    <select id="farmergroup_id" name="farmergroup_id" class="w-full p-2 border border-gray-300 rounded mt-1">
+                        <option value="">Select Farmer Group</option>
+                        {% for farmergroup in farmergroups %}
+                            <option value="{{ farmergroup.id }}">{{ farmergroup.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label for="longitude" class="block text-gray-700">Longitude:</label>
+                    <input type="number" id="longitude" name="longitude" class="w-full p-2 border border-gray-300 rounded mt-1" step="any">
+                </div>
+                <div>
+                    <label for="latitude" class="block text-gray-700">Latitude:</label>
+                    <input type="number" id="latitude" name="latitude" class="w-full p-2 border border-gray-300 rounded mt-1" step="any">
+                </div>
+            </div>
+            <div class="flex justify-end mt-4">
+                <button type="button" onclick="closeModal('farmModal')" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded mr-2">Cancel</button>
+                <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create Farm</button>
+            </div>
+        </form>
+    </div>
+</div>

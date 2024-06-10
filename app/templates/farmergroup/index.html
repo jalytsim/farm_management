@@ -1,0 +1,29 @@
+<!-- app/templates/farmergroup/index.html -->
+<div class="bg-white p-6 rounded-lg shadow-md">
+    <h2 class="text-2xl font-bold mb-4">Farmer Groups</h2>
+    <button onclick="openModal('farmerGroupModal')" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mb-4">Create Farmer Group</button>
+    <table class="w-full table-auto border-collapse">
+        <thead>
+            <tr class="bg-gray-200">
+                <th class="px-4 py-2">Name</th>
+                <th class="px-4 py-2">Description</th>
+                <th class="px-4 py-2">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for farmergroup in farmergroups %}
+            <tr class="bg-white hover:bg-gray-100">
+                <td class="border px-4 py-2">{{ farmergroup.name }}</td>
+                <td class="border px-4 py-2">{{ farmergroup.description }}</td>
+                <td class="border px-4 py-2 flex space-x-2">
+                    <a href="{{ url_for('farmergroup.edit_farmergroup', id=farmergroup.id) }}" class="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-2 rounded">Edit</a>
+                    <form action="{{ url_for('farmergroup.delete_farmergroup', id=farmergroup.id) }}" method="post" class="inline-block">
+                        <button type="submit" class="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% include 'farmergroup/_farmergroup_form_modal.html' %}

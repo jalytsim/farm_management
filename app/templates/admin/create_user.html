@@ -1,38 +1,39 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Create User</title>
-    <link href="{{url_for('static',filename='css/output.css')}}" rel="stylesheet">
-</head>
-<body>
-    <h1>Create User</h1>
-    <form method="POST" action="{{ url_for('admin.create_user') }}">
-        <label for="username">Username:</label>
-        <input type="text" id="username" name="username" required>
-        <br>
-        <label for="email">Email:</label>
-        <input type="email" id="email" name="email" required>
-        <br>
-        <label for="phonenumber">Phone number:</label>
-        <input type="text" id="phonenumber" name="phonenumber" required>
-        <br>
-        <label for="user_type">User Type:</label>
-        <select id="user_type" name="user_type" required>
-            <option value="farmer">Farmer</option>
-            <option value="forest">Forest</option>
-            <option value="admin">Admin</option>
-        </select>
-        <br>
-        <label for="is_admin">Admin:</label>
-        <input type="checkbox" id="is_admin" name="is_admin">
-        <br>
-        <label for="password">Password:</label>
-        <input type="password" id="password" name="password" required>
-        <br>
-        <button type="submit">Create User</button>
-    </form>
-    <a href="{{ url_for('admin.admin_dashboard') }}">Back to Dashboard</a>
-</body>
-</html>
+<div id="userModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center">
+    <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-lg">
+        <h2 class="text-2xl font-bold mb-6 text-center">Create User</h2>
+        <form method="POST" action="{{ url_for('admin.create_user') }}" class="space-y-4">
+            <div>
+                <label for="username" class="block text-gray-700">Username:</label>
+                <input type="text" id="username" name="username" class="w-full mt-1 p-2 border border-gray-300 rounded" required>
+            </div>
+            <div>
+                <label for="email" class="block text-gray-700">Email:</label>
+                <input type="email" id="email" name="email" class="w-full mt-1 p-2 border border-gray-300 rounded" required>
+            </div>
+            <div>
+                <label for="phonenumber" class="block text-gray-700">Phone number:</label>
+                <input type="text" id="phonenumber" name="phonenumber" class="w-full mt-1 p-2 border border-gray-300 rounded" required>
+            </div>
+            <div>
+                <label for="user_type" class="block text-gray-700">User Type:</label>
+                <select id="user_type" name="user_type" class="w-full mt-1 p-2 border border-gray-300 rounded" required>
+                    <option value="farmer">Farmer</option>
+                    <option value="forest">Forest</option>
+                    <option value="admin">Admin</option>
+                </select>
+            </div>
+            <div class="flex items-center">
+                <input type="checkbox" id="is_admin" name="is_admin" class="mr-2">
+                <label for="is_admin" class="text-gray-700">Admin</label>
+            </div>
+            <div>
+                <label for="password" class="block text-gray-700">Password:</label>
+                <input type="password" id="password" name="password" class="w-full mt-1 p-2 border border-gray-300 rounded" required>
+            </div>
+            <div class="flex justify-end mt-4">
+                <button type="button" onclick="closeModal('userModal')" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded mr-2">Cancel</button>
+                <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create User</button>
+            </div>
+        </form>
+    </div>
+</div>

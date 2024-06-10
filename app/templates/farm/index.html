@@ -12,85 +12,36 @@
     <div class="container mx-auto px-4">
         <h1 class="text-4xl font-bold mb-8 text-center">Farm Management</h1>
 
-        <h2 class="text-2xl font-bold mb-4">Create Farm</h2>
-        <form action="{{ url_for('farm.create_farm') }}" method="POST" class="bg-white p-6 rounded-lg shadow-md mb-8">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                    <label for="name" class="block text-gray-700">Name:</label>
-                    <input type="text" id="name" name="name" class="w-full p-2 border border-gray-300 rounded mt-1">
-                </div>
-                <div>
-                    <label for="subcounty" class="block text-gray-700">District:</label>
-                    <input type="text" id="subcounty" name="subcounty" class="w-full p-2 border border-gray-300 rounded mt-1">
-                </div>
-                <div>
-                    <label for="farmergroup_id" class="block text-gray-700">Farmer Group:</label>
-                    <input type="text" id="farmergroup_id" name="farmergroup_id" class="w-full p-2 border border-gray-300 rounded mt-1">
-                </div>
-                <div>
-                    <label for="district_id" class="block text-gray-700">District ID:</label>
-                    <input type="text" id="district_id" name="district_id" class="w-full p-2 border border-gray-300 rounded mt-1">
-                </div>
-                <div class="md:col-span-2">
-                    <label for="geolocation" class="block text-gray-700">Geolocation:</label>
-                    <input type="text" id="geolocation" name="geolocation" class="w-full p-2 border border-gray-300 rounded mt-1">
-                </div>
-            </div>
-            <button type="submit" class="mt-4 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create Farm</button>
-        </form>
-
-        <div class="bg-white p-6 rounded-lg shadow-md">
-            <h2 class="text-2xl font-bold mb-4">Farm List</h2>
-            <table class="w-full table-auto border-collapse">
-                <thead>
-                    <tr class="bg-gray-200">
-                        <th class="px-4 py-2">Name</th>
-                        <th class="px-4 py-2">District</th>
-                        <th class="px-4 py-2">Farmer Group ID</th>
-                        <th class="px-4 py-2">District ID</th>
-                        <th class="px-4 py-2">Geolocation</th>
-                        <th class="px-4 py-2">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for farm in farms %}
-                    <tr class="bg-white hover:bg-gray-100">
-                        <td class="border px-4 py-2">
-                            <input type="text" value="{{ farm.name }}" class="w-full p-2 border border-gray-300 rounded mt-1 farm-name" data-id="{{ farm.id }}">
-                        </td>
-                        <td class="border px-4 py-2">
-                            <input type="text" value="{{ farm.subcounty }}" class="w-full p-2 border border-gray-300 rounded mt-1 farm-subcounty" data-id="{{ farm.id }}">
-                        </td>
-                        <td class="border px-4 py-2">
-                            <input type="text" value="{{ farm.farmergroup_id }}" class="w-full p-2 border border-gray-300 rounded mt-1 farm-farmergroup-id" data-id="{{ farm.id }}">
-                        </td>
-                        <td class="border px-4 py-2">
-                            <input type="text" value="{{ farm.district_id }}" class="w-full p-2 border border-gray-300 rounded mt-1 farm-district-id" data-id="{{ farm.id }}">
-                        </td>
-                        <td class="border px-4 py-2">
-                            <input type="text" value="{{ farm.geolocation }}" class="w-full p-2 border border-gray-300 rounded mt-1 farm-geolocation" data-id="{{ farm.id }}">
-                        </td>
-                        <td class="border px-4 py-2 flex space-x-2">
-                            <button onclick="updateFarm({{ farm.id }})" class="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-2 rounded">Update</button>
-                            <form action="{{ url_for('farm.delete_farm', farm_id=farm.id) }}" method="post" class="inline-block">
-                                <button type="submit" class="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded">Delete</button>
-                            </form>
-                            <a href="{{ url_for('farmdata.index', farm_id=farm.id) }}" class="bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-2 rounded">Add fd</a>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <div class="flex justify-between mb-8">
+            <button onclick="openModal('farmModal')" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create Farm</button>
+            <button onclick="openModal('farmerGroupModal')" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create Farmer Group</button>
+            <button onclick="openModal('cropModal')" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create Crop</button>
         </div>
+
+        {% include 'farm/farm_list.html' %}
+
     </div>
 
+    {% include 'farm/_farm_form_modal.html' %}
+    {% include 'farmergroup/_farmergroup_form_modal.html' %}
+    {% include 'crop/_crop_form_modal.html' %}
+
     <script>
+        function openModal(modalId) {
+            document.getElementById(modalId).classList.remove('hidden');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.add('hidden');
+        }
+
         function updateFarm(farmId) {
             const name = document.querySelector(`.farm-name[data-id='${farmId}']`).value;
-            const subcounty = document.querySelector(`.farm-subcounty[data-id='${farmId}']`).value;
-            const farmergroup_id = document.querySelector(`.farm-farmergroup-id[data-id='${farmId}']`).value;
-            const district_id = document.querySelector(`.farm-district-id[data-id='${farmId}']`).value;
-            const geolocation = document.querySelector(`.farm-geolocation[data-id='${farmId}']`).value;
+            const district_id = document.querySelector(`.farm-district[data-id='${farmId}']`).value;
+            const farmergroup_id = document.querySelector(`.farm-farmergroup[data-id='${farmId}']`).value;
+            const longitude = document.querySelector(`.farm-longitude[data-id='${farmId}']`).value;
+            const latitude = document.querySelector(`.farm-latitude[data-id='${farmId}']`).value;
+            const geolocation = `${longitude},${latitude}`;
 
             fetch(`/farm/${farmId}/update`, {
                 method: 'POST',
@@ -99,9 +50,8 @@
                 },
                 body: JSON.stringify({
                     name: name,
-                    subcounty: subcounty,
-                    farmergroup_id: farmergroup_id,
                     district_id: district_id,
+                    farmergroup_id: farmergroup_id,
                     geolocation: geolocation
                 })
             })

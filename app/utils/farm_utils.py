@@ -1,4 +1,4 @@
-from app.models import Farm, FarmData, District
+from app.models import Farm, FarmData, District, FarmerGroup
 from app import db
 
 def get_farmProperties(farm_id):
@@ -32,7 +32,11 @@ def get_farmProperties(farm_id):
 
 
 def get_all_farms():
-    return Farm.query.all()
+    return db.session.query(Farm).join(District).join(FarmerGroup).add_columns(
+        Farm.id, Farm.name, Farm.geolocation, Farm.district_id, Farm.farmergroup_id,
+        District.name.label('district_name'), FarmerGroup.name.label('farmergroup_name')
+    ).all()
+
 
 def create_farm(name, subcounty, farmergroup_id, district_id, geolocation):
     farm = Farm(name=name, subcounty=subcounty, farmergroup_id=farmergroup_id, district_id=district_id, geolocation=geolocation)

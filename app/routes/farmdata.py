@@ -34,10 +34,11 @@ def create_farmdata():
             'destination_country': request.form['destination_country'],
             'customer_name': request.form['customer_name']
         }
+        farm_id = request.form['farm_id']
 
         farmdata_utils.create_farmdata(data)
         flash('FarmData created successfully.', 'success')
-        return redirect(url_for('farmdata.index'))
+        return redirect(url_for('farmdata.index', farm_id=farm_id))
 
     farms = Farm.query.all()
     crops = Crop.query.all()
@@ -49,6 +50,7 @@ def create_farmdata():
 def edit_farmdata(id):
     farmdata = farmdata_utils.get_farmdata_by_id(id)
     if request.method == 'POST':
+        farm_id = request.form['farm_id']
         data = {
             'farm_id': request.form['farm_id'],
             'crop_id': request.form['crop_id'],
@@ -68,7 +70,7 @@ def edit_farmdata(id):
 
         farmdata_utils.update_farmdata(farmdata, data)
         flash('FarmData updated successfully.', 'success')
-        return redirect(url_for('farmdata.index'))
+        return redirect(url_for('farmdata.index', farm_id=farm_id))
 
     farms = Farm.query.all()
     crops = Crop.query.all()

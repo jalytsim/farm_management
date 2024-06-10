@@ -30,6 +30,8 @@ def create_app():
         from app.models import User  # Ensure models are imported after app context is set up
 
     from app.routes import auth, farm, qr, map, main, forest, point, admin, farmdata
+    from app.routes import crop
+    from app.routes import farmergroup  
     app.register_blueprint(auth.bp)
     app.register_blueprint(farm.bp)
     app.register_blueprint(qr.bp)
@@ -39,6 +41,9 @@ def create_app():
     app.register_blueprint(point.bp)
     app.register_blueprint(admin.admin_bp)
     app.register_blueprint(farmdata.bp)
+    app.register_blueprint(crop.crop_bp)
+    app.register_blueprint(farmergroup.farmergroup_bp)
+    
 
     from app.routes.testDb import test
     app.register_blueprint(test)

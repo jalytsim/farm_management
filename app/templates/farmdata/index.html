@@ -1,25 +1,32 @@
-<!-- app/templates/farmdata/index.html -->
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FarmData List</title>
     <link href="{{ url_for('static', filename='css/output.css') }}" rel="stylesheet">
 </head>
-<body>
-    <h1>FarmData List</h1>
-    <a href="{{ url_for('farmdata.create_farmdata') }}">Create New FarmData</a>
-    <ul>
-        {% for farmdata in farmdata_list %}
-            <li>
-                Farm ID: {{ farmdata.farm_id }}, Crop ID: {{ farmdata.crop_id }}
-                <a href="{{ url_for('farmdata.edit_farmdata', id=farmdata.id) }}">Edit</a>
-                <form method="POST" action="{{ url_for('farmdata.delete_farmdata', id=farmdata.id) }}" style="display:inline;">
-                    <button type="submit">Delete</button>
-                </form>
-            </li>
-        {% endfor %}
-    </ul>
+
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center py-10">
+    <div class="container mx-auto px-4">
+        <h1 class="text-4xl font-bold mb-8 text-center">FarmData List</h1>
+        <a href="{{ url_for('farmdata.create_farmdata') }}" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create New FarmData</a>
+        <ul class="mt-8">
+            {% for farmdata in farmdata_list %}
+                <li class="bg-white p-4 rounded-lg shadow-md mb-4">
+                    <span class="font-semibold">Farm ID:</span> {{ farmdata.farm_id }}, 
+                    <span class="font-semibold">Crop ID:</span> {{ farmdata.crop_id }}
+                    <div class="mt-2">
+                        <a href="{{ url_for('farmdata.edit_farmdata', id=farmdata.id) }}" class="text-blue-500 hover:underline mr-4">Edit</a>
+                        <form method="POST" action="{{ url_for('farmdata.delete_farmdata', id=farmdata.id) }}" style="display:inline;">
+                            <button type="submit" class="text-red-500 hover:underline">Delete</button>
+                        </form>
+                    </div>
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
 </body>
+
 </html>
