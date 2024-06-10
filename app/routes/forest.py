@@ -11,7 +11,7 @@ bp = Blueprint('forest', __name__)
 def index():
     forests = get_all_forests()
     points = get_all_points()
-    return render_template('forest.html', forests=forests, points=points)
+    return render_template('forest/forest.html', forests=forests, points=points)
 
 @bp.route('/forest/create', methods=['POST'])
 @login_required
@@ -38,4 +38,4 @@ def handle_delete_forest(id):
 def view():
     forests = get_all_forests()
     points = get_all_points()
-    return render_template('forest.html', forests=forests, points=points)
+    return render_template('forest/forest.html', forests=forests, points=points)
