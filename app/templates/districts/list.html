@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Districts</title>
+</head>
+<body>
+    <h1>Districts</h1>
+    <a href="{{ url_for('districts.create_district_route') }}">Create District</a>
+    <ul>
+        {% for district in districts %}
+            <li>
+                {{ district.name }} - {{ district.region }}
+                <a href="{{ url_for('districts.view_district', district_id=district.id) }}">View</a>
+                <a href="{{ url_for('districts.edit_district_route', district_id=district.id) }}">Edit</a>
+                <form action="{{ url_for('districts.delete_district_route', district_id=district.id) }}" method="POST" style="display:inline;">
+                    <button type="submit">Delete</button>
+                </form>
+            </li>
+        {% endfor %}
+    </ul>
+</body>
+</html>

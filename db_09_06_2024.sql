@@ -925,4 +925,10 @@ CREATE TABLE user (
 INSERT INTO user (id, username, email, password) VALUES (1,'test','test@gmail.com','$5$rounds=535000$oURh/oAV39V4uKwG$lDLn2b/XaOgwtcjxTjtQ6SZkM9b6Qgp8QRx9kQbsjDC');
 INSERT INTO user (id, username, email, password) VALUES (2,'brian','brian@gmail.com','pbkdf2:sha256:600000$8sReL4dHK82vojQg$0db10c580717ddaae0e1fdaf25086903c32970af0ab4827ec258f24d0ac34fb0');
 INSERT INTO user (id, username, email, password) VALUES (3,'nomena','nomenatsimijaly@gmail.com','pbkdf2:sha256:600000$2jx7brRgdrye3R06$fc947efd719423051921a68fc6e694453bc9021c36c36cbace8dbb77312a0044');
+INSERT INTO user (id, username, email, password, phonenumber, user_type,is_admin) VALUES ('2', 'Admin', 'admin@admin.admin', 'pbkdf2:sha256:600000$us9tk0a4zUPQBs8f$06f2ace9bba750792ab34515795ebc53a5fce96d450c9fac0f23ab90e14effb5', '0303030303', 'admin', '1');
 
+ALTER TABLE `qrcode`.`farmdata` 
+ADD COLUMN `landtype` VARCHAR(255) NOT NULL AFTER `customer_name`;
+
+ALTER TABLE `qrcode`.`farm` 
+ADD COLUMN `farm_id` VARCHAR(50) NOT NULL AFTER `geolocation`;

@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Forest and Point Management</title>
-    <link href="{{url_for('static',filename='css/output.css')}}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/output.css') }}" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
 
@@ -31,14 +31,11 @@
                 <tr>
                     <td class="border border-gray-400 px-4 py-2">{{ forest.name }}</td>
                     <td class="border border-gray-400 px-4 py-2">
-                        <form action="{{ url_for('forest.handle_update_forest', id=forest.id) }}" method="post"
-                            class="inline-block">
-                            <input type="text" name="name" value="{{ forest.name }}"
-                                class="border rounded px-2 py-1 mr-2">
+                        <form action="{{ url_for('forest.handle_update_forest', id=forest.id) }}" method="post" class="inline-block">
+                            <input type="text" name="name" value="{{ forest.name }}" class="border rounded px-2 py-1 mr-2">
                             <button type="submit" class="bg-blue-500 text-white px-2 py-1 rounded">Update</button>
                         </form>
-                        <form action="{{ url_for('forest.handle_delete_forest', id=forest.id) }}" method="post"
-                            class="inline-block">
+                        <form action="{{ url_for('forest.handle_delete_forest', id=forest.id) }}" method="post" class="inline-block">
                             <button type="submit" class="bg-red-500 text-white px-2 py-1 rounded">Delete</button>
                         </form>
                     </td>
@@ -51,8 +48,16 @@
         <form action="{{ url_for('point.handle_create_point') }}" method="post" class="mb-4">
             <input type="text" name="longitude" placeholder="Longitude" class="border rounded px-2 py-1 mr-2">
             <input type="text" name="latitude" placeholder="Latitude" class="border rounded px-2 py-1 mr-2">
-            <input type="text" name="district_id" placeholder="District ID" class="border rounded px-2 py-1 mr-2">
-            <input type="text" name="owner_type" placeholder="Owner Type" class="border rounded px-2 py-1 mr-2">
+            <select name="district_id" class="border rounded px-2 py-1 mr-2">
+                {% for district in districts %}
+                <option value="{{ district.id }}">{{ district.name }}</option>
+                {% endfor %}
+            </select>
+            <select name="owner_type" class="border rounded px-2 py-1 mr-2">
+                {% for owner_type in owner_types %}
+                <option value="{{ owner_type }}">{{ owner_type }}</option>
+                {% endfor %}
+            </select>
             <input type="text" name="forest_id" placeholder="Forest ID" class="border rounded px-2 py-1 mr-2">
             <input type="text" name="farmer_id" placeholder="Farmer ID" class="border rounded px-2 py-1 mr-2">
             <button type="submit" class="bg-blue-500 text-white px-2 py-1 rounded">Create Point</button>
@@ -71,39 +76,77 @@
             </thead>
             <tbody>
                 {% for point in points %}
-                <tr>
-                    <td class="border border-gray-400 px-4 py-2">{{ point.longitude }}</td>
-                    <td class="border border-gray-400 px-4 py-2">{{ point.latitude }}</td>
-                    <td class="border border-gray-400 px-4 py-2">{{ point.district_id }}</td>
-                    <td class="border border-gray-400 px-4 py-2">{{ point.owner_type }}</td>
-                    <td class="border border-gray-400 px-4 py-2">{{ point.forest_id }}</td>
-                    <td class="border border-gray-400 px-4 py-2">{{ point.farmer_id }}</td>
+                <tr id="point-{{ point.id }}">
                     <td class="border border-gray-400 px-4 py-2">
-                        <form action="{{ url_for('point.handle_update_point', id=point.id) }}" method="post"
-                            class="inline-block">
-                            <input type="text" name="longitude" value="{{ point.longitude }}"
-                                class="border rounded px-2 py-1 mr-2">
-                            <input type="text" name="latitude" value="{{ point.latitude }}"
-                                class="border rounded px-2 py-1 mr-2">
-                            <input type="text" name="district_id" value="{{ point.district_id }}"
-                                class="border rounded px-2 py-1 mr-2">
-                            <input type="text" name="owner_type" value="{{ point.owner_type }}"
-                                class="border rounded px-2 py-1 mr-2">
-                            <input type="text" name="forest_id" value="{{ point.forest_id }}"
-                                class="border rounded px-2 py-1 mr-2">
-                            <input type="text" name="farmer_id" value="{{ point.farmer_id }}"
-                                class="border rounded px-2 py-1 mr-2">
-                            <button type="submit" class="bg-blue-500 text-white px-2 py-1 rounded">Update</button>
-                        </form>
-                        <form action="{{ url_for('point.handle_delete_point', id=point.id) }}" method="post"
-                            class="inline-block">
+                        <input type="text" name="longitude" value="{{ point.longitude }}" class="border rounded px-2 py-1" disabled>
+                    </td>
+                    <td class="border border-gray-400 px-4 py-2">
+                        <input type="text" name="latitude" value="{{ point.latitude }}" class="border rounded px-2 py-1" disabled>
+                    </td>
+                    <td class="border border-gray-400 px-4 py-2">
+                        <select name="district_id" class="border rounded px-2 py-1" disabled>
+                            {% for district in districts %}
+                            <option value="{{ district.id }}" {% if district.id == point.district_id %}selected{% endif %}>{{ district.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td class="border border-gray-400 px-4 py-2">
+                        <select name="owner_type" class="border rounded px-2 py-1" disabled>
+                            {% for owner_type in owner_types %}
+                            <option value="{{ owner_type }}" {% if owner_type == point.owner_type %}selected{% endif %}>{{ owner_type }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td class="border border-gray-400 px-4 py-2">
+                        <input type="text" name="forest_id" value="{{ point.forest_id }}" class="border rounded px-2 py-1" disabled>
+                    </td>
+                    <td class="border border-gray-400 px-4 py-2">
+                        <input type="text" name="farmer_id" value="{{ point.farmer_id }}" class="border rounded px-2 py-1" disabled>
+                    </td>
+                    <td class="border border-gray-400 px-4 py-2">
+                        <button onclick="editPoint('{{ point.id }}')" class="bg-blue-500 text-white px-2 py-1 rounded">Edit</button>
+                        <button onclick="savePoint('{{ point.id }}')" class="bg-green-500 text-white px-2 py-1 rounded hidden" id="save-{{ point.id }}">Save</button>
+                        <form action="{{ url_for('point.handle_delete_point', id=point.id) }}" method="post" class="inline-block">
                             <button type="submit" class="bg-red-500 text-white px-2 py-1 rounded">Delete</button>
                         </form>
-                        </td>
-                        </tr>
-                        {% endfor %}
-</tbody>
-</table>
-</div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        function editPoint(id) {
+            const row = document.getElementById(`point-${id}`);
+            const inputs = row.querySelectorAll('input, select');
+            inputs.forEach(input => input.disabled = false);
+            document.getElementById(`save-${id}`).classList.remove('hidden');
+        }
+
+        function savePoint(id) {
+            const row = document.getElementById(`point-${id}`);
+            const inputs = row.querySelectorAll('input, select');
+            const data = {};
+
+            inputs.forEach(input => {
+                data[input.name] = input.value;
+                input.disabled = true;
+            });
+
+            fetch(`/point/update/${id}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            }).then(response => {
+                if (response.ok) {
+                    document.getElementById(`save-${id}`).classList.add('hidden');
+                }
+            });
+        }
+    </script>
 </body>
+
 </html>

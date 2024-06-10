@@ -1,5 +1,6 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
+from datetime import datetime
 from app import db
 
 class User(UserMixin, db.Model):
@@ -11,28 +12,37 @@ class User(UserMixin, db.Model):
     phonenumber = db.Column(db.String(20), nullable=True)
     user_type = db.Column(db.String(50), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
+    date_created = db.Column(db.DateTime, default=datetime.utcnow)
+    date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     def __repr__(self):
         return f'<User {self.username}>'
+
 
 class District(db.Model):
     __tablename__ = 'district'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False)
     region = db.Column(db.String(255), nullable=False)
+    date_created = db.Column(db.DateTime, default=datetime.utcnow)
+    date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-
 class FarmerGroup(db.Model):
     __tablename__ = 'farmergroup'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False)
     description = db.Column(db.Text, nullable=True)
+    date_created = db.Column(db.DateTime, default=datetime.utcnow)
+    date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
 class ProduceCategory(db.Model):
     __tablename__ = 'producecategory'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False)
     grade = db.Column(db.Integer, nullable=False)
+    crops = db.relationship('Crop', backref='category', lazy=True)
+    date_created = db.Column(db.DateTime, default=datetime.utcnow)
+    date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class SoilData(db.Model):
     __tablename__ = 'soildata'
@@ -50,6 +60,8 @@ class SoilData(db.Model):
     conductivity = db.Column(db.Float, nullable=False)
     signal_level = db.Column(db.Float, nullable=False)
     date = db.Column(db.Date, nullable=False)
+    date_created = db.Column(db.DateTime, default=datetime.utcnow)
+    date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class Crop(db.Model):
     __tablename__ = 'crop'
@@ -57,22 +69,27 @@ class Crop(db.Model):
     name = db.Column(db.String(255), nullable=False)
     weight = db.Column(db.Float, nullable=False)
     category_id = db.Column(db.Integer, db.ForeignKey('producecategory.id'), nullable=False)
+    date_created = db.Column(db.DateTime, default=datetime.utcnow)
+    date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class Farm(db.Model):
     __tablename__ = 'farm'
     id = db.Column(db.Integer, primary_key=True)
+    farm_id = db.Column(db.String(50), nullable=False)
     name = db.Column(db.String(255), nullable=False)
     subcounty = db.Column(db.String(255), nullable=False)
     farmergroup_id = db.Column(db.Integer, db.ForeignKey('farmergroup.id'), nullable=False)
     district_id = db.Column(db.Integer, db.ForeignKey('district.id'), nullable=False)
     geolocation = db.Column(db.String(255), nullable=False)
-
+    date_created = db.Column(db.DateTime, default=datetime.utcnow)
+    date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class FarmData(db.Model):
     __tablename__ = 'farmdata'
     id = db.Column(db.Integer, primary_key=True)
-    farm_id = db.Column(db.Integer, db.ForeignKey('farm.id'), nullable=False)
+    farm_id = db.Column(db.String(50), db.ForeignKey('farm.farm_id'), nullable=False)
     crop_id = db.Column(db.Integer, db.ForeignKey('crop.id'), nullable=False)
+    land_type = db.Column(db.String(255), nullable=False)
     tilled_land_size = db.Column(db.Float, nullable=False)
     planting_date = db.Column(db.Date, nullable=False)
     season = db.Column(db.Integer, nullable=False)
@@ -81,15 +98,19 @@ class FarmData(db.Model):
     harvest_date = db.Column(db.Date, nullable=False)
     expected_yield = db.Column(db.Float, nullable=False)
     actual_yield = db.Column(db.Float, nullable=False)
-    timestamp = db.Column(db.DateTime, nullable=False)
+    timestamp = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     channel_partner = db.Column(db.String(255), nullable=False)
     destination_country = db.Column(db.String(255), nullable=False)
     customer_name = db.Column(db.String(255), nullable=False)
+    date_created = db.Column(db.DateTime, default=datetime.utcnow)
+    date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class Forest(db.Model):
     __tablename__ = 'forest'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False)
+    date_created = db.Column(db.DateTime, default=datetime.utcnow)
+    date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class Point(db.Model):
     __tablename__ = 'point'
@@ -98,7 +119,7 @@ class Point(db.Model):
     latitude = db.Column(db.Float, nullable=False)
     owner_type = db.Column(db.Enum('forest', 'farmer'), nullable=False)
     forest_id = db.Column(db.Integer, db.ForeignKey('forest.id'), nullable=True)
-    farmer_id = db.Column(db.Integer, db.ForeignKey('farm.id'), nullable=True)
+    farmer_id = db.Column(db.String(50), db.ForeignKey('farm.farm_id'), nullable=True)
     district_id = db.Column(db.Integer, db.ForeignKey('district.id'), nullable=False)
     __table_args__ = (
         db.CheckConstraint(
@@ -107,3 +128,5 @@ class Point(db.Model):
             name='check_owner_type'
         ),
     )
+    date_created = db.Column(db.DateTime, default=datetime.utcnow)
+    date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

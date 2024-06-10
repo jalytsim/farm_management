@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>View District</title>
+</head>
+<body>
+    <h1>View District</h1>
+    <p>Name: {{ district.name }}</p>
+    <p>Region: {{ district.region }}</p>
+    <a href="{{ url_for('districts.edit_district_route', district_id=district.id) }}">Edit</a>
+    <form action="{{ url_for('districts.delete_district_route', district_id=district.id) }}" method="POST" style="display:inline;">
+        <button type="submit">Delete</button>
+    </form>
+    <a href="{{ url_for('districts.list_districts') }}">Back to List</a>
+</body>
+</html>

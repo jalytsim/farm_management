@@ -5,7 +5,7 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                     <label for="farm_id" class="block text-gray-700">ID:</label>
-                    <input type="number" id="farm_id" name="farm_id" class="w-full p-2 border border-gray-300 rounded mt-1">
+                    <input type="text" id="farm_id" name="farm_id" class="w-full p-2 border border-gray-300 rounded mt-1">
                 </div>
                 <div>
                     <label for="name" class="block text-gray-700">Name:</label>
@@ -39,6 +39,8 @@
                 </div>
             </div>
             <div class="flex justify-end mt-4">
+                <button type="button" onclick="openModal('farmerGroupModal')" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded mr-2">create farmer group</button>
+                <a  href="{{ url_for('districts.create_district_route') }}"   class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded mr-2">create District</a>
                 <button type="button" onclick="closeModal('farmModal')" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded mr-2">Cancel</button>
                 <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create Farm</button>
             </div>

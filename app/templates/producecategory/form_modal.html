@@ -1,0 +1,21 @@
+<div id="producecategoryModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center">
+    <div class="bg-white p-6 rounded-lg shadow-md w-full max-w-lg">
+        <h2 class="text-2xl font-bold mb-4">Produce Category</h2>
+        <form action="{{ url_for('producecategory.create_pc') }}" method="POST">
+            <div class="grid grid-cols-1 gap-6">
+                <div>
+                    <label for="name" class="block text-gray-700">Name:</label>
+                    <input type="text" id="name" name="name" class="w-full p-2 border border-gray-300 rounded mt-1">
+                </div>
+                <div>
+                    <label for="grade" class="block text-gray-700">Grade:</label>
+                    <input type="number" id="grade" name="grade" class="w-full p-2 border border-gray-300 rounded mt-1"></input>
+                </div>
+            </div>
+            <div class="flex justify-end mt-4">
+                <button type="button" onclick="closeModal('producecategoryModal')" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded mr-2">Cancel</button>
+                <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create Produce Category</button>
+            </div>
+        </form>
+    </div>
+</div>

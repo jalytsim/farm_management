@@ -38,13 +38,14 @@ def get_all_farms():
     ).all()
 
 
-def create_farm(name, subcounty, farmergroup_id, district_id, geolocation):
-    farm = Farm(name=name, subcounty=subcounty, farmergroup_id=farmergroup_id, district_id=district_id, geolocation=geolocation)
+def create_farm(farm_id, name, subcounty, farmergroup_id, district_id, geolocation):
+    farm = Farm(farm_id=farm_id, name=name, subcounty=subcounty, farmergroup_id=farmergroup_id, district_id=district_id, geolocation=geolocation)
     db.session.add(farm)
     db.session.commit()
     return farm
 
-def update_farm(farm, name, subcounty, farmergroup_id, district_id, geolocation):
+def update_farm(farm, farm_id, name, subcounty, farmergroup_id, district_id, geolocation):
+    farm.farm_id = farm_id
     farm.name = name
     farm.subcounty = subcounty
     farm.farmergroup_id = farmergroup_id

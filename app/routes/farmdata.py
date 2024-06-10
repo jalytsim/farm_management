@@ -8,6 +8,7 @@ bp = Blueprint('farmdata', __name__)
 
 @bp.route('/farmdata')
 @login_required
+@farmer_or_admin_required
 def index():
     farm_id = request.args.get('farm_id')
     farmdata_list = FarmData.query.all() if not farm_id else FarmData.query.filter_by(farm_id=farm_id).all()
@@ -21,6 +22,7 @@ def create_farmdata():
         data = {
             'farm_id': request.form['farm_id'],
             'crop_id': request.form['crop_id'],
+            'land_type': request.form['land_type'],
             'tilled_land_size': request.form['tilled_land_size'],
             'planting_date': request.form['planting_date'],
             'season': request.form['season'],
@@ -54,6 +56,7 @@ def edit_farmdata(id):
         data = {
             'farm_id': request.form['farm_id'],
             'crop_id': request.form['crop_id'],
+            'land_type': request.form['land_type'],
             'tilled_land_size': request.form['tilled_land_size'],
             'planting_date': request.form['planting_date'],
             'season': request.form['season'],

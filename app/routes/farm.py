@@ -32,6 +32,7 @@ def index():
 @farmer_or_admin_required
 def create_farm():
     if request.method == 'POST':
+        farm_id = request.form['farm_id']
         name = request.form['name']
         district_id = request.form['district_id']
         farmergroup_id = request.form['farmergroup_id']
@@ -39,7 +40,7 @@ def create_farm():
         latitude = request.form['latitude']
         geolocation = f"{latitude},{longitude}"
 
-        farm_utils.create_farm(name, district_id, farmergroup_id, district_id, geolocation)
+        farm_utils.create_farm(farm_id, name, district_id, farmergroup_id, district_id, geolocation)
         return redirect(url_for('farm.index'))
 
     districts = District.query.all()
@@ -55,12 +56,13 @@ def edit_farm(farm_id):
     categories = ProduceCategory.query.all()
     farm = Farm.query.get_or_404(farm_id)
     if request.method == 'POST':
+        farm_id2 = request.form['farm_id']
         name = request.form['name']
         subcounty = request.form['subcounty']
         farmergroup_id = request.form['farmergroup_id']
         district_id = request.form['district_id']
         geolocation = request.form['geolocation']
-        farm_utils.update_farm(farm, name, subcounty, farmergroup_id, district_id, geolocation)
+        farm_utils.update_farm(farm, farm_id2, name, subcounty, farmergroup_id, district_id, geolocation)
         return redirect(url_for('farm.index'))
     return render_template('farm/index.html', farms=farms, districts=districts, farmergroups=farmergroups,categories=categories)
 

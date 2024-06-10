@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ 'Edit' if district else 'Create' }} District</title>
+</head>
+<body>
+    <h1>{{ 'Edit' if district else 'Create' }} District</h1>
+    <form method="POST">
+        <label for="name">Name:</label>
+        <input type="text" name="name" id="name" value="{{ district.name if district else '' }}" required>
+        <br>
+        <label for="region">Region:</label>
+        <input type="text" name="region" id="region" value="{{ district.region if district else '' }}" required>
+        <br>
+        <button type="submit">{{ 'Update' if district else 'Create' }}</button>
+    </form>
+    <a href="{{ url_for('districts.list_districts') }}">Back to List</a>
+</body>
+</html>
