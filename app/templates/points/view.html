@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>View Point</title>
+</head>
+<body>
+    <h1>View Point</h1>
+    <p>Longitude: {{ point.longitude }}</p>
+    <p>Latitude: {{ point.latitude }}</p>
+    <p>Owner Type: {{ point.owner_type }}</p>
+    <p>Forest ID: {{ point.forest_id }}</p>
+    <p>Farmer ID: {{ point.farmer_id }}</p>
+    <p>District ID: {{ point.district_id }}</p>
+    <a href="{{ url_for('points.edit_point_route', point_id=point.id) }}">Edit</a>
+    <form action="{{ url_for('points.delete_point_route', point_id=point.id) }}" method="POST" style="display:inline;">
+        <button type="submit">Delete</button>
+    </form>
+    <a href="{{ url_for('points.list_points') }}">Back to List</a>
+</body>
+</html>

@@ -43,78 +43,8 @@
                 {% endfor %}
             </tbody>
         </table>
-
-        <h2 class="text-xl font-bold my-4">Points</h2>
-        <form action="{{ url_for('point.handle_create_point') }}" method="post" class="mb-4">
-            <input type="text" name="longitude" placeholder="Longitude" class="border rounded px-2 py-1 mr-2">
-            <input type="text" name="latitude" placeholder="Latitude" class="border rounded px-2 py-1 mr-2">
-            <select name="district_id" class="border rounded px-2 py-1 mr-2">
-                {% for district in districts %}
-                <option value="{{ district.id }}">{{ district.name }}</option>
-                {% endfor %}
-            </select>
-            <select name="owner_type" class="border rounded px-2 py-1 mr-2">
-                {% for owner_type in owner_types %}
-                <option value="{{ owner_type }}">{{ owner_type }}</option>
-                {% endfor %}
-            </select>
-            <input type="text" name="forest_id" placeholder="Forest ID" class="border rounded px-2 py-1 mr-2">
-            <input type="text" name="farmer_id" placeholder="Farmer ID" class="border rounded px-2 py-1 mr-2">
-            <button type="submit" class="bg-blue-500 text-white px-2 py-1 rounded">Create Point</button>
-        </form>
-        <table class="border-collapse border border-gray-400 w-full">
-            <thead>
-                <tr>
-                    <th class="border border-gray-400 px-4 py-2">Longitude</th>
-                    <th class="border border-gray-400 px-4 py-2">Latitude</th>
-                    <th class="border border-gray-400 px-4 py-2">District ID</th>
-                    <th class="border border-gray-400 px-4 py-2">Owner Type</th>
-                    <th class="border border-gray-400 px-4 py-2">Forest ID</th>
-                    <th class="border border-gray-400 px-4 py-2">Farmer ID</th>
-                    <th class="border border-gray-400 px-4 py-2">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for point in points %}
-                <tr id="point-{{ point.id }}">
-                    <td class="border border-gray-400 px-4 py-2">
-                        <input type="text" name="longitude" value="{{ point.longitude }}" class="border rounded px-2 py-1" disabled>
-                    </td>
-                    <td class="border border-gray-400 px-4 py-2">
-                        <input type="text" name="latitude" value="{{ point.latitude }}" class="border rounded px-2 py-1" disabled>
-                    </td>
-                    <td class="border border-gray-400 px-4 py-2">
-                        <select name="district_id" class="border rounded px-2 py-1" disabled>
-                            {% for district in districts %}
-                            <option value="{{ district.id }}" {% if district.id == point.district_id %}selected{% endif %}>{{ district.name }}</option>
-                            {% endfor %}
-                        </select>
-                    </td>
-                    <td class="border border-gray-400 px-4 py-2">
-                        <select name="owner_type" class="border rounded px-2 py-1" disabled>
-                            {% for owner_type in owner_types %}
-                            <option value="{{ owner_type }}" {% if owner_type == point.owner_type %}selected{% endif %}>{{ owner_type }}</option>
-                            {% endfor %}
-                        </select>
-                    </td>
-                    <td class="border border-gray-400 px-4 py-2">
-                        <input type="text" name="forest_id" value="{{ point.forest_id }}" class="border rounded px-2 py-1" disabled>
-                    </td>
-                    <td class="border border-gray-400 px-4 py-2">
-                        <input type="text" name="farmer_id" value="{{ point.farmer_id }}" class="border rounded px-2 py-1" disabled>
-                    </td>
-                    <td class="border border-gray-400 px-4 py-2">
-                        <button onclick="editPoint('{{ point.id }}')" class="bg-blue-500 text-white px-2 py-1 rounded">Edit</button>
-                        <button onclick="savePoint('{{ point.id }}')" class="bg-green-500 text-white px-2 py-1 rounded hidden" id="save-{{ point.id }}">Save</button>
-                        <form action="{{ url_for('point.handle_delete_point', id=point.id) }}" method="post" class="inline-block">
-                            <button type="submit" class="bg-red-500 text-white px-2 py-1 rounded">Delete</button>
-                        </form>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
+        </div>
+    <a href="{{ url_for('points.create_point_route') }}">create point</a>
 
     <script>
         function editPoint(id) {

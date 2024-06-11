@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Points</title>
+</head>
+<body>
+    <h1>Points</h1>
+    <a href="{{ url_for('points.create_point_route') }}">Create Point</a>
+    <ul>
+        {% for point in points %}
+            <li>
+                {{ point.longitude }} - {{ point.latitude }}
+                <a href="{{ url_for('points.view_point', point_id=point.id) }}">View</a>
+                <a href="{{ url_for('points.edit_point_route', point_id=point.id) }}">Edit</a>
+                <form action="{{ url_for('points.delete_point_route', point_id=point.id) }}" method="POST" style="display:inline;">
+                    <button type="submit">Delete</button>
+                </form>
+            </li>
+        {% endfor %}
+    </ul>
+</body>
+</html>
