@@ -5,10 +5,22 @@ from app import db
 from app.models import Point
 
 def create_point(longitude, latitude, owner_type, forest_id, farmer_id, district_id):
-    point = Point(longitude=longitude, latitude=latitude, owner_type=owner_type, forest_id=forest_id,
-                  farmer_id=farmer_id, district_id=district_id)
+    if owner_type == 'forest' and forest_id:
+        forest = db.session.query(Forest).filter_by(id=forest_id).first()
+        if not forest:
+            raise ValueError(f'Forest ID {forest_id} does not exist.')
+    
+    point = Point(
+        longitude=longitude,
+        latitude=latitude,
+        owner_type=owner_type,
+        forest_id=forest_id,
+        farmer_id=farmer_id,
+        district_id=district_id
+    )
     db.session.add(point)
     db.session.commit()
+
 
 def delete_point(point_id):
     point = Point.query.get(point_id)
@@ -24,14 +36,22 @@ def get_point_by_id(point_id):
 
 def update_point(point_id, longitude, latitude, owner_type, forest_id, farmer_id, district_id):
     point = Point.query.get(point_id)
-    if point:
-        point.longitude = longitude
-        point.latitude = latitude
-        point.owner_type = owner_type
-        point.forest_id = forest_id
-        point.farmer_id = farmer_id
-        point.district_id = district_id
-        db.session.commit()
+    if not point:
+        raise ValueError(f'Point ID {point_id} does not exist.')
+
+    if owner_type == 'forest' and forest_id:
+        forest = db.session.query(Forest).filter_by(id=forest_id).first()
+        if not forest:
+            raise ValueError(f'Forest ID {forest_id} does not exist.')
+    
+    point.longitude = longitude
+    point.latitude = latitude
+    point.owner_type = owner_type
+    point.forest_id = forest_id
+    point.farmer_id = farmer_id
+    point.district_id = district_id
+    db.session.commit()
+
 
 def get_pointDetails(point_id):
     point = db.session.query(Point).filter(Point.id == point_id).first()

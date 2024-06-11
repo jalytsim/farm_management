@@ -1,8 +1,10 @@
 # routes/point_routes.py
 from flask import Blueprint, jsonify, render_template, request, redirect, url_for, flash
 from flask_login import login_required
+from app.models import Forest
 from app.routes.admin import admin_required
 from app.routes.farm import farmer_or_admin_required
+from app import db
 from app.utils.point_utils import create_point, delete_point, get_all_points, get_point_by_id, update_point
 
 bp = Blueprint('points', __name__)
@@ -32,9 +34,26 @@ def create_point_route():
         forest_id = request.form.get('forest_id')
         farmer_id = request.form.get('farmer_id')
         district_id = request.form.get('district_id')
+        
+        if owner_type == 'forest':
+            if forest_id:
+                forest_id = int(forest_id)
+                # Check if the forest_id exists
+                forest = db.session.query(Forest).filter_by(id=forest_id).first()
+                if not forest:
+                    print('Invalid Forest ID.', 'error')
+                    return render_template('points/create.html')
+            else:
+                forest_id = None
+            farmer_id = None
+        elif owner_type == 'farmer':
+            farmer_id = farmer_id.strip() if farmer_id else None
+            forest_id = None
+
         create_point(longitude, latitude, owner_type, forest_id, farmer_id, district_id)
         flash('Point created successfully.', 'success')
         return redirect(url_for('points.list_points'))
+    
     return render_template('points/create.html')
 
 @bp.route('/points/edit/<int:point_id>', methods=['GET', 'POST'])
@@ -42,6 +61,10 @@ def create_point_route():
 @farmer_or_admin_required
 def edit_point_route(point_id):
     point = get_point_by_id(point_id)
+    if not point:
+        print('Point not found.', 'error')
+        return redirect(url_for('points.list_points'))
+
     if request.method == 'POST':
         longitude = request.form.get('longitude')
         latitude = request.form.get('latitude')
@@ -49,9 +72,26 @@ def edit_point_route(point_id):
         forest_id = request.form.get('forest_id')
         farmer_id = request.form.get('farmer_id')
         district_id = request.form.get('district_id')
+
+        if owner_type == 'forest':
+            if forest_id:
+                forest_id = int(forest_id)
+                # Check if the forest_id exists
+                forest = db.session.query(Forest).filter_by(id=forest_id).first()
+                if not forest:
+                    print('Invalid Forest ID.', 'error')
+                    return render_template('points/edit.html', point=point)
+            else:
+                forest_id = None
+            farmer_id = None
+        elif owner_type == 'farmer':
+            farmer_id = farmer_id.strip() if farmer_id else None
+            forest_id = None
+
         update_point(point_id, longitude, latitude, owner_type, forest_id, farmer_id, district_id)
-        flash('Point updated successfully.', 'success')
+        print('Point updated successfully.', 'success')
         return redirect(url_for('points.list_points'))
+    
     return render_template('points/edit.html', point=point)
 
 @bp.route('/points/delete/<int:point_id>', methods=['POST'])
@@ -59,5 +99,5 @@ def edit_point_route(point_id):
 @farmer_or_admin_required
 def delete_point_route(point_id):
     delete_point(point_id)
-    flash('Point deleted successfully.', 'success')
+    print('Point deleted successfully.', 'success')
     return redirect(url_for('points.list_points'))
