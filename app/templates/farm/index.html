@@ -13,6 +13,7 @@
         <h1 class="text-4xl font-bold mb-8 text-center">Farm Management</h1>
 
         <div class="flex justify-between mb-8">
+            <a href="{{ url_for('points.create_point_route') }}">create point</a>
             <button onclick="openModal('farmModal')" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create Farm</button>
             <button onclick="openModal('farmerGroupModal')" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create Farmer Group</button>
             <button onclick="openModal('cropModal')" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create Crop</button>
