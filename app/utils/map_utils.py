@@ -359,6 +359,8 @@ def create_polygon(lat, lon, num_sides=6, radius=0.01):
         coords.append((lon + dx, lat + dy))
     coords.append(coords[0])  # close the polygon
     return coords
+
+
  
     
     
