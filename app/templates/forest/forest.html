@@ -12,8 +12,7 @@
 <body class="font-sans antialiased">
     <div class="container mx-auto p-4">
         <h1 class="text-3xl font-bold mb-4">Forest and Point Management</h1>
-        <a href="{{ url_for('forest.view') }}" class="text-blue-500 mb-4 inline-block">View Forest</a>
-
+        <a href="{{ url_for('map.get_all_forests_geojson') }}" class="text-blue-500 mb-4 inline-block">View All Forests on Map</a>
         <h2 class="text-xl font-bold mb-2">Forests</h2>
         <form action="{{ url_for('forest.handle_create_forest') }}" method="post" class="mb-4">
             <input type="text" name="name" placeholder="Forest Name" class="border rounded px-2 py-1 mr-2">

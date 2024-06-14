@@ -1,6 +1,6 @@
 from flask import Blueprint, json, jsonify, render_template, render_template_string, request, send_file
 from flask_login import login_required
-from app.models import Point
+from app.models import Forest, Point
 from app.utils.map_utils import create_mapbox_html, create_polygon_from_db, createGeoJSONFeature, createGeojsonFeatureCollection, generate_choropleth_map, generate_choropleth_map_combined, generate_choropleth_map_soil, save_polygon_to_geojson
 from flask import Blueprint, render_template
 from app import db
@@ -88,7 +88,7 @@ def get_forest_geojson(forest_id):
         return jsonify({"error": "No points found for the specified forest_id"}), 404
     
     # Create GeoJSON data from points
-    geojson_data = create_geojson(points)
+    geojson_data = create_geojson(points, forest_id)
     
     # Create the Mapbox HTML using the GeoJSON data
     mapbox_html = create_mapbox_html_static(geojson_data)
@@ -96,17 +96,37 @@ def get_forest_geojson(forest_id):
     # Render the HTML directly in the response
     return render_template('index.html', choropleth_map=mapbox_html)
 
-def create_geojson(points):
+
+def create_geojson(points, forest_id):
     coordinates = [(point.longitude, point.latitude) for point in points]
     
     # Assuming points form a single polygon
     shapely_polygon = ShapelyPolygon(coordinates)
     geojson_polygon = mapping(shapely_polygon)
     
-    feature = Feature(geometry=geojson_polygon, properties={"id": points[0].forest_id})
+    feature = Feature(geometry=geojson_polygon, properties={"id": forest_id})
     feature_collection = FeatureCollection([feature])
     
     return feature_collection
+
+@bp.route('/forests/all/geojson', methods=['GET'])
+def get_all_forests_geojson():
+    forests = Forest.query.all()
+    features = []
+
+    for forest in forests:
+        points = Point.query.filter_by(owner_type='forest', forest_id=forest.id).options(db.load_only(Point.longitude, Point.latitude)).all()
+        if points:
+            geojson_data = create_geojson(points, forest.id)
+            features.extend(geojson_data['features'])
+
+    if not features:
+        return jsonify({"error": "No points found for any forest"}), 404
+
+    feature_collection = FeatureCollection(features)
+    mapbox_html = create_mapbox_html_static(feature_collection)
+
+    return render_template('index.html', choropleth_map=mapbox_html)
 
 def create_mapbox_html_static(geojson_data):
     # Create Plotly figure
