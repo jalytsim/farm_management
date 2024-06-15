@@ -11,21 +11,18 @@ bp = Blueprint('points', __name__)
 
 @bp.route('/points', methods=['GET'])
 @login_required
-@farmer_or_admin_required
 def list_points():
     points = get_all_points()
     return render_template('points/list.html', points=points)
 
 @bp.route('/points/<int:point_id>', methods=['GET'])
 @login_required
-@farmer_or_admin_required
 def view_point(point_id):
     point = get_point_by_id(point_id)
     return render_template('points/view.html', point=point)
 
 @bp.route('/points/create', methods=['GET', 'POST'])
 @login_required
-@farmer_or_admin_required
 def create_point_route():
     if request.method == 'POST':
         longitude = request.form.get('longitude')
@@ -58,7 +55,6 @@ def create_point_route():
 
 @bp.route('/points/edit/<int:point_id>', methods=['GET', 'POST'])
 @login_required
-@farmer_or_admin_required
 def edit_point_route(point_id):
     point = get_point_by_id(point_id)
     if not point:
@@ -96,7 +92,6 @@ def edit_point_route(point_id):
 
 @bp.route('/points/delete/<int:point_id>', methods=['POST'])
 @login_required
-@farmer_or_admin_required
 def delete_point_route(point_id):
     delete_point(point_id)
     print('Point deleted successfully.', 'success')
