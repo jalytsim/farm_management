@@ -1,24 +1,31 @@
-<!-- app/templates/farmergroup/index.html -->
-<div class="bg-white p-6 rounded-lg shadow-md">
-    <h2 class="text-2xl font-bold mb-4">Farmer Groups</h2>
-    <button onclick="openModal('farmerGroupModal')" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mb-4">Create Farmer Group</button>
-    <table class="w-full table-auto border-collapse">
-        <thead>
-            <tr class="bg-gray-200">
-                <th class="px-4 py-2">Name</th>
-                <th class="px-4 py-2">Description</th>
-                <th class="px-4 py-2">Actions</th>
+{% extends 'layout.html' %}
+
+{% block title %}Farmer Groups{% endblock %}
+
+{% block content %}
+<div class="flex justify-between mb-8">
+    <h1 class="text-4xl font-bold">Farmer Groups</h1>
+    <button onclick="openModal('createFarmerGroupModal')" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create Farmer Group</button>
+</div>
+
+<div class="bg-white shadow-md rounded my-6">
+    <table class="min-w-full bg-white">
+        <thead class="bg-gray-800 text-white">
+            <tr>
+                <th class="text-left py-3 px-4 uppercase font-semibold text-sm">Name</th>
+                <th class="text-left py-3 px-4 uppercase font-semibold text-sm">Description</th>
+                <th class="text-left py-3 px-4 uppercase font-semibold text-sm">Actions</th>
             </tr>
         </thead>
-        <tbody>
-            {% for farmergroup in farmergroups %}
-            <tr class="bg-white hover:bg-gray-100">
-                <td class="border px-4 py-2">{{ farmergroup.name }}</td>
-                <td class="border px-4 py-2">{{ farmergroup.description }}</td>
-                <td class="border px-4 py-2 flex space-x-2">
-                    <a href="{{ url_for('farmergroup.edit_farmergroup', id=farmergroup.id) }}" class="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-2 rounded">Edit</a>
-                    <form action="{{ url_for('farmergroup.delete_farmergroup', id=farmergroup.id) }}" method="post" class="inline-block">
-                        <button type="submit" class="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded">Delete</button>
+        <tbody class="text-gray-700">
+            {% for farmer_group in farmer_groups %}
+            <tr>
+                <td class="text-left py-3 px-4">{{ farmer_group.name }}</td>
+                <td class="text-left py-3 px-4">{{ farmer_group.description }}</td>
+                <td class="text-left py-3 px-4">
+                    <a href="{{ url_for('farmergroup.edit_fg', fg_id=farmer_group.id) }}" class="text-blue-600 hover:text-blue-800">Edit</a>
+                    <form action="{{ url_for('farmergroup.delete_fg', fg_id=farmer_group.id) }}" method="POST" style="display:inline;">
+                        <button type="submit" class="text-red-600 hover:text-red-800 ml-4">Delete</button>
                     </form>
                 </td>
             </tr>
@@ -26,4 +33,28 @@
         </tbody>
     </table>
 </div>
-{% include 'farmergroup/_farmergroup_form_modal.html' %}
+
+<!-- Create Farmer Group Modal -->
+<div id="createFarmerGroupModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center">
+    <div class="bg-white p-6 rounded-lg shadow-md w-full max-w-lg">
+        <h2 class="text-2xl font-bold mb-4">Create Farmer Group</h2>
+        <form action="{{ url_for('farmergroup.create_fg') }}" method="POST">
+            <div class="grid grid-cols-1 gap-6">
+                <div>
+                    <label for="name" class="block text-gray-700">Name:</label>
+                    <input type="text" id="name" name="name" class="w-full p-2 border border-gray-300 rounded mt-1">
+                </div>
+                <div>
+                    <label for="description" class="block text-gray-700">Description:</label>
+                    <textarea id="description" name="description" class="w-full p-2 border border-gray-300 rounded mt-1"></textarea>
+                </div>
+            </div>
+            <div class="flex justify-end mt-4">
+                <button type="button" onclick="closeModal('createFarmerGroupModal')" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded mr-2">Cancel</button>
+                <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create Farmer Group</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}

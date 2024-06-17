@@ -1,0 +1,21 @@
+<nav class="w-64 bg-gray-800 text-white h-full">
+    <ul class="flex flex-col space-y-4 p-4">
+        <li><a href="{{ url_for('main.home') }}" class="block py-2 px-4 hover:bg-gray-700 rounded">Home</a></li>
+        {% if current_user.user_type == 'admin' or current_user.user_type == 'forest' %}
+            <li><a href="{{ url_for('forest.index') }}" class="block py-2 px-4 hover:bg-gray-700 rounded">Forest</a></li>
+        {% endif %}
+        {% if current_user.user_type == 'admin' or current_user.user_type == 'farmer' %}
+            <li>
+                <span class="block py-2 px-4 cursor-pointer hover:bg-gray-700 rounded" onclick="toggleSubMenu('farmSubMenu')">Farm</span>
+                <ul id="farmSubMenu" class="hidden">
+                    <li><a href="{{ url_for('farm.index') }}" class="block py-2 px-4 hover:bg-gray-700 rounded">Create Farm</a></li>
+                    <li><a href="{{ url_for('crop.index') }}" class="block py-2 px-4 hover:bg-gray-700 rounded">Create Crop</a></li>
+                    <li><a href="{{ url_for('districts.create_district_route') }}" class="block py-2 px-4 hover:bg-gray-700 rounded">Create District</a></li>
+                    <li><a href="{{ url_for('farmergroup.create_fg') }}" class="block py-2 px-4 hover:bg-gray-700 rounded">Create Farmer Group</a></li>
+                    <li><a href="{{ url_for('points.create_point_route') }}" class="block py-2 px-4 hover:bg-gray-700 rounded">Create Point</a></li>
+                </ul>
+            </li>
+        {% endif %}
+        <a href="{{ url_for('auth.logout') }}" class="inline-block bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">Logout</a>
+    </ul>
+</nav>

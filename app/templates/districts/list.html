@@ -1,23 +1,24 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Districts</title>
-</head>
-<body>
-    <h1>Districts</h1>
-    <a href="{{ url_for('districts.create_district_route') }}">Create District</a>
-    <ul>
+{% extends 'layout.html' %}
+
+{% block title %}
+    Districts
+{% endblock %}
+
+{% block content %}
+    <h1 class="text-2xl font-bold mb-4">Districts</h1>
+    <a href="{{ url_for('districts.create_district_route') }}" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create District</a>
+    <ul class="mt-4">
         {% for district in districts %}
-            <li>
-                {{ district.name }} - {{ district.region }}
-                <a href="{{ url_for('districts.view_district', district_id=district.id) }}">View</a>
-                <a href="{{ url_for('districts.edit_district_route', district_id=district.id) }}">Edit</a>
-                <form action="{{ url_for('districts.delete_district_route', district_id=district.id) }}" method="POST" style="display:inline;">
-                    <button type="submit">Delete</button>
-                </form>
+            <li class="border-b border-gray-200 py-2 flex justify-between items-center">
+                <span>{{ district.name }} - {{ district.region }}</span>
+                <div>
+                    <a href="{{ url_for('districts.view_district', district_id=district.id) }}" class="text-blue-500 hover:text-blue-700 mr-2">View</a>
+                    <a href="{{ url_for('districts.edit_district_route', district_id=district.id) }}" class="text-green-500 hover:text-green-700 mr-2">Edit</a>
+                    <form action="{{ url_for('districts.delete_district_route', district_id=district.id) }}" method="POST" style="display:inline;">
+                        <button type="submit" class="text-red-500 hover:text-red-700">Delete</button>
+                    </form>
+                </div>
             </li>
         {% endfor %}
     </ul>
-</body>
-</html>
+{% endblock %}

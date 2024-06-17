@@ -1,17 +1,20 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>View District</title>
-</head>
-<body>
-    <h1>View District</h1>
-    <p>Name: {{ district.name }}</p>
-    <p>Region: {{ district.region }}</p>
-    <a href="{{ url_for('districts.edit_district_route', district_id=district.id) }}">Edit</a>
-    <form action="{{ url_for('districts.delete_district_route', district_id=district.id) }}" method="POST" style="display:inline;">
-        <button type="submit">Delete</button>
-    </form>
-    <a href="{{ url_for('districts.list_districts') }}">Back to List</a>
-</body>
-</html>
+{% extends 'layout.html' %}
+
+{% block title %}
+    View District
+{% endblock %}
+
+{% block content %}
+    <div class="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
+        <h1 class="text-2xl font-bold mb-4">View District</h1>
+        <p><span class="font-bold">Name:</span> {{ district.name }}</p>
+        <p><span class="font-bold">Region:</span> {{ district.region }}</p>
+        <div class="mt-4">
+            <a href="{{ url_for('districts.edit_district_route', district_id=district.id) }}" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mr-2">Edit</a>
+            <form action="{{ url_for('districts.delete_district_route', district_id=district.id) }}" method="POST" style="display:inline;">
+                <button type="submit" class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">Delete</button>
+            </form>
+        </div>
+    </div>
+    <a href="{{ url_for('districts.list_districts') }}" class="text-blue-500 hover:text-blue-700">Back to List</a>
+{% endblock %}

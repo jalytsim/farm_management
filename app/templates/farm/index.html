@@ -1,27 +1,16 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends 'layout.html' %}
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Farm Management</title>
-    <link href="{{ url_for('static', filename='css/output.css') }}" rel="stylesheet">
-</head>
+{% block content %}
+    <h1 class="text-4xl font-bold mb-8 text-center">Farm Management</h1>
 
-<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center py-10">
-    <div class="container mx-auto px-4">
-        <h1 class="text-4xl font-bold mb-8 text-center">Farm Management</h1>
-
-        <div class="flex justify-between mb-8">
-            <a href="{{ url_for('points.create_point_route') }}">create point</a>
-            <button onclick="openModal('farmModal')" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create Farm</button>
-            <button onclick="openModal('farmerGroupModal')" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create Farmer Group</button>
-            <button onclick="openModal('cropModal')" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create Crop</button>
-        </div>
-
-        {% include 'farm/farm_list.html' %}
-
+    <div class="flex justify-between mb-8">
+        <a href="{{ url_for('points.create_point_route') }}">create point</a>
+        <button onclick="openModal('farmModal')" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create Farm</button>
+        <button onclick="openModal('farmerGroupModal')" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create Farmer Group</button>
+        <button onclick="openModal('cropModal')" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create Crop</button>
     </div>
+
+    {% include 'farm/farm_list.html' %}
     {% include 'farm/_farm_form_modal.html' %}
     {% include 'farmergroup/_farmergroup_form_modal.html' %}
     {% include 'crop/_crop_form_modal.html' %}
@@ -64,7 +53,26 @@
                 }
             });
         }
-    </script>
-</body>
 
-</html>
+        // Fonctions pour ouvrir les modals depuis la sidebar
+        function openCreateCropModal() {
+            openModal('cropModal');
+        }
+
+        function openCreateDistrictModal() {
+            openModal('districtModal');
+        }
+
+        function openCreateFarmerGroupModal() {
+            openModal('farmerGroupModal');
+        }
+
+        function openCreatePointModal() {
+            openModal('pointModal');
+        }
+
+        function openCreateFarmModal() {
+            openModal('farmModal');
+        }
+    </script>
+{% endblock %}

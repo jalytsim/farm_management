@@ -44,7 +44,7 @@ def create_app():
     app.register_blueprint(admin.admin_bp)
     app.register_blueprint(farmdata.bp)
     app.register_blueprint(crop.crop_bp)
-    app.register_blueprint(farmergroup.farmergroup_bp)
+    app.register_blueprint(farmergroup.bp)
     app.register_blueprint(producecategory.bp)
     app.register_blueprint(district.bp)
     

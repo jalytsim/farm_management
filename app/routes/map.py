@@ -1,6 +1,6 @@
 from flask import Blueprint, json, jsonify, render_template, render_template_string, request, send_file
 from flask_login import login_required
-from app.models import Forest, Point
+from app.models import Farm, Forest, Point
 from app.utils.map_utils import create_mapbox_html, create_polygon_from_db, createGeoJSONFeature, createGeojsonFeatureCollection, generate_choropleth_map, generate_choropleth_map_combined, generate_choropleth_map_soil, save_polygon_to_geojson
 from flask import Blueprint, render_template
 from app import db
@@ -68,18 +68,6 @@ def display_all_points():
     return render_template('index.html', choropleth_map=choropleth_map)
 
 
-@bp.route('/map/forest/')
-@login_required
-def forestBoundary():
-    forest_id = 1
-    polygon_coords = create_polygon_from_db(forest_id)
-    multi_polygon_feature = createGeoJSONFeature([polygon_coords])
-    geojson_data = createGeojsonFeatureCollection(multi_polygon_feature)
-    save_polygon_to_geojson(geojson_data, "testPolygon2.geojson")
-    choropleth_map = create_mapbox_html_static("testPolygon2.geojson")
-    return render_template('index.html', choropleth_map=choropleth_map)
-
-
 @bp.route('/forests/<int:forest_id>/geojson', methods=['GET'])
 def get_forest_geojson(forest_id):
     points = Point.query.filter_by(owner_type='forest', forest_id=forest_id).options(db.load_only(Point.longitude, Point.latitude)).all()
@@ -96,6 +84,21 @@ def get_forest_geojson(forest_id):
     # Render the HTML directly in the response
     return render_template('index.html', choropleth_map=mapbox_html)
 
+@bp.route('/farm/<int:farmer_id>/geojson', methods=['GET'])
+def get_farm_geojson(farmer_id):
+    points = Point.query.filter_by(owner_type='farmer', farmer_id=farmer_id).options(db.load_only(Point.longitude, Point.latitude)).all()
+    
+    if not points:
+        return jsonify({"error": "No points found for the specified forest_id"}), 404
+    
+    # Create GeoJSON data from points
+    geojson_data = create_geojson(points, farmer_id)
+    
+    # Create the Mapbox HTML using the GeoJSON data
+    mapbox_html = create_mapbox_html_static(geojson_data)
+    
+    # Render the HTML directly in the response
+    return render_template('index.html', choropleth_map=mapbox_html)
 
 def create_geojson(points, forest_id):
     coordinates = [(point.longitude, point.latitude) for point in points]
@@ -118,6 +121,25 @@ def get_all_forests_geojson():
         points = Point.query.filter_by(owner_type='forest', forest_id=forest.id).options(db.load_only(Point.longitude, Point.latitude)).all()
         if points:
             geojson_data = create_geojson(points, forest.id)
+            features.extend(geojson_data['features'])
+
+    if not features:
+        return jsonify({"error": "No points found for any forest"}), 404
+
+    feature_collection = FeatureCollection(features)
+    mapbox_html = create_mapbox_html_static(feature_collection)
+
+    return render_template('index.html', choropleth_map=mapbox_html)
+
+@bp.route('/farm/all/geojson', methods=['GET'])
+def get_all_farm_geojson():
+    farmers = Farm.query.all()
+    features = []
+
+    for farmer in farmers:
+        points = Point.query.filter_by(owner_type='farmer', farmer_id=farmer.id).options(db.load_only(Point.longitude, Point.latitude)).all()
+        if points:
+            geojson_data = create_geojson(points, farmer.id)
             features.extend(geojson_data['features'])
 
     if not features:

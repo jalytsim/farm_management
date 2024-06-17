@@ -1,0 +1,23 @@
+{% extends 'layout.html' %}
+
+{% block title %}Edit Farmer Group{% endblock %}
+
+{% block content %}
+<h1 class="text-4xl font-bold mb-8">Edit Farmer Group</h1>
+
+<form action="{{ url_for('farmergroup.edit_fg', fg_id=farmer_group.id) }}" method="POST">
+    <div class="grid grid-cols-1 gap-6">
+        <div>
+            <label for="name" class="block text-gray-700">Name:</label>
+            <input type="text" id="name" name="name" value="{{ farmer_group.name }}" class="w-full p-2 border border-gray-300 rounded mt-1">
+        </div>
+        <div>
+            <label for="description" class="block text-gray-700">Description:</label>
+            <textarea id="description" name="description" class="w-full p-2 border border-gray-300 rounded mt-1">{{ farmer_group.description }}</textarea>
+        </div>
+    </div>
+    <div class="flex justify-end mt-4">
+        <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Update Farmer Group</button>
+    </div>
+</form>
+{% endblock %}

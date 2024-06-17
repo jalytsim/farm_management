@@ -1,35 +1,42 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>{{ 'Edit' if point else 'Create' }} Point</title>
-</head>
-<body>
-    <h1>{{ 'Edit' if point else 'Create' }} Point</h1>
-    <form method="POST">
-        <label for="longitude">Longitude:</label>
-        <input type="number" name="longitude" id="longitude" value="{{ point.longitude if point else '' }}" required>
-        <br>
-        <label for="latitude">Latitude:</label>
-        <input type="number" name="latitude" id="latitude" value="{{ point.latitude if point else '' }}" required>
-        <br>
-        <label for="owner_type">Owner Type:</label>
-        <select name="owner_type" id="owner_type" required>
-            <option value="forest">Forest</option>
-            <option value="farmer">Farmer</option>
+{% extends 'layout.html' %}
+
+{% block title %}
+{{ 'Edit' if point else 'Create' }} Point
+{% endblock %}
+
+{% block content %}
+<h1 class="text-4xl font-bold mb-8">{{ 'Edit' if point else 'Create' }} Point</h1>
+<form method="POST" class="space-y-4">
+    <div>
+        <label for="longitude" class="block text-gray-700">Longitude:</label>
+        <input type="number" name="longitude" id="longitude" value="{{ point.longitude if point else '' }}" required class="w-full p-2 border border-gray-300 rounded mt-1">
+    </div>
+    <div>
+        <label for="latitude" class="block text-gray-700">Latitude:</label>
+        <input type="number" name="latitude" id="latitude" value="{{ point.latitude if point else '' }}" required class="w-full p-2 border border-gray-300 rounded mt-1">
+    </div>
+    <div>
+        <label for="owner_type" class="block text-gray-700">Owner Type:</label>
+        <select name="owner_type" id="owner_type" required class="w-full p-2 border border-gray-300 rounded mt-1">
+            <option value="forest" {% if point and point.owner_type == 'forest' %}selected{% endif %}>Forest</option>
+            <option value="farmer" {% if point and point.owner_type == 'farmer' %}selected{% endif %}>Farmer</option>
         </select>
-        <br>
-        <label for="forest_id">Forest ID:</label>
-        <input type="number" name="forest_id" id="forest_id" value="{{ point.forest_id if point else '' }}">
-        <br>
-        <label for="farmer_id">Farmer ID:</label>
-        <input type="text" name="farmer_id" id="farmer_id" value="{{ point.farmer_id if point else '' }}">
-        <br>
-        <label for="district_id">District ID:</label>
-        <input type="text" name="district_id" id="district_id" value="{{ point.district_id if point else '' }}" required>
-        <br>
-        <button type="submit">{{ 'Update' if point else 'Create' }}</button>
-    </form>
-    <a href="{{ url_for('points.list_points') }}">Back to List</a>
-</body>
-</html>
+    </div>
+    <div>
+        <label for="forest_id" class="block text-gray-700">Forest ID:</label>
+        <input type="number" name="forest_id" id="forest_id" value="{{ point.forest_id if point else '' }}" class="w-full p-2 border border-gray-300 rounded mt-1">
+    </div>
+    <div>
+        <label for="farmer_id" class="block text-gray-700">Farmer ID:</label>
+        <input type="text" name="farmer_id" id="farmer_id" value="{{ point.farmer_id if point else '' }}" class="w-full p-2 border border-gray-300 rounded mt-1">
+    </div>
+    <div>
+        <label for="district_id" class="block text-gray-700">District ID:</label>
+        <input type="text" name="district_id" id="district_id" value="{{ point.district_id if point else '' }}" required class="w-full p-2 border border-gray-300 rounded mt-1">
+    </div>
+    <div class="flex justify-end mt-4">
+        <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">{{ 'Update' if point else 'Create' }}</button>
+    </div>
+</form>
+<a href="{{ url_for('points.list_points') }}" class="inline-block bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded mt-4">Back to List</a>
+{% endblock %}

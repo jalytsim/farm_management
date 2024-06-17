@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Agriyields{% endblock %}</title>
+    <link href="{{ url_for('static', filename='css/output.css') }}" rel="stylesheet">
+</head>
+<body class="bg-gray-100 font-sans h-screen">
+    <header class="bg-gray-800 text-white p-4">
+        <h1 class="text-3xl">Agriyields</h1>
+    </header>
+    <div class="flex h-full">
+        <!-- Sidebar -->
+        {% include 'navbar.html' %}
+
+        <!-- Main content -->
+        <main class="flex-1 p-4">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+    <footer class="bg-gray-800 text-white p-4 text-center">
+        <p>Footer content here</p>
+    </footer>
+    <script>
+        function toggleSubMenu(subMenuId) {
+            const subMenu = document.getElementById(subMenuId);
+            subMenu.classList.toggle('hidden');
+        }
+
+        function openModal(modalId) {
+            document.getElementById(modalId).classList.remove('hidden');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
