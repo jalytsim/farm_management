@@ -1,52 +1,48 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends 'layout.html' %}
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Forest and Point Management</title>
-    <link href="{{ url_for('static', filename='css/output.css') }}" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-</head>
+{% block title %}
+    Forest and Point Management
+{% endblock %}
 
-<body class="font-sans antialiased">
-    <div class="container mx-auto p-4">
-        <h1 class="text-3xl font-bold mb-4">Forest and Point Management</h1>
-        <a href="{{ url_for('map.get_all_forests_geojson') }}" class="text-blue-500 mb-4 inline-block">View All Forests on Map</a>
-        <h2 class="text-xl font-bold mb-2">Forests</h2>
-        <form action="{{ url_for('forest.handle_create_forest') }}" method="post" class="mb-4">
-            <input type="text" name="name" placeholder="Forest Name" class="border rounded px-2 py-1 mr-2">
-            <button type="submit" class="bg-blue-500 text-white px-2 py-1 rounded">Create Forest</button>
-        </form>
-        <table class="border-collapse border border-gray-400 w-full">
-            <thead>
-                <tr>
-                    <th class="border border-gray-400 px-4 py-2">Forest Name</th>
-                    <th class="border border-gray-400 px-4 py-2">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for forest in forests %}
-                <tr>
-                    <td class="border border-gray-400 px-4 py-2">{{ forest.name }}</td>
-                    <td class="border border-gray-400 px-4 py-2">
-                        <form action="{{ url_for('forest.handle_update_forest', id=forest.id) }}" method="post" class="inline-block">
-                            <input type="text" name="name" value="{{ forest.name }}" class="border rounded px-2 py-1 mr-2">
-                            <button type="submit" class="bg-blue-500 text-white px-2 py-1 rounded">Update</button>
-                        </form>
-                        <form action="{{ url_for('forest.handle_delete_forest', id=forest.id) }}" method="post" class="inline-block">
-                            <button type="submit" class="bg-red-500 text-white px-2 py-1 rounded">Delete</button>
-                        </form>
-                        <form action="{{ url_for('map.get_forest_geojson', forest_id=forest.id) }}" method="get" class="inline-block">
-                            <button type="submit" class="bg-red-500 text-white px-2 py-1 rounded">View</button>
-                        </form>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        </div>
-    <a href="{{ url_for('points.create_point_route') }}" class="text-blue-500 mb-4 inline-block">create point</a>
+{% block content %}
+    <h1 class="text-3xl font-bold mb-4">Forest and Point Management</h1>
+    <a href="{{ url_for('map.get_all_forests_geojson') }}" class="text-blue-500 mb-4 inline-block">View All Forests on Map</a>
+
+    <h2 class="text-xl font-bold mb-2">Forests</h2>
+    <form action="{{ url_for('forest.handle_create_forest') }}" method="post" class="mb-4">
+        <input type="text" name="name" placeholder="Forest Name" class="border rounded px-2 py-1 mr-2">
+        <button type="submit" class="bg-blue-500 text-white px-2 py-1 rounded">Create Forest</button>
+    </form>
+
+    <table class="border-collapse border border-gray-400 w-full">
+        <thead>
+            <tr>
+                <th class="border border-gray-400 px-4 py-2">Forest Name</th>
+                <th class="border border-gray-400 px-4 py-2">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for forest in forests %}
+            <tr>
+                <td class="border border-gray-400 px-4 py-2">{{ forest.name }}</td>
+                <td class="border border-gray-400 px-4 py-2">
+                    <form action="{{ url_for('forest.handle_update_forest', id=forest.id) }}" method="post" class="inline-block">
+                        <input type="text" name="name" value="{{ forest.name }}" class="border rounded px-2 py-1 mr-2">
+                        <button type="submit" class="bg-blue-500 text-white px-2 py-1 rounded">Update</button>
+                    </form>
+                    <form action="{{ url_for('forest.handle_delete_forest', id=forest.id) }}" method="post" class="inline-block">
+                        <button type="submit" class="bg-red-500 text-white px-2 py-1 rounded">Delete</button>
+                    </form>
+                    <form action="{{ url_for('map.get_forest_geojson', forest_id=forest.id) }}" method="get" class="inline-block">
+                        <button type="submit" class="bg-green-500 text-white px-2 py-1 rounded">View</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <a href="{{ url_for('points.create_point_route') }}" class="text-blue-500 mb-4 inline-block">Create Point</a>
 
     <script>
         function editPoint(id) {
@@ -79,6 +75,4 @@
             });
         }
     </script>
-</body>
-
-</html>
+{% endblock %}
