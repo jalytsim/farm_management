@@ -100,7 +100,7 @@ venv.bak/
 # virtualenv
 venv/
 ENV/
-
+uploads/
 # Spyder project settings
 .spyderproject
 .spyproject
