@@ -1,49 +1,114 @@
 <div id="farmModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center">
     <div class="bg-white p-6 rounded-lg shadow-md w-full max-w-lg">
         <h2 class="text-2xl font-bold mb-4">Create Farm</h2>
-        <form action="{{ url_for('farm.create_farm') }}" method="POST">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                    <label for="farm_id" class="block text-gray-700">ID:</label>
-                    <input type="text" id="farm_id" name="farm_id" class="w-full p-2 border border-gray-300 rounded mt-1">
-                </div>
-                <div>
-                    <label for="name" class="block text-gray-700">Name:</label>
-                    <input type="text" id="name" name="name" class="w-full p-2 border border-gray-300 rounded mt-1">
-                </div>
-                <div>
-                    <label for="district_id" class="block text-gray-700">District:</label>
-                    <select id="district_id" name="district_id" class="w-full p-2 border border-gray-300 rounded mt-1">
-                        <option value="">Select District</option>
-                        {% for district in districts %}
-                            <option value="{{ district.id }}">{{ district.name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div>
-                    <label for="farmergroup_id" class="block text-gray-700">Farmer Group:</label>
-                    <select id="farmergroup_id" name="farmergroup_id" class="w-full p-2 border border-gray-300 rounded mt-1">
-                        <option value="">Select Farmer Group</option>
-                        {% for farmergroup in farmergroups %}
-                            <option value="{{ farmergroup.id }}">{{ farmergroup.name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div>
-                    <label for="longitude" class="block text-gray-700">Longitude:</label>
-                    <input type="number" id="longitude" name="longitude" class="w-full p-2 border border-gray-300 rounded mt-1" step="any">
-                </div>
-                <div>
-                    <label for="latitude" class="block text-gray-700">Latitude:</label>
-                    <input type="number" id="latitude" name="latitude" class="w-full p-2 border border-gray-300 rounded mt-1" step="any">
-                </div>
+        <form action="{{ url_for('farm.create_farm') }}" method="POST" class="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
+        
+            <div class="mb-4">
+                <label for="farm_id" class="block text-gray-700 text-sm font-bold mb-2">Farm ID:</label>
+                <input type="text" id="farm_id" name="farm_id" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
             </div>
-            <div class="flex justify-end mt-4">
-                <button type="button" onclick="openModal('farmerGroupModal')" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded mr-2">create farmer group</button>
-                <a  href="{{ url_for('districts.create_district_route') }}"   class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded mr-2">create District</a>
-                <button type="button" onclick="closeModal('farmModal')" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded mr-2">Cancel</button>
-                <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create Farm</button>
+        
+            <div class="mb-4">
+                <label for="name" class="block text-gray-700 text-sm font-bold mb-2">Farm Name:</label>
+                <input type="text" id="name" name="name" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+            </div>
+        
+            <div class="mb-4">
+                <label for="subcounty" class="block text-gray-700 text-sm font-bold mb-2">Subcounty:</label>
+                <input type="text" id="subcounty" name="subcounty" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+            </div>
+        
+            <div class="mb-4">
+                <label for="district_id" class="block text-gray-700 text-sm font-bold mb-2">District:</label>
+                <select id="district_id" name="district_id" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                    {% for district in districts %}
+                        <option value="{{ district.id }}">{{ district.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        
+            <div class="mb-4">
+                <label for="farmergroup_id" class="block text-gray-700 text-sm font-bold mb-2">Farmer Group:</label>
+                <select id="farmergroup_id" name="farmergroup_id" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                    {% for farmergroup in farmergroups %}
+                        <option value="{{ farmergroup.id }}">{{ farmergroup.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        
+            <div class="mb-4">
+                <label for="longitude" class="block text-gray-700 text-sm font-bold mb-2">Longitude:</label>
+                <input type="text" id="longitude" name="longitude" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+            </div>
+        
+            <div class="mb-4">
+                <label for="latitude" class="block text-gray-700 text-sm font-bold mb-2">Latitude:</label>
+                <input type="text" id="latitude" name="latitude" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+            </div>
+        
+            <div class="mb-4">
+                <label for="phonenumber1" class="block text-gray-700 text-sm font-bold mb-2">Phone Number 1:</label>
+                <input type="text" id="phonenumber1" name="phonenumber1" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+            </div>
+        
+            <div class="mb-4">
+                <label for="phonenumber2" class="block text-gray-700 text-sm font-bold mb-2">Phone Number 2:</label>
+                <input type="text" id="phonenumber2" name="phonenumber2" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+            </div>
+        
+            <div class="flex items-center justify-between">
+                <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">Create Farm</button>
             </div>
         </form>
+        
     </div>
 </div>
+
+<script>
+    function openModal(modalId) {
+        document.getElementById(modalId).classList.remove('hidden');
+    }
+
+    function closeModal(modalId) {
+        document.getElementById(modalId).classList.add('hidden');
+    }
+
+    function addPhoneNumberField() {
+        const phoneNumber2Container = document.getElementById('phonenumber2-container');
+        if (phoneNumber2Container.classList.contains('hidden')) {
+            phoneNumber2Container.classList.remove('hidden');
+        }
+    }
+
+    function updateFarm(farmId) {
+        const name = document.querySelector(`.farm-name[data-id='${farmId}']`).value;
+        const district_id = document.querySelector(`.farm-district[data-id='${farmId}']`).value;
+        const farmergroup_id = document.querySelector(`.farm-farmergroup[data-id='${farmId}']`).value;
+        const longitude = document.querySelector(`.farm-longitude[data-id='${farmId}']`).value;
+        const latitude = document.querySelector(`.farm-latitude[data-id='${farmId}']`).value;
+        const phonenumber = document.querySelector(`.farm-phonenumber[data-id='${farmId}']`).value;
+        const geolocation = `${longitude},${latitude}`;
+
+        fetch(`/farm/${farmId}/update`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                name: name,
+                district_id: district_id,
+                farmergroup_id: farmergroup_id,
+                geolocation: geolocation,
+                phonenumber: phonenumber
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Farm updated successfully');
+            } else {
+                alert('Error updating farm');
+            }
+        });
+    }
+</script>

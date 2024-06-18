@@ -8,6 +8,8 @@
                 <th class="px-4 py-2">Farmer Group</th>
                 <th class="px-4 py-2">Longitude</th>
                 <th class="px-4 py-2">Latitude</th>
+                <th class="px-4 py-2">Phone Number 1</th>
+                <th class="px-4 py-2">Phone Number 2</th>
                 <th class="px-4 py-2">Actions</th>
             </tr>
         </thead>
@@ -36,6 +38,12 @@
                 </td>
                 <td class="border px-4 py-2">
                     <input type="number" value="{{ farm.geolocation.split(',')[1] }}" class="w-full p-2 border border-gray-300 rounded mt-1 farm-latitude" data-id="{{ farm.id }}">
+                </td>
+                <td class="border px-4 py-2">
+                    <input type="text" value="{{ farm.phonenumber }}" class="w-full p-2 border border-gray-300 rounded mt-1 farm-phonenumber1" data-id="{{ farm.id }}">
+                </td>
+                <td class="border px-4 py-2">
+                    <input type="text" value="{{ farm.phonenumber2 }}" class="w-full p-2 border border-gray-300 rounded mt-1 farm-phonenumber2" data-id="{{ farm.id }}">
                 </td>
                 <td class="border px-4 py-2 flex space-x-2">
                     <button onclick="updateFarm({{ farm.id }})" class="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-2 rounded">Update</button>

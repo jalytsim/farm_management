@@ -30,16 +30,14 @@ def get_farmProperties(farm_id):
         print(f"Error fetching farm properties: {e}")
         return None
 
-
 def get_all_farms():
     return db.session.query(Farm).join(District).join(FarmerGroup).add_columns(
         Farm.id, Farm.name, Farm.geolocation, Farm.district_id, Farm.farmergroup_id,
         District.name.label('district_name'), FarmerGroup.name.label('farmergroup_name')
     ).all()
 
-
-def create_farm(farm_id, name, subcounty, farmergroup_id, district_id, geolocation):
-    farm = Farm(farm_id=farm_id, name=name, subcounty=subcounty, farmergroup_id=farmergroup_id, district_id=district_id, geolocation=geolocation)
+def create_farm(farm_id, name, subcounty, farmergroup_id, district_id, geolocation, phonenumber1=None, phonenumber2=None):
+    farm = Farm(farm_id=farm_id, name=name, subcounty=subcounty, farmergroup_id=farmergroup_id, district_id=district_id, geolocation=geolocation, phonenumber=phonenumber1, phonenumber2=phonenumber2)
     db.session.add(farm)
     db.session.commit()
     return farm

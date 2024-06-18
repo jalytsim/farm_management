@@ -81,6 +81,8 @@ class Farm(db.Model):
     farmergroup_id = db.Column(db.Integer, db.ForeignKey('farmergroup.id'), nullable=False)
     district_id = db.Column(db.Integer, db.ForeignKey('district.id'), nullable=False)
     geolocation = db.Column(db.String(255), nullable=False)
+    phonenumber = db.Column(db.String(20), nullable=True)
+    phonenumber2 = db.Column(db.String(20), nullable=True)
     date_created = db.Column(db.DateTime, default=datetime.utcnow)
     date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
