@@ -1,23 +1,70 @@
-{% extends 'layout.html' %}
-
-{% block title %}Create Farmer Group{% endblock %}
-
-{% block content %}
-<h1 class="text-4xl font-bold mb-8">Create Farmer Group</h1>
-
-<form action="{{ url_for('farmergroup.create_fg') }}" method="POST">
-    <div class="grid grid-cols-1 gap-6">
-        <div>
-            <label for="name" class="block text-gray-700">Name:</label>
-            <input type="text" id="name" name="name" class="w-full p-2 border border-gray-300 rounded mt-1">
-        </div>
-        <div>
-            <label for="description" class="block text-gray-700">Description:</label>
-            <textarea id="description" name="description" class="w-full p-2 border border-gray-300 rounded mt-1"></textarea>
-        </div>
-    </div>
-    <div class="flex justify-end mt-4">
-        <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create Farmer Group</button>
-    </div>
-</form>
-{% endblock %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ 'Edit' if farmdata else 'Create' }} FarmData</title>
+</head>
+<body>
+    <h1>{{ 'Edit' if farmdata else 'Create' }} FarmData</h1>
+    <form method="POST">
+        <label for="farm_id">Farm:</label>
+        <select name="farm_id" id="farm_id">
+            {% for farm in farms %}
+                <option value="{{ farm.farm_id }}" {% if farmdata and farm.farm_id == farmdata.farm_id %}selected{% endif %}>
+                    {{ farm.name }}
+                </option>
+            {% endfor %}
+        </select>
+        <br>
+        <label for="crop_id">Crop:</label>
+        <select name="crop_id" id="crop_id">
+            {% for crop in crops %}
+                <option value="{{ crop.id }}" {% if farmdata and crop.id == farmdata.crop_id %}selected{% endif %}>
+                    {{ crop.name }}
+                </option>
+            {% endfor %}
+        </select>
+        <br>
+        <label for="land_type">Land Type:</label>
+        <input type="text" name="land_type" id="land_type" value="{{ farmdata.land_type if farmdata else '' }}" required>
+        <br>
+        <label for="tilled_land_size">Tilled Land Size:</label>
+        <input type="number" name="tilled_land_size" id="tilled_land_size" value="{{ farmdata.tilled_land_size if farmdata else '' }}" required>
+        <br>
+        <label for="planting_date">Planting Date:</label>
+        <input type="date" name="planting_date" id="planting_date" value="{{ farmdata.planting_date if farmdata else '' }}" required>
+        <br>
+        <label for="season">Season:</label>
+        <input type="number" name="season" id="season" value="{{ farmdata.season if farmdata else '' }}" required>
+        <br>
+        <label for="quality">Quality:</label>
+        <input type="text" name="quality" id="quality" value="{{ farmdata.quality if farmdata else '' }}" required>
+        <br>
+        <label for="quantity">Quantity:</label>
+        <input type="number" name="quantity" id="quantity" value="{{ farmdata.quantity if farmdata else '' }}" required>
+        <br>
+        <label for="harvest_date">Harvest Date:</label>
+        <input type="date" name="harvest_date" id="harvest_date" value="{{ farmdata.harvest_date if farmdata else '' }}" required>
+        <br>
+        <label for="expected_yield">Expected Yield:</label>
+        <input type="number" name="expected_yield" id="expected_yield" value="{{ farmdata.expected_yield if farmdata else '' }}" required>
+        <br>
+        <label for="actual_yield">Actual Yield:</label>
+        <input type="number" name="actual_yield" id="actual_yield" value="{{ farmdata.actual_yield if farmdata else '' }}" required>
+        <br>
+        <label for="timestamp">Timestamp:</label>
+        <input type="datetime-local" name="timestamp" id="timestamp" value="{{ farmdata.timestamp if farmdata else '' }}" required>
+        <br>
+        <label for="channel_partner">Channel Partner:</label>
+        <input type="text" name="channel_partner" id="channel_partner" value="{{ farmdata.channel_partner if farmdata else '' }}" required>
+        <br>
+        <label for="destination_country">Destination Country:</label>
+        <input type="text" name="destination_country" id="destination_country" value="{{ farmdata.destination_country if farmdata else '' }}" required>
+        <br>
+        <label for="customer_name">Customer Name:</label>
+        <input type="text" name="customer_name" id="customer_name" value="{{ farmdata.customer_name if farmdata else '' }}" required>
+        <br>
+        <button type="submit">{{ 'Update' if farmdata else 'Create' }}</button>
+    </form>
+</body>
+</html>

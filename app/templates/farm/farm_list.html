@@ -32,10 +32,10 @@
                     </select>
                 </td>
                 <td class="border px-4 py-2">
-                    <input type="number" value="{{ farm.geolocation.split(',')[0] }}" class="w-full p-2 border border-gray-300 rounded mt-1 farm-longitude" step="any" data-id="{{ farm.id }}">
+                    <input type="number" value="{{ farm.geolocation.split(',')[0] }}" class="w-full p-2 border border-gray-300 rounded mt-1 farm-longitude" data-id="{{ farm.id }}">
                 </td>
                 <td class="border px-4 py-2">
-                    <input type="number" value="{{ farm.geolocation.split(',')[1] }}" class="w-full p-2 border border-gray-300 rounded mt-1 farm-latitude" step="any" data-id="{{ farm.id }}">
+                    <input type="number" value="{{ farm.geolocation.split(',')[1] }}" class="w-full p-2 border border-gray-300 rounded mt-1 farm-latitude" data-id="{{ farm.id }}">
                 </td>
                 <td class="border px-4 py-2 flex space-x-2">
                     <button onclick="updateFarm({{ farm.id }})" class="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-2 rounded">Update</button>
