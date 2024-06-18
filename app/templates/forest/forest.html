@@ -9,10 +9,12 @@
     <a href="{{ url_for('map.get_all_forests_geojson') }}" class="text-blue-500 mb-4 inline-block">View All Forests on Map</a>
 
     <h2 class="text-xl font-bold mb-2">Forests</h2>
-    <form action="{{ url_for('forest.handle_create_forest') }}" method="post" class="mb-4">
+    <form action="{{ url_for('forest.handle_create_forest') }}" method="post" class="mb-4" enctype="multipart/form-data">
         <input type="text" name="name" placeholder="Forest Name" class="border rounded px-2 py-1 mr-2">
+        <input type="file" name="image" accept="image/*" class="border rounded px-2 py-1 mr-2">
         <button type="submit" class="bg-blue-500 text-white px-2 py-1 rounded">Create Forest</button>
     </form>
+    
 
     <table class="border-collapse border border-gray-400 w-full">
         <thead>
