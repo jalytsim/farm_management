@@ -19,25 +19,25 @@
     <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
         <h1 class="text-xl font-bold mb-4">Update User</h1>
         <form id="updateUserForm" method="POST" action="{{ url_for('admin.update_user') }}">
-            <input type="hidden" name="user_id" id="user_id">
+            <input type="hidden" name="user_id" id="user_id_u">
             <div class="mb-4">
                 <label for="username" class="block text-sm font-medium text-gray-700">Username:</label>
-                <input type="text" id="username" name="username" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                <input type="text" id="username_u" name="username" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
             </div>
             <div class="mb-4">
                 <label for="email" class="block text-sm font-medium text-gray-700">Email:</label>
-                <input type="email" id="email" name="email" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                <input type="email" id="email_u" name="email" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
             </div>
             <div class="mb-4">
                 <label for="phone" class="block text-sm font-medium text-gray-700">Phone number:</label>
-                <input type="text" id="phone" name="phone" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                <input type="text" id="phone_u" name="phone" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
             </div>
             <div class="mb-4">
                 <label for="user_type" class="block text-sm font-medium text-gray-700">User Type:</label>
-                <input type="text" id="user_type" name="user_type" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                <input type="text" id="user_type_u" name="user_type" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
             </div>
             <div class="mb-4 flex items-center">
-                <input type="checkbox" id="is_admin" name="is_admin" class="mr-2">
+                <input type="checkbox" id="is_admin_u" name="is_admin" class="mr-2">
                 <label for="is_admin" class="text-sm font-medium text-gray-700">Is Admin</label>
             </div>
             <div class="flex justify-end">
@@ -54,12 +54,13 @@
         fetch(`/admin/user/${userId}`)
             .then(response => response.json())
             .then(data => {
-                document.getElementById('user_id').value = data.id;
-                document.getElementById('username').value = data.username;
-                document.getElementById('email').value = data.email;
-                document.getElementById('phone').value = data.phonenumber;
-                document.getElementById('user_type').value = data.user_type;
-                document.getElementById('is_admin').checked = data.is_admin;
+                console.log(data);
+                document.getElementById('user_id_u').value = data.id;
+                document.getElementById('username_u').value = data.username;
+                document.getElementById('email_u').value = data.email;
+                document.getElementById('phone_u').value = data.phonenumber;
+                document.getElementById('user_type_u').value = data.user_type;
+                document.getElementById('is_admin_u').checked = data.is_admin;
                 document.getElementById('updateFormModal').classList.remove('hidden');
             });
     }

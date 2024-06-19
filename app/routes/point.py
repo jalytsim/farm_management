@@ -1,7 +1,7 @@
 # routes/point_routes.py
 from flask import Blueprint, jsonify, render_template, request, redirect, url_for, flash
 from flask_login import login_required
-from app.models import Forest
+from app.models import District, Farm, Forest
 from app.routes.admin import admin_required
 from app.routes.farm import farmer_or_admin_required
 from app import db
@@ -51,7 +51,10 @@ def create_point_route():
         flash('Point created successfully.', 'success')
         return redirect(url_for('points.list_points'))
     
-    return render_template('points/create.html')
+    districts = District.query.all()
+    forests =Forest.query.all()
+    farms = Farm.query.all()
+    return render_template('points/create.html', districts = districts, forests = forests, farms=farms)
 
 @bp.route('/points/edit/<int:point_id>', methods=['GET', 'POST'])
 @login_required
@@ -87,8 +90,10 @@ def edit_point_route(point_id):
         update_point(point_id, longitude, latitude, owner_type, forest_id, farmer_id, district_id)
         print('Point updated successfully.', 'success')
         return redirect(url_for('points.list_points'))
-    
-    return render_template('points/edit.html', point=point)
+    districts = District.query.all()
+    forests =Forest.query.all()
+    farms = Farm.query.all()
+    return render_template('points/edit.html', point=point, districts = districts, forests = forests, farms=farms)
 
 @bp.route('/points/delete/<int:point_id>', methods=['POST'])
 @login_required
