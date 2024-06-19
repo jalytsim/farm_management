@@ -3,59 +3,65 @@
         <h2 class="text-2xl font-bold mb-4">Create Farm</h2>
         <form action="{{ url_for('farm.create_farm') }}" method="POST" class="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
         
-            <div class="mb-4">
-                <label for="farm_id" class="block text-gray-700 text-sm font-bold mb-2">Farm ID:</label>
-                <input type="text" id="farm_id" name="farm_id" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+            <div class="flex flex-wrap -mx-3 mb-4">
+                <div class="w-full md:w-1/2 px-3 mb-4 md:mb-0">
+                    <label for="farm_id" class="block text-gray-700 text-sm font-bold mb-2">Farm ID:</label>
+                    <input type="text" id="farm_id" name="farm_id" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                </div>
+                <div class="w-full md:w-1/2 px-3">
+                    <label for="name" class="block text-gray-700 text-sm font-bold mb-2">Farm Name:</label>
+                    <input type="text" id="name" name="name" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                </div>
             </div>
-        
-            <div class="mb-4">
-                <label for="name" class="block text-gray-700 text-sm font-bold mb-2">Farm Name:</label>
-                <input type="text" id="name" name="name" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+
+            <div class="flex flex-wrap -mx-3 mb-4">
+                <div class="w-full md:w-1/2 px-3 mb-4 md:mb-0">
+                    <label for="subcounty" class="block text-gray-700 text-sm font-bold mb-2">Subcounty:</label>
+                    <input type="text" id="subcounty" name="subcounty" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                </div>
+                <div class="w-full md:w-1/2 px-3">
+                    <label for="district_id" class="block text-gray-700 text-sm font-bold mb-2">District:</label>
+                    <select id="district_id" name="district_id" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                        {% for district in districts %}
+                            <option value="{{ district.id }}">{{ district.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
             </div>
-        
-            <div class="mb-4">
-                <label for="subcounty" class="block text-gray-700 text-sm font-bold mb-2">Subcounty:</label>
-                <input type="text" id="subcounty" name="subcounty" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+
+            <div class="flex flex-wrap -mx-3 mb-4">
+                <div class="w-full md:w-1/2 px-3 mb-4 md:mb-0">
+                    <label for="farmergroup_id" class="block text-gray-700 text-sm font-bold mb-2">Farmer Group:</label>
+                    <select id="farmergroup_id" name="farmergroup_id" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                        {% for farmergroup in farmergroups %}
+                            <option value="{{ farmergroup.id }}">{{ farmergroup.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="w-full md:w-1/2 px-3">
+                    <label for="longitude" class="block text-gray-700 text-sm font-bold mb-2">Longitude:</label>
+                    <input type="text" id="longitude" name="longitude" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                </div>
             </div>
-        
-            <div class="mb-4">
-                <label for="district_id" class="block text-gray-700 text-sm font-bold mb-2">District:</label>
-                <select id="district_id" name="district_id" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
-                    {% for district in districts %}
-                        <option value="{{ district.id }}">{{ district.name }}</option>
-                    {% endfor %}
-                </select>
+
+            <div class="flex flex-wrap -mx-3 mb-4">
+                <div class="w-full md:w-1/2 px-3 mb-4 md:mb-0">
+                    <label for="latitude" class="block text-gray-700 text-sm font-bold mb-2">Latitude:</label>
+                    <input type="text" id="latitude" name="latitude" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                </div>
+                <div class="w-full md:w-1/2 px-3">
+                    <label for="phonenumber1" class="block text-gray-700 text-sm font-bold mb-2">Phone Number 1:</label>
+                    <input type="text" id="phonenumber1" name="phonenumber1" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                </div>
             </div>
-        
-            <div class="mb-4">
-                <label for="farmergroup_id" class="block text-gray-700 text-sm font-bold mb-2">Farmer Group:</label>
-                <select id="farmergroup_id" name="farmergroup_id" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
-                    {% for farmergroup in farmergroups %}
-                        <option value="{{ farmergroup.id }}">{{ farmergroup.name }}</option>
-                    {% endfor %}
-                </select>
+
+            <div class="flex flex-wrap -mx-3 mb-4">
+                <div class="w-full md:w-1/2 px-3 mb-4 md:mb-0">
+                    <label for="phonenumber2" class="block text-gray-700 text-sm font-bold mb-2">Phone Number 2:</label>
+                    <input type="text" id="phonenumber2" name="phonenumber2" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                </div>
             </div>
-        
-            <div class="mb-4">
-                <label for="longitude" class="block text-gray-700 text-sm font-bold mb-2">Longitude:</label>
-                <input type="text" id="longitude" name="longitude" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
-            </div>
-        
-            <div class="mb-4">
-                <label for="latitude" class="block text-gray-700 text-sm font-bold mb-2">Latitude:</label>
-                <input type="text" id="latitude" name="latitude" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
-            </div>
-        
-            <div class="mb-4">
-                <label for="phonenumber1" class="block text-gray-700 text-sm font-bold mb-2">Phone Number 1:</label>
-                <input type="text" id="phonenumber1" name="phonenumber1" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
-            </div>
-        
-            <div class="mb-4">
-                <label for="phonenumber2" class="block text-gray-700 text-sm font-bold mb-2">Phone Number 2:</label>
-                <input type="text" id="phonenumber2" name="phonenumber2" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
-            </div>
-        
+
             <div class="flex items-center justify-between">
                 <button type="button" onclick="closeModal('farmModal')" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded mr-2">Cancel</button>
                 <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">Create Farm</button>
