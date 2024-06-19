@@ -7,33 +7,55 @@
     <link href="{{ url_for('static', filename='css/output.css') }}" rel="stylesheet">
 </head>
 <body class="bg-gray-100 font-sans h-screen">
-    <header class="bg-gray-800 text-white p-4">
+    <header class="bg-green-700 text-white p-4 flex items-center justify-between">
         <h1 class="text-3xl">Agriyields</h1>
+        <button class="text-white lg:hidden" onclick="toggleSidebar()">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+            </svg>
+        </button>
     </header>
     <div class="flex h-full">
         <!-- Sidebar -->
-        {% include 'navbar.html' %}
+        <nav id="sidebar" class="w-64 bg-green-800 text-white h-full hidden lg:block lg:fixed lg:left-0 lg:top-0 lg:bottom-0 lg:h-screen">
+            <ul class="flex flex-col space-y-4 p-4">
+                <li><a href="{{ url_for('main.home') }}" class="block py-2 px-4 rounded {{ 'bg-green-700' if request.endpoint == 'main.home' else 'hover:bg-green-600' }}">Home</a></li>
+                {% if current_user.user_type == 'admin' or current_user.user_type == 'forest' %}
+                    <li><a href="{{ url_for('forest.index') }}" class="block py-2 px-4 rounded {{ 'bg-green-700' if request.endpoint == 'forest.index' else 'hover:bg-green-600' }}">Forest</a></li>
+                {% endif %}
+                {% if current_user.user_type == 'admin' or current_user.user_type == 'farmer' %}
+                    <li>
+                        <span class="block py-2 px-4 cursor-pointer hover:bg-green-600 rounded" onclick="toggleSubMenu('farmSubMenu')">Farm</span>
+                        <ul id="farmSubMenu" class="hidden space-y-2 pl-4">
+                            <li><a href="{{ url_for('farm.index') }}" class="block py-2 px-4 rounded {{ 'bg-green-700' if request.endpoint == 'farm.index' else 'hover:bg-green-600' }}">Create Farm</a></li>
+                            <li><a href="{{ url_for('crop.index') }}" class="block py-2 px-4 rounded {{ 'bg-green-700' if request.endpoint == 'crop.index' else 'hover:bg-green-600' }}">Create Crop</a></li>
+                            <li><a href="{{ url_for('districts.create_district_route') }}" class="block py-2 px-4 rounded {{ 'bg-green-700' if request.endpoint == 'districts.create_district_route' else 'hover:bg-green-600' }}">Create District</a></li>
+                            <li><a href="{{ url_for('farmergroup.create_fg') }}" class="block py-2 px-4 rounded {{ 'bg-green-700' if request.endpoint == 'farmergroup.create_fg' else 'hover:bg-green-600' }}">Create Farmer Group</a></li>
+                            <li><a href="{{ url_for('points.create_point_route') }}" class="block py-2 px-4 rounded {{ 'bg-green-700' if request.endpoint == 'points.create_point_route' else 'hover:bg-green-600' }}">Create Point</a></li>
+                        </ul>
+                    </li>
+                {% endif %}
+                <li><a href="{{ url_for('auth.logout') }}" class="inline-block bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">Logout</a></li>
+            </ul>
+        </nav>
 
         <!-- Main content -->
-        <main class="flex-1 p-4">
+        <main class="flex-1 p-4 lg:ml-64">
             {% block content %}{% endblock %}
         </main>
     </div>
-    <footer class="bg-gray-800 text-white p-4 text-center">
+    <footer class="bg-green-700 text-white p-4 text-center">
         <p>Footer content here</p>
     </footer>
+
     <script>
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('hidden');
+        }
+
         function toggleSubMenu(subMenuId) {
             const subMenu = document.getElementById(subMenuId);
             subMenu.classList.toggle('hidden');
-        }
-
-        function openModal(modalId) {
-            document.getElementById(modalId).classList.remove('hidden');
-        }
-
-        function closeModal(modalId) {
-            document.getElementById(modalId).classList.add('hidden');
         }
     </script>
 </body>
