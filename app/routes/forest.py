@@ -34,33 +34,34 @@ def index():
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in Config.ALLOWED_EXTENSIONS
 
-@bp.route('/forest/create')
-@login_required
+@bp.route('/forest/create', methods=['POST'])
 @forest_or_admin_required
 def handle_create_forest():
     if request.method == 'POST':
-        name = request.form['name']
+        name = request.form.get('name')
         
-        if 'image' not in request.files:
-            flash('No file part', 'danger')
-            return redirect(request.url)
+        if 'image' in request.files:
+            file = request.files['image']
         
-        file = request.files['image']
-        
-        if file.filename == '':
-            flash('No selected file', 'danger')
-            return redirect(request.url)
-        
-        if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
-            os.makedirs(Config.UPLOAD_FOLDER, exist_ok=True)  # Create the UPLOAD_FOLDER if it doesn't exist
-            file.save(os.path.join(Config.UPLOAD_FOLDER, filename))
-            create_forest(name)
-            return redirect(url_for('forest.index'))
+            if file.filename != '':
+                if not allowed_file(file.filename):
+                    flash('Invalid file format. Allowed formats are png, jpg, jpeg, gif', 'danger')
+                    return redirect(request.url)
+                
+                filename = secure_filename(file.filename)
+                os.makedirs(Config.UPLOAD_FOLDER, exist_ok=True)  # Create the UPLOAD_FOLDER if it doesn't exist
+                file.save(os.path.join(Config.UPLOAD_FOLDER, filename))
+            else:
+                filename = None
         else:
-            flash('Invalid file format. Allowed formats are png, jpg, jpeg, gif', 'danger')
-            return redirect(request.url)
+            filename = None
+
+        create_forest(name)
+        flash('Forest created successfully', 'success')
+        return redirect(url_for('forest.index'))
+    
     return redirect(url_for('forest.index'))
+
     
     
 @bp.route('/forest/update/<int:id>', methods=['POST'])
