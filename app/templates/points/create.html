@@ -24,7 +24,7 @@
     </div>
     <div class="mb-4">
         <label for="forest_id" class="block text-gray-700 text-sm font-bold mb-2">Forest name:</label>
-        <select id="forest_id" name="forest_id" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+        <select id="forest_id" name="forest_id"  class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
             <option value="">None</option>
             {% for forest in forests %}
                 <option value="{{ forest.id }}">{{ forest.name }}</option>
@@ -33,7 +33,7 @@
     </div>
     <div class="mb-4">
         <label for="farmer_id" class="block text-gray-700 text-sm font-bold mb-2">Farmer name:</label>
-        <select id="farmer_id" name="farmer_id" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+        <select id="farmer_id" name="farmer_id"  class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
             <option value="">None</option>
             {% for farm in farms %}
                 <option value="{{ farm.id }}">{{ farm.name }}</option>
