@@ -96,7 +96,7 @@ def get_farm_geojson(farmer_id):
         return jsonify({"error": "No points found for the specified farm_id"  }), 404
     
     # Create GeoJSON data from points
-    geojson_data = create_geojson(points, farmer_id)
+    geojson_data = create_geojson(points, farm)
     
     # Create the Mapbox HTML using the GeoJSON data
     mapbox_html = create_mapbox_html_static(geojson_data)
@@ -104,14 +104,17 @@ def get_farm_geojson(farmer_id):
     # Render the HTML directly in the response
     return render_template('index.html', choropleth_map=mapbox_html)
 
-def create_geojson(points, forest_id):
+def create_geojson(points, model_instance):
     coordinates = [(point.longitude, point.latitude) for point in points]
     
     # Assuming points form a single polygon
     shapely_polygon = ShapelyPolygon(coordinates)
     geojson_polygon = mapping(shapely_polygon)
     
-    feature = Feature(geometry=geojson_polygon, properties={"id": forest_id})
+    # Dynamically create properties dictionary
+    properties = {column.name: getattr(model_instance, column.name) for column in model_instance.__table__.columns}
+    
+    feature = Feature(geometry=geojson_polygon, properties=properties)
     feature_collection = FeatureCollection([feature])
     
     return feature_collection
@@ -124,7 +127,7 @@ def get_all_forests_geojson():
     for forest in forests:
         points = Point.query.filter_by(owner_type='forest', forest_id=forest.id).options(db.load_only(Point.longitude, Point.latitude)).all()
         if points:
-            geojson_data = create_geojson(points, forest.id)
+            geojson_data = create_geojson(points, forest)
             features.extend(geojson_data['features'])
 
     if not features:
@@ -144,7 +147,7 @@ def get_all_farm_geojson():
         
         points = Point.query.filter_by(owner_type='farmer', farmer_id=farmer.farm_id).options(db.load_only(Point.longitude, Point.latitude)).all()
         if points:
-            geojson_data = create_geojson(points, farmer.id)
+            geojson_data = create_geojson(points, farmer)
             features.extend(geojson_data['features'])
 
     if not features:
@@ -160,22 +163,21 @@ def create_mapbox_html_static(geojson_data):
     fig = go.Figure()
 
     # Add Polygon to the figure with dynamic hover text
-    for feature2 in geojson_data['features']:
-        subcounty_name = feature2['properties'].get('Subcounty', 'Unknown')
-        other_property = feature2['properties'].get(
-            'OtherProperty', 'No additional info')  # Replace with actual property key
-        if feature2['geometry']['type'] == 'Polygon':
-            polygons = [feature2['geometry']['coordinates']]
+    for feature in geojson_data['features']:
+        properties = feature.get('properties', {})
+        hover_text = ', '.join(f"{key}: {value}" for key, value in properties.items())
+        if feature['geometry']['type'] == 'Polygon':
+            polygons = [feature['geometry']['coordinates']]
         else:
-            polygons = feature2['geometry']['coordinates']
+            polygons = feature['geometry']['coordinates']
         for polygon in polygons:
             for ring in polygon:
                 fig.add_trace(go.Scattermapbox(
                     fill="toself",
                     lon=[coord[0] for coord in ring],
                     lat=[coord[1] for coord in ring],
-                    text=f'{subcounty_name}: {other_property}', 
-                    marker={'size': 5, 'color': "green"},
+                    text=hover_text, 
+                    marker={'size': 5, 'color': "red"},
                     line=dict(width=2),
                     hoverinfo='text'
                 ))
@@ -185,7 +187,7 @@ def create_mapbox_html_static(geojson_data):
     # Update the layout
     fig.update_layout(
         mapbox=dict(
-            style="carto-positron",
+            style="open-street-map",
             center=center_coords,  # Center the map
             zoom=7
         ),
