@@ -86,7 +86,7 @@ def get_forest_geojson(forest_id):
 
 @bp.route('/farm/<int:farmer_id>/geojson', methods=['GET'])
 def get_farm_geojson(farmer_id):
-    points = Point.query.filter_by(owner_type='farmer', farm_id=farmer_id).options(db.load_only(Point.longitude, Point.latitude)).all()
+    points = Point.query.filter_by(owner_type='farmer', farmer_id=farmer_id).options(db.load_only(Point.longitude, Point.latitude)).all()
     
     if not points:
         return jsonify({"error": "No points found for the specified farm_id"}), 404
@@ -137,7 +137,7 @@ def get_all_farm_geojson():
     features = []
 
     for farmer in farmers:
-        points = Point.query.filter_by(owner_type='farmer', farm_id=farmer.id).options(db.load_only(Point.longitude, Point.latitude)).all()
+        points = Point.query.filter_by(owner_type='farmer', farmer_id=farmer.id).options(db.load_only(Point.longitude, Point.latitude)).all()
         if points:
             geojson_data = create_geojson(points, farmer.id)
             features.extend(geojson_data['features'])
