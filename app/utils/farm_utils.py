@@ -30,6 +30,19 @@ def get_farmProperties(farm_id):
         print(f"Error fetching farm properties: {e}")
         return None
 
+def get_farm_id(farme_id):
+    try:
+        data = db.session.query(Farm.farm_id).filter(Farm.id == farme_id).all()
+
+        return data
+        
+    except Exception as e:
+        print(f"Error fetching farm properties: {e}")
+        return None
+
+    
+
+
 def get_all_farms():
     return db.session.query(Farm).join(District).join(FarmerGroup).add_columns(
         Farm.id, Farm.name, Farm.geolocation, Farm.district_id, Farm.farmergroup_id,

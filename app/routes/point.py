@@ -46,7 +46,7 @@ def create_point_route():
                 forest_id = None
             farmer_id = None
         elif owner_type == 'farmer':
-            farmer_id = farmer_id.strip() if farmer_id else None
+            farmer_id = int(farmer_id) if farmer_id else None
             forest_id = None
 
         create_point(longitude, latitude, owner_type, forest_id, farmer_id, district_id)

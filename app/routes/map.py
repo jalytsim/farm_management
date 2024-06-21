@@ -1,6 +1,7 @@
 from flask import Blueprint, json, jsonify, render_template, render_template_string, request, send_file
 from flask_login import login_required
 from app.models import Farm, Forest, Point
+from app.utils.farm_utils import get_farm_id
 from app.utils.map_utils import create_mapbox_html, create_polygon_from_db, createGeoJSONFeature, createGeojsonFeatureCollection, generate_choropleth_map, generate_choropleth_map_combined, generate_choropleth_map_soil, save_polygon_to_geojson
 from flask import Blueprint, render_template
 from app import db
@@ -86,10 +87,13 @@ def get_forest_geojson(forest_id):
 
 @bp.route('/farm/<int:farmer_id>/geojson', methods=['GET'])
 def get_farm_geojson(farmer_id):
-    points = Point.query.filter_by(owner_type='farmer', farmer_id=farmer_id).options(db.load_only(Point.longitude, Point.latitude)).all()
+    farm = Farm.query.filter_by(id=farmer_id).first()
+    print(farm.farm_id)
+  
+    points = Point.query.filter_by(owner_type='farmer', farmer_id=farm.farm_id).options(db.load_only(Point.longitude, Point.latitude)).all()
     
     if not points:
-        return jsonify({"error": "No points found for the specified farm_id"}), 404
+        return jsonify({"error": "No points found for the specified farm_id"  }), 404
     
     # Create GeoJSON data from points
     geojson_data = create_geojson(points, farmer_id)
@@ -137,7 +141,8 @@ def get_all_farm_geojson():
     features = []
 
     for farmer in farmers:
-        points = Point.query.filter_by(owner_type='farmer', farmer_id=farmer.id).options(db.load_only(Point.longitude, Point.latitude)).all()
+        
+        points = Point.query.filter_by(owner_type='farmer', farmer_id=farmer.farm_id).options(db.load_only(Point.longitude, Point.latitude)).all()
         if points:
             geojson_data = create_geojson(points, farmer.id)
             features.extend(geojson_data['features'])
