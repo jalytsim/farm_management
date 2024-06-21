@@ -89,7 +89,7 @@ def get_farm_geojson(farmer_id):
     points = Point.query.filter_by(owner_type='farmer', farmer_id=farmer_id).options(db.load_only(Point.longitude, Point.latitude)).all()
     
     if not points:
-        return jsonify({"error": "No points found for the specified forest_id"}), 404
+        return jsonify({"error": "No points found for the specified farm_id"}), 404
     
     # Create GeoJSON data from points
     geojson_data = create_geojson(points, farmer_id)
@@ -143,7 +143,7 @@ def get_all_farm_geojson():
             features.extend(geojson_data['features'])
 
     if not features:
-        return jsonify({"error": "No points found for any forest"}), 404
+        return jsonify({"error": "No points found for any farm"}), 404
 
     feature_collection = FeatureCollection(features)
     mapbox_html = create_mapbox_html_static(feature_collection)
