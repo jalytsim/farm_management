@@ -5,7 +5,7 @@
 {% endblock %}
 
 {% block content %}
-    <h1 class="text-2xl font-bold mb-4">{{ 'Edit' if district else 'Create' }} District</h1>
+    <h1 class="text-2xl font-bold mb-4">{{ 'Edit' if district else 'Create' }} District ID = {{ district.name if district else '' }} </h1>
     <form method="POST" class="max-w-md">
         <div class="mb-4">
             <label for="name" class="block text-gray-700">Name:</label>

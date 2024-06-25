@@ -26,7 +26,7 @@ def forest_or_admin_required(f):
 @forest_or_admin_required
 def index():
     page = request.args.get('page', 1, type=int)
-    forests = Forest.query.paginate(page=page, per_page=10)
+    forests = Forest.query.paginate(page=page, per_page=6)
     points = get_all_points()
     districts = get_all_districts()
     owner_types = ['Farmer', 'Forest', 'Both']
