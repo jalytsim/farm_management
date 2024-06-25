@@ -15,7 +15,8 @@ bp = Blueprint('points', __name__)
 @bp.route('/points', methods=['GET'])
 @login_required
 def list_points():
-    points = get_all_points()
+    page = request.args.get('page', 1, type=int)
+    points = Point.query.paginate(page=page, per_page=6)
     return render_template('points/list.html', points=points)
 
 @bp.route('/points/<int:point_id>', methods=['GET'])

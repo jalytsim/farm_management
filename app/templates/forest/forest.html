@@ -5,76 +5,109 @@
 {% endblock %}
 
 {% block content %}
-    <h1 class="text-3xl font-bold mb-4">Forest and Point Management</h1>
-    <a href="{{ url_for('map.get_all_forests_geojson') }}" class="text-blue-500 mb-4 inline-block">View All Forests on Map</a>
+<div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold mb-6 text-center">Forest and Point Management</h1>
+    <div class="flex justify-center mb-6">
+        <a href="{{ url_for('map.get_all_forests_geojson') }}" class="text-blue-500 hover:underline mb-4 inline-block">View All Forests on Map</a>
+    </div>
 
-    <h2 class="text-xl font-bold mb-2">Forests</h2>
-    <form action="{{ url_for('forest.handle_create_forest') }}" method="post" class="mb-4" enctype="multipart/form-data">
-        <input type="text" name="name" placeholder="Forest Name" class="border rounded px-2 py-1 mr-2">
-        <input type="file" name="image" accept="image/*" class="border rounded px-2 py-1 mr-2">
-        <button type="submit" class="bg-blue-500 text-white px-2 py-1 rounded">Create Forest</button>
+    <h2 class="text-xl font-bold mb-4">Forests</h2>
+    <form action="{{ url_for('forest.handle_create_forest') }}" method="post" class="mb-4 flex space-x-2" enctype="multipart/form-data">
+        <input type="text" name="name" placeholder="Forest Name" class="border rounded px-4 py-2 flex-grow">
+        <input type="file" name="image" accept="image/*" class="border rounded px-4 py-2 flex-grow">
+        <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded">Create Forest</button>
     </form>
-    
 
-    <table class="border-collapse border border-gray-400 w-full">
-        <thead>
-            <tr>
-                <th class="border border-gray-400 px-4 py-2">Forest Name</th>
-                <th class="border border-gray-400 px-4 py-2">Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for forest in forests %}
-            <tr>
-                <td class="border border-gray-400 px-4 py-2">{{ forest.name }}</td>
-                <td class="border border-gray-400 px-4 py-2">
-                    <form action="{{ url_for('forest.handle_update_forest', id=forest.id) }}" method="post" class="inline-block">
-                        <input type="text" name="name" value="{{ forest.name }}" class="border rounded px-2 py-1 mr-2">
-                        <button type="submit" class="bg-blue-500 text-white px-2 py-1 rounded">Update</button>
-                    </form>
-                    <form action="{{ url_for('forest.handle_delete_forest', id=forest.id) }}" method="post" class="inline-block">
-                        <button type="submit" class="bg-red-500 text-white px-2 py-1 rounded">Delete</button>
-                    </form>
-                    <form action="{{ url_for('map.get_forest_geojson', forest_id=forest.id) }}" method="get" class="inline-block">
-                        <button type="submit" class="bg-green-500 text-white px-2 py-1 rounded">View</button>
-                    </form>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <div class="overflow-x-auto">
+        <table class="min-w-full border-collapse border border-gray-300">
+            <thead class="bg-gray-100">
+                <tr>
+                    <th class="border border-gray-300 px-4 py-2 text-left">Forest Name</th>
+                    <th class="border border-gray-300 px-4 py-2 text-left">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for forest in forests.items %}
+                <tr id="forest-{{ forest.id }}" class="bg-white border-b hover:bg-gray-50">
+                    <td class="border border-gray-300 px-4 py-2">{{ forest.name }}</td>
+                    <td class="border border-gray-300 px-4 py-2 space-x-2">
+                        <form action="{{ url_for('forest.handle_update_forest', id=forest.id) }}" method="post" class="inline-block">
+                            <input type="text" name="name" value="{{ forest.name }}" class="border rounded px-2 py-1 mr-2">
+                            <button type="submit" class="bg-blue-500 text-white px-2 py-1 rounded">Update</button>
+                        </form>
+                        <form action="{{ url_for('forest.handle_delete_forest', id=forest.id) }}" method="post" class="inline-block">
+                            <button type="submit" class="bg-red-500 text-white px-2 py-1 rounded">Delete</button>
+                        </form>
+                        <form action="{{ url_for('map.get_forest_geojson', forest_id=forest.id) }}" method="get" class="inline-block">
+                            <button type="submit" class="bg-green-500 text-white px-2 py-1 rounded">View</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 
-    <a href="{{ url_for('points.create_point_route') }}" class="text-blue-500 mb-4 inline-block">Create Point</a>
+    <!-- Pagination -->
+    <div class="flex justify-center mt-8">
+        {% if forests.has_prev %}
+            <a href="{{ url_for('forest.list_forests', page=forests.prev_num) }}" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 mx-1">&laquo; Prev</a>
+        {% else %}
+            <span class="px-4 py-2 bg-gray-300 text-gray-700 rounded mx-1 cursor-not-allowed">&laquo; Prev</span>
+        {% endif %}
 
-    <script>
-        function editPoint(id) {
-            const row = document.getElementById(`point-${id}`);
-            const inputs = row.querySelectorAll('input, select');
-            inputs.forEach(input => input.disabled = false);
-            document.getElementById(`save-${id}`).classList.remove('hidden');
-        }
+        {% for page_num in forests.iter_pages() %}
+            {% if page_num %}
+                {% if page_num == forests.page %}
+                    <span class="px-4 py-2 bg-blue-500 text-white rounded mx-1">{{ page_num }}</span>
+                {% else %}
+                    <a href="{{ url_for('forest.list_forests', page=page_num) }}" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 mx-1">{{ page_num }}</a>
+                {% endif %}
+            {% else %}
+                <span class="px-4 py-2 mx-1">...</span>
+            {% endif %}
+        {% endfor %}
 
-        function savePoint(id) {
-            const row = document.getElementById(`point-${id}`);
-            const inputs = row.querySelectorAll('input, select');
-            const data = {};
+        {% if forests.has_next %}
+            <a href="{{ url_for('forest.list_forests', page=forests.next_num) }}" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 mx-1">Next &raquo;</a>
+        {% else %}
+            <span class="px-4 py-2 bg-gray-300 text-gray-700 rounded mx-1 cursor-not-allowed">Next &raquo;</span>
+        {% endif %}
+    </div>
 
-            inputs.forEach(input => {
-                data[input.name] = input.value;
-                input.disabled = true;
-            });
+    <h2 class="text-xl font-bold mt-8 mb-4">Points</h2>
+    <a href="{{ url_for('points.create_point_route') }}" class="text-blue-500 hover:underline mb-4 inline-block">Create Point</a>
+</div>
 
-            fetch(`/point/update/${id}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(data)
-            }).then(response => {
-                if (response.ok) {
-                    document.getElementById(`save-${id}`).classList.add('hidden');
-                }
-            });
-        }
-    </script>
+<script>
+    function editPoint(id) {
+        const row = document.getElementById(`point-${id}`);
+        const inputs = row.querySelectorAll('input, select');
+        inputs.forEach(input => input.disabled = false);
+        document.getElementById(`save-${id}`).classList.remove('hidden');
+    }
+
+    function savePoint(id) {
+        const row = document.getElementById(`point-${id}`);
+        const inputs = row.querySelectorAll('input, select');
+        const data = {};
+
+        inputs.forEach(input => {
+            data[input.name] = input.value;
+            input.disabled = true;
+        });
+
+        fetch(`/point/update/${id}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        }).then(response => {
+            if (response.ok) {
+                document.getElementById(`save-${id}`).classList.add('hidden');
+            }
+        });
+    }
+</script>
 {% endblock %}

@@ -3,6 +3,7 @@ from flask_login import current_user, login_required
 from werkzeug.utils import secure_filename
 import os
 from app import Config 
+from app.models import Forest
 from app.utils.district_utils import get_all_districts
 from app.utils.forest_utils import create_forest, delete_forest, get_all_forests, update_forest
 from app.utils.point_utils import get_all_points
@@ -24,7 +25,8 @@ def forest_or_admin_required(f):
 @login_required
 @forest_or_admin_required
 def index():
-    forests = get_all_forests()
+    page = request.args.get('page', 1, type=int)
+    forests = Forest.query.paginate(page=page, per_page=10)
     points = get_all_points()
     districts = get_all_districts()
     owner_types = ['Farmer', 'Forest', 'Both']
