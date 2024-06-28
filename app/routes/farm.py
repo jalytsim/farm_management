@@ -1,4 +1,4 @@
-from flask import Blueprint, flash, render_template, redirect, request, url_for, send_file
+from flask import Blueprint, flash, jsonify, render_template, redirect, request, url_for, send_file
 from flask_login import current_user, login_required
 from app.models import District, Farm, FarmerGroup, ProduceCategory
 from app.utils import farm_utils
@@ -23,11 +23,11 @@ def farmer_or_admin_required(f):
 @login_required
 @farmer_or_admin_required
 def index():
-    farms = Farm.query.all()
+    page = request.args.get('page', 1, type=int)
+    farms = Farm.query.paginate(page=page, per_page=6)
     districts = District.query.all()
     farmergroups = FarmerGroup.query.all()
-    categories = ProduceCategory.query.all()
-    return render_template('farm/index.html', farms=farms, districts=districts, farmergroups=farmergroups, categories=categories)
+    return render_template('farm/index.html',  farms=farms, districts=districts, farmergroups=farmergroups)
 @bp.route('/farm/create', methods=['GET', 'POST'])
 @login_required
 @farmer_or_admin_required
@@ -53,8 +53,27 @@ def create_farm():
     farmergroups = FarmerGroup.query.all()
     return render_template('farm/create.html', districts=districts, farmergroups=farmergroups)
 
+@bp.route('/farm/<int:farm_id>/update', methods=['POST'])
+@farmer_or_admin_required
+def update_farm_route(farm_id):
+    print(farm_id)
+    data = request.json
+    print(data)
+    farm = Farm.query.get_or_404(farm_id)
+    print(farm)
+    farm_utils.update_farm(
+        farm=farm,
+        name=data['name'],
+        subcounty=data['subcounty'],
+        farmergroup_id=data['farmergroup_id'],
+        district_id=data['district_id'],
+        geolocation=data['geolocation'],
+        phonenumber=data['phonenumber'],
+        phonenumber2=data.get('phonenumber2')  # Use .get() to handle optional fields
+    )
+    return jsonify(success=True)
+
 @bp.route('/farm/<int:farm_id>/edit', methods=['GET', 'POST'])
-@login_required
 @farmer_or_admin_required
 def edit_farm(farm_id):
     farm = Farm.query.get_or_404(farm_id)

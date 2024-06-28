@@ -1,10 +1,11 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>{{ 'Edit' if farmdata else 'Create' }} FarmData</title>
-</head>
-<body>
+{% extends 'layout.html' %}
+
+{% block title %}
+    Farm Data Manager edit
+{% endblock %}
+
+{% block content %}
+<div>
     <h1>{{ 'Edit' if farmdata else 'Create' }} FarmData</h1>
     <form method="POST">
         <label for="farm_id">Farm:</label>
@@ -66,5 +67,6 @@
         <br>
         <button type="submit">{{ 'Update' if farmdata else 'Create' }}</button>
     </form>
-</body>
-</html>
+</div>
+
+{% endblock %}

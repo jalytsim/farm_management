@@ -1,14 +1,11 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends 'layout.html' %}
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FarmData List</title>
-    <link href="{{ url_for('static', filename='css/output.css') }}" rel="stylesheet">
-</head>
+{% block title %}
+    Farm Data Manager
+{% endblock %}
 
-<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center py-10">
+{% block content %}
+<div class="bg-gray-100 min-h-screen flex flex-col items-center justify-center py-10">
     <div class="container mx-auto px-4">
         <h1 class="text-4xl font-bold mb-8 text-center">FarmData List</h1>
         <a href="{{ url_for('farmdata.create_farmdata') }}" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create New FarmData</a>
@@ -27,6 +24,5 @@
             {% endfor %}
         </ul>
     </div>
-</body>
-
-</html>
+</div>
+{% endblock %}

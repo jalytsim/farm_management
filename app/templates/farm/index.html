@@ -25,35 +25,35 @@
             document.getElementById(modalId).classList.add('hidden');
         }
 
-        function updateFarm(farmId) {
-            const name = document.querySelector(`.farm-name[data-id='${farmId}']`).value;
-            const district_id = document.querySelector(`.farm-district[data-id='${farmId}']`).value;
-            const farmergroup_id = document.querySelector(`.farm-farmergroup[data-id='${farmId}']`).value;
-            const longitude = document.querySelector(`.farm-longitude[data-id='${farmId}']`).value;
-            const latitude = document.querySelector(`.farm-latitude[data-id='${farmId}']`).value;
-            const geolocation = `${longitude},${latitude}`;
+        // function updateFarm(farmId) {
+        //     const name = document.querySelector(`.farm-name[data-id='${farmId}']`).value;
+        //     const district_id = document.querySelector(`.farm-district[data-id='${farmId}']`).value;
+        //     const farmergroup_id = document.querySelector(`.farm-farmergroup[data-id='${farmId}']`).value;
+        //     const longitude = document.querySelector(`.farm-longitude[data-id='${farmId}']`).value;
+        //     const latitude = document.querySelector(`.farm-latitude[data-id='${farmId}']`).value;
+        //     const geolocation = `${longitude},${latitude}`;
 
-            fetch(`/farm/${farmId}/update`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    name: name,
-                    district_id: district_id,
-                    farmergroup_id: farmergroup_id,
-                    geolocation: geolocation
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert('Farm updated successfully');
-                } else {
-                    alert('Error updating farm');
-                }
-            });
-        }
+        //     fetch(`/farm/${farmId}/update`, {
+        //         method: 'POST',
+        //         headers: {
+        //             'Content-Type': 'application/json',
+        //         },
+        //         body: JSON.stringify({
+        //             name: name,
+        //             district_id: district_id,
+        //             farmergroup_id: farmergroup_id,
+        //             geolocation: geolocation
+        //         })
+        //     })
+        //     .then(response => response.json())
+        //     .then(data => {
+        //         if (data.success) {
+        //             alert('Farm updated successfully');
+        //         } else {
+        //             alert('Error updating farm');
+        //         }
+        //     });
+        // }
 
         // Fonctions pour ouvrir les modals depuis la sidebar
         function openCreateCropModal() {

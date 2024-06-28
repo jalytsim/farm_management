@@ -55,14 +55,16 @@ def create_farm(farm_id, name, subcounty, farmergroup_id, district_id, geolocati
     db.session.commit()
     return farm
 
-def update_farm(farm, farm_id, name, subcounty, farmergroup_id, district_id, geolocation):
-    farm.farm_id = farm_id
+def update_farm(farm, name, subcounty, farmergroup_id, district_id, geolocation, phonenumber, phonenumber2=None):
     farm.name = name
     farm.subcounty = subcounty
     farm.farmergroup_id = farmergroup_id
     farm.district_id = district_id
     farm.geolocation = geolocation
+    farm.phonenumber = phonenumber
+    farm.phonenumber2 = phonenumber2 if phonenumber2 else None
     db.session.commit()
+
 
 def delete_farm(farm):
     db.session.delete(farm)

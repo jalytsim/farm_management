@@ -1,62 +1,181 @@
-<div class="bg-white p-6 rounded-lg shadow-md">
-    <h2 class="text-2xl font-bold mb-4">Farm List</h2>
-    <table class="w-full table-auto border-collapse">
-        <thead>
-            <tr class="bg-gray-200">
-                <th class="px-4 py-2">Name</th>
-                <th class="px-4 py-2">District</th>
-                <th class="px-4 py-2">Farmer Group</th>
-                <th class="px-4 py-2">Longitude</th>
-                <th class="px-4 py-2">Latitude</th>
-                <th class="px-4 py-2">Phone Number 1</th>
-                <th class="px-4 py-2">Phone Number 2</th>
-                <th class="px-4 py-2">Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for farm in farms %}
-            <tr class="bg-white hover:bg-gray-100">
-                <td class="border px-4 py-2">
-                    <input type="text" value="{{ farm.name }}" class="w-full p-2 border border-gray-300 rounded mt-1 farm-name" data-id="{{ farm.id }}">
-                </td>
-                <td class="border px-4 py-2">
-                    <select class="w-full p-2 border border-gray-300 rounded mt-1 farm-district" data-id="{{ farm.id }}">
-                        {% for district in districts %}
-                        <option value="{{ district.id }}" {% if district.id == farm.district_id %}selected{% endif %}>{{ district.name }}</option>
-                        {% endfor %}
-                    </select>
-                </td>
-                <td class="border px-4 py-2">
-                    <select class="w-full p-2 border border-gray-300 rounded mt-1 farm-farmergroup" data-id="{{ farm.id }}">
-                        {% for farmergroup in farmergroups %}
-                        <option value="{{ farmergroup.id }}" {% if farmergroup.id == farm.farmergroup_id %}selected{% endif %}>{{ farmergroup.name }}</option>
-                        {% endfor %}
-                    </select>
-                </td>
-                <td class="border px-4 py-2">
-                    <input type="number" value="{{ farm.geolocation.split(',')[0] }}" class="w-full p-2 border border-gray-300 rounded mt-1 farm-longitude" data-id="{{ farm.id }}">
-                </td>
-                <td class="border px-4 py-2">
-                    <input type="number" value="{{ farm.geolocation.split(',')[1] }}" class="w-full p-2 border border-gray-300 rounded mt-1 farm-latitude" data-id="{{ farm.id }}">
-                </td>
-                <td class="border px-4 py-2">
-                    <input type="text" value="{{ farm.phonenumber }}" class="w-full p-2 border border-gray-300 rounded mt-1 farm-phonenumber1" data-id="{{ farm.id }}">
-                </td>
-                <td class="border px-4 py-2">
-                    <input type="text" value="{{ farm.phonenumber2 }}" class="w-full p-2 border border-gray-300 rounded mt-1 farm-phonenumber2" data-id="{{ farm.id }}">
-                </td>
-                <td class="border px-4 py-2 flex space-x-2">
-                    <button onclick="updateFarm({{ farm.id }})" class="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-2 rounded">Update</button>
-                    <form action="{{ url_for('farm.delete_farm', farm_id=farm.id) }}" method="post" class="inline-block">
-                        <button type="submit" class="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded">Delete</button>
-                    </form>
-                    <form action="{{ url_for('map.get_farm_geojson', farmer_id=farm.id) }}" method="get" class="inline-block">
-                        <button type="submit" class="bg-green-500 text-white px-2 py-1 rounded">View</button>
-                    </form>
-                    <a href="{{ url_for('farmdata.index', farm_id=farm.id) }}" class="bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-2 rounded">Add fd</a>
-                </td>
-            </tr>
+{% extends 'layout.html' %}
+
+{% block title %}
+Farm List
+{% endblock %}
+
+{% block content %}
+<div class="container ">
+    <h1 class="text-2xl font-bold mb-6 text-center">Farm List</h1>
+    <div class="bg-white rounded-lg shadow-md">
+        <table class="w-full table-auto border-collapse">
+            <thead>
+                <tr class="bg-gray-200">
+                    <th class="px-4 py-2">Name</th>
+                    <th class="px-4 py-2">District</th>
+                    <th class="px-4 py-2">Farmer Group</th>
+                    <th class="px-4 py-2">Longitude</th>
+                    <th class="px-4 py-2">Latitude</th>
+                    <th class="px-4 py-2">Phone Number 1</th>
+                    <th class="px-4 py-2">Phone Number 2</th>
+                    <th class="px-4 py-2">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for farm in farms.items %}
+                <tr class="bg-white hover:bg-gray-100">
+                    <td class="border px-4 py-2">
+                        <input type="text" value="{{ farm.name }}" class="w-full p-2 border border-gray-300 rounded mt-1 farm-name" data-id="{{ farm.id }}">
+                    </td>
+                    <td class="border px-4 py-2">
+                        <select class="w-full p-2 border border-gray-300 rounded mt-1 farm-district" data-id="{{ farm.id }}">
+                            {% for district in districts %}
+                            <option value="{{ district.id }}" {% if district.id == farm.district_id %}selected{% endif %}>{{ district.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td class="border px-4 py-2">
+                        <select class="w-full p-2 border border-gray-300 rounded mt-1 farm-farmergroup" data-id="{{ farm.id }}">
+                            {% for farmergroup in farmergroups %}
+                            <option value="{{ farmergroup.id }}" {% if farmergroup.id == farm.farmergroup_id %}selected{% endif %}>{{ farmergroup.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td class="border px-4 py-2">
+                        <input type="number" value="{{ farm.geolocation.split(',')[0] }}" class="w-full p-2 border border-gray-300 rounded mt-1 farm-longitude" data-id="{{ farm.id }}">
+                    </td>
+                    <td class="border px-4 py-2">
+                        <input type="number" value="{{ farm.geolocation.split(',')[1] }}" class="w-full p-2 border border-gray-300 rounded mt-1 farm-latitude" data-id="{{ farm.id }}">
+                    </td>
+                    <td class="border px-4 py-2">
+                        <input type="text" value="{{ farm.phonenumber }}" class="w-full p-2 border border-gray-300 rounded mt-1 farm-phonenumber1" data-id="{{ farm.id }}">
+                    </td>
+                    <td class="border px-4 py-2">
+                        <input type="text" value="{{ farm.phonenumber2 }}" class="w-full p-2 border border-gray-300 rounded mt-1 farm-phonenumber2" data-id="{{ farm.id }}">
+                    </td>
+                    <td class="border px-4 py-2 flex space-x-2">
+                        <button onclick="updateFarm({{ farm.id }})" class="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-2 rounded">Update</button>
+                        <form action="{{ url_for('farm.delete_farm', farm_id=farm.id) }}" method="post" class="inline-block">
+                            <button type="submit" class="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded">Delete</button>
+                        </form>
+                        <form action="{{ url_for('map.get_farm_geojson', farmer_id=farm.id) }}" method="get" class="inline-block">
+                            <button type="submit" class="bg-green-500 text-white px-2 py-1 rounded">View</button>
+                        </form>
+                        <a href="{{ url_for('farmdata.index', farm_id=farm.id) }}" class="bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-2 rounded">Add fd</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- Pagination -->
+        <div class="flex justify-center mt-8">
+            {% if farms.has_prev %}
+                <a href="{{ url_for('farm.list_farms', page=farms.prev_num) }}" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 mx-1">&laquo; Prev</a>
+            {% else %}
+                <span class="px-4 py-2 bg-gray-300 text-gray-700 rounded mx-1 cursor-not-allowed">&laquo; Prev</span>
+            {% endif %}
+
+            {% for page_num in farms.iter_pages() %}
+                {% if page_num %}
+                    {% if page_num == farms.page %}
+                        <span class="px-4 py-2 bg-blue-500 text-white rounded mx-1">{{ page_num }}</span>
+                    {% else %}
+                        <a href="{{ url_for('farm.list_farms', page=page_num) }}" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 mx-1">{{ page_num }}</a>
+                    {% endif %}
+                {% else %}
+                    <span class="px-4 py-2 mx-1">...</span>
+                {% endif %}
             {% endfor %}
-        </tbody>
-    </table>
+
+            {% if farms.has_next %}
+                <a href="{{ url_for('farm.list_farms', page=farms.next_num) }}" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 mx-1">Next &raquo;</a>
+            {% else %}
+                <span class="px-4 py-2 bg-gray-300 text-gray-700 rounded mx-1 cursor-not-allowed">Next &raquo;</span>
+            {% endif %}
+        </div>
+    </div>
 </div>
+
+<script>
+    function updateFarm(farmId) {
+        console.log("Update farm with ID:", farmId);
+
+        const nameInput = document.querySelector(`.farm-name[data-id='${farmId}']`);
+        const districtInput = document.querySelector(`.farm-district[data-id='${farmId}']`);
+        const farmergroupInput = document.querySelector(`.farm-farmergroup[data-id='${farmId}']`);
+        const longitudeInput = document.querySelector(`.farm-longitude[data-id='${farmId}']`);
+        const latitudeInput = document.querySelector(`.farm-latitude[data-id='${farmId}']`);
+        const phonenumberInput = document.querySelector(`.farm-phonenumber1[data-id='${farmId}']`);
+        const phonenumber2Input = document.querySelector(`.farm-phonenumber2[data-id='${farmId}']`);
+
+        console.log("Inputs:", {
+            nameInput,
+            districtInput,
+            farmergroupInput,
+            longitudeInput,
+            latitudeInput,
+            phonenumberInput,
+            phonenumber2Input
+        });
+
+        if (!nameInput || !districtInput || !farmergroupInput || !longitudeInput || !latitudeInput || !phonenumberInput) {
+            console.error("One or more input elements not found for farm ID:", farmId);
+            return;
+        }
+
+        const name = nameInput.value;
+        const district_id = districtInput.value;
+        const farmergroup_id = farmergroupInput.value;
+        const longitude = longitudeInput.value;
+        const latitude = latitudeInput.value;
+        const phonenumber = phonenumberInput.value;
+        const phonenumber2 = phonenumber2Input ? phonenumber2Input.value : null;
+        const geolocation = `${longitude},${latitude}`;
+        const subcounty = '';  // Add appropriate value or fetch it from the form if necessary
+
+        console.log("Form data:", {
+            name,
+            subcounty,
+            district_id,
+            farmergroup_id,
+            geolocation,
+            phonenumber,
+            phonenumber2
+        });
+
+        fetch(`/farm/${farmId}/update`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                name: name,
+                subcounty: subcounty,  // Add subcounty to the JSON payload
+                district_id: district_id,
+                farmergroup_id: farmergroup_id,
+                geolocation: geolocation,
+                phonenumber: phonenumber,
+                phonenumber2: phonenumber2
+            })
+        })
+        .then(response => {
+            console.log("Response status:", response.status);
+            return response.json();
+        })
+        .then(data => {
+            console.log("Response data:", data);
+            if (data.success) {
+                alert('Farm updated successfully');
+            } else {
+                alert('Error updating farm');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error updating farm');
+        });
+    }
+</script>
+{% endblock %}
+
