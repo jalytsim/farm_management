@@ -134,3 +134,25 @@ def point_exists(longitude, latitude, district_id, owner_type, owner_id):
     
     return db.session.query(query.exists()).scalar()
 
+def calculate_area(vertices):
+    n = len(vertices)
+    area = 0.0
+
+    for i in range(n):
+        j = (i + 1) % n
+        area += vertices[i][0] * vertices[j][1]
+        area -= vertices[j][0] * vertices[i][1]
+
+    area = abs(area) / 2.0
+    return area
+
+# Exemple d'utilisation avec vos coordonnées
+# vertices = [
+#     (34.5678, 12.3456),
+#     (34.6789, 12.4567),
+#     (34.7890, 12.5678),
+#     (34.8901, 12.6789)
+# ]
+
+# polygon_area = calculate_area(vertices)
+# print(f"L'aire du polygone est : {polygon_area} unités carrées")

@@ -2,6 +2,7 @@ from app.models import Farm, FarmData, District, FarmerGroup
 from app import db
 
 def get_farmProperties(farm_id):
+    print(farm_id)
     try:
         data = db.session.query(
             Farm.id.label('farm_id'),
@@ -20,9 +21,9 @@ def get_farmProperties(farm_id):
             FarmData.customer_name,
             District.name.label('district_name'),
             District.region.label('district_region')
-        ).join(FarmData, Farm.id == FarmData.farm_id) \
+        ).join(FarmData, Farm.farm_id == FarmData.farm_id) \
          .join(District, Farm.district_id == District.id) \
-         .filter(Farm.id == farm_id).all()
+         .filter(Farm.farm_id == farm_id).all()
 
         return data
 

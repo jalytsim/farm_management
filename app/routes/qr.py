@@ -1,24 +1,64 @@
 from flask import Blueprint, render_template, request, send_file
 from flask_login import login_required
-
-from app.utils.qr_generator import generate_qr_codes
+import segno
+from io import BytesIO
+import tempfile
+from reportlab.pdfgen import canvas
+from app.utils.qr_generator import generate_qr_codes, generate_qr_codes_dynamic
 
 bp = Blueprint('qr', __name__)
 
 @bp.route('/qrcode')
 @login_required
 def qrcode():
-    return render_template('codeQr.html')
+    return render_template('qrcode/index.html')
 
-@bp.route('/generate_qr', methods=['POST'])
+@bp.route('/generate_qr', methods=['POST', 'GET'])
 @login_required
 def generate_qr():
-    # Get the Farm ID from the form
-    farm_id = request.form['farm_id']
-    # Generate QR codes
-    qr_zip_file = generate_qr_codes(farm_id)
-    if qr_zip_file:
-        # Return the QR code image as binary data for rendering
-        return send_file(qr_zip_file, as_attachment=True, download_name=f"QR_{farm_id}.zip")
-    else:
-        return render_template('codeQr.html', qr_image='No data found for the farm.')
+    if request.method == 'POST':
+        farm_id = request.form['farm_id']
+        qr_zip_file = generate_qr_codes(farm_id)
+        print (qr_zip_file)
+        if qr_zip_file:
+            return send_file(qr_zip_file, as_attachment=True, download_name=f"QR_{farm_id}.zip")
+        else:
+            return render_template('qrcode/codeQr.html', qr_image='No data found for the farm.')
+    return render_template('qrcode/codeQr.html')
+
+@bp.route('/generate_tree_qr', methods=['GET', 'POST'])
+@login_required
+def generate_tree_qr():
+    if request.method == 'POST':
+        forest_name = request.form['forest_name']
+        forest_id = request.form['forest_id']
+        tree_type = request.form['tree_type']
+        date_cutting = request.form['date_cutting']
+        gps_coordinates = request.form['gps_coordinates']
+        height = request.form['height']
+        diameter = request.form['diameter']
+    
+        data = f"Forest Name: {forest_name}\nForest ID: {forest_id}\nTree Type: {tree_type}\nDate of Cutting: {date_cutting}\nGPS Coordinates: {gps_coordinates}\nHeight: {height} m\nDiameter: {diameter} cm"
+        zip_file_path = generate_qr_codes_dynamic(data, f"Tree_{tree_type}.pdf")
+        print (zip_file_path)
+        
+        return send_file(zip_file_path, as_attachment=True)
+    
+    return render_template('qrcode/generate_tree_qr.html')
+
+@bp.route('/generate_farmer_qr', methods=['GET', 'POST'])
+@login_required
+def generate_farmer_qr():
+    if request.method == 'POST':
+        farm_id = request.form['farm_id']
+        weight = request.form['weight']
+        price_per_kg = request.form['price_per_kg']
+        total_value = request.form['total_value']
+    
+        data = f"Farm ID: {farm_id}\nWeight: {weight} kgs\nPrice per Kg: {price_per_kg} Ugshs\nTotal Value: {total_value} Ugshs"
+        
+        
+        zip_file_path = generate_qr_codes_dynamic(data, f"Farmer_{farm_id}.pdf")
+    
+        return send_file(zip_file_path, as_attachment=True)
+    return render_template('qrcode/generate_farmer_qr.html')

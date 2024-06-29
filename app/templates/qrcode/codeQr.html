@@ -1,16 +1,12 @@
-<!DOCTYPE html>
-<html lang="en">
 
-<head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Agriyields QR Code</title>
-    <link href="{{url_for('static',filename='css/output.css')}}" rel="stylesheet">
+{% extends 'layout.html' %}
 
-</head>
+{% block title %}
+{{ 'Edit' if point else 'Create' }} Point
+{% endblock %}
 
-<body class="bg-gray-100">
+{% block content %}
+<div class="bg-gray-100">
     <div class="container mx-auto py-8">
         <div class="flex justify-between items-center mb-4">
             <h1 class="text-2xl font-bold">Agriyields QR Code Generator</h1>
@@ -21,7 +17,7 @@
             </div>
         </div>
         <h1 class="text-3xl font-bold mb-4 text-center">Generate QR Code</h1>
-        <form action="/generate_qr" method="post" class="max-w-sm mx-auto">
+        <form action="{{ url_for('qr.generate_qr') }}" method="post" class="max-w-sm mx-auto">
             <div class="mb-4">
                 <label for="farm_id" class="block text-sm font-medium text-gray-700">Enter Digital ID:</label>
                 <input type="text" id="farm_id" name="farm_id"
@@ -38,10 +34,9 @@
         <div class="mt-8 text-center">
             <P class="text-sm font-medium text-green-700">{{ qr_image }}</P>
             <img src="{{ qr_image }}" alt="QR Code" class="mx-auto">
-            <a href="{{ url_for('generate_qr', farm_id=farm_id) }}" download="QR_code"></a>
+            <a href="{{ url_for('qr.generate_qr', farm_id=farm_id) }}" download="QR_code"></a>
         </div>
         {% endif %}
     </div>
-</body>
-
-</html>
+</div>
+{% endblock %}

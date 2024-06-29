@@ -1,0 +1,23 @@
+{% extends 'layout.html' %}
+
+{% block title %}
+{{ 'Mark Tree Cutting' }}
+{% endblock %}
+
+{% block content %}
+<div class="bg-gray-100">
+    <div class="container mx-auto py-8">
+        <h1 class="text-2xl font-bold mb-4 text-center">Generate QR Code for Tree Cutting</h1>
+        <form action="{{ url_for('qr.generate_tree_qr') }}" method="post" class="max-w-sm mx-auto bg-white p-6 rounded-lg shadow-lg">
+            <input type="text" name="forest_name" placeholder="Forest Name" class="border p-2 mb-4 w-full rounded" required>
+            <input type="text" name="forest_id" placeholder="Forest ID" class="border p-2 mb-4 w-full rounded" required>
+            <input type="text" name="tree_type" placeholder="Tree Type" class="border p-2 mb-4 w-full rounded" required>
+            <input type="date" name="date_cutting" placeholder="Date of Cutting" class="border p-2 mb-4 w-full rounded" required>
+            <input type="text" name="gps_coordinates" placeholder="GPS Coordinates" class="border p-2 mb-4 w-full rounded" required>
+            <input type="text" name="height" placeholder="Height (m)" class="border p-2 mb-4 w-full rounded" required>
+            <input type="text" name="diameter" placeholder="Diameter (cm)" class="border p-2 mb-4 w-full rounded" required>
+            <button type="submit" class="bg-green-500 text-white px-4 py-2 rounded">Generate QR for Tree Cutting</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

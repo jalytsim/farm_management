@@ -1,0 +1,37 @@
+{% extends 'layout.html' %}
+
+{% block title %}
+    Generate Qr Code
+{% endblock %}
+
+{% block content %}
+<div class="bg-gray-100">
+    <header class="bg-green-600 text-white p-4">
+        <div class="container mx-auto">
+            <h1 class="text-2xl font-bold">Generate QR Codes</h1>
+        </div>
+    </header>
+    <main class="container mx-auto py-8">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="bg-white p-6 rounded-lg shadow-lg">
+                <h2 class="text-xl font-bold mb-2">Generate Farm QR Code</h2>
+                <p class="mb-4">Generate a QR code for a farm with details such as weight, price per kg, and total value.</p>
+                <a href="{{ url_for('qr.generate_farmer_qr') }}" class="bg-green-500 text-white px-4 py-2 rounded">Generate Farm QR Code</a>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow-lg">
+                <h2 class="text-xl font-bold mb-2">Generate Tree Cutting QR Code</h2>
+                <p class="mb-4">Generate a QR code for marking tree cuttings with details such as forest name, tree type, and GPS coordinates.</p>
+                <a href="{{ url_for('qr.generate_tree_qr') }}" class="bg-green-500 text-white px-4 py-2 rounded">Generate Tree Cutting QR Code</a>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow-lg">
+                <h2 class="text-xl font-bold mb-2">Generate Custom QR Code</h2>
+                <p class="mb-4">Generate a custom QR code for a specified farm. Upload a zip file containing the QR code images.</p>
+                <form action="{{ url_for('qr.generate_qr') }}" method="post" class="flex flex-col">
+                    <input type="text" name="farm_id" placeholder="Enter Farm ID" class="border p-2 mb-4 rounded">
+                    <button type="submit" class="bg-green-500 text-white px-4 py-2 rounded">Generate QR Code</button>
+                </form>
+            </div>
+        </div>
+    </main>
+</div>
+{% endblock %}
