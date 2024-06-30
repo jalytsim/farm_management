@@ -100,7 +100,7 @@ Serial Number: {serial_number}"""
 def generate_qr_codes_dynamic(data, pdf_filename):
     zip_temp = tempfile.NamedTemporaryFile(delete=False)
     with ZipFile(zip_temp, 'w') as zip_file:
-        pdf_file_name = pdf_filename
+        pdf_file_name = f'{pdf_filename}'
         pdf = canvas.Canvas(pdf_file_name)
 
         serial_number = hashlib.md5(data.encode('utf-8')).hexdigest()
@@ -128,3 +128,19 @@ def generate_qr_codes_dynamic(data, pdf_filename):
             os.remove(pdf_file_name)
     
     return zip_temp.name
+
+def create_qr_codes(data, pdf_filename):
+    zip_temp = tempfile.NamedTemporaryFile(delete=False)
+    with ZipFile(zip_temp, 'w') as zip_file:
+        pdf_file_name = pdf_filename
+        pdf = canvas.Canvas(pdf_file_name)
+
+        serial_number = hashlib.md5(data.encode('utf-8')).hexdigest()
+        formatted_data = f"{data}\nSerial Number: {serial_number}"
+
+        # Generate the QR code
+        qr = segno.make(formatted_data)
+        
+        # Save the QR code image to a temporary file
+        qr_file = f'{pdf_file_name}.png'
+        qr.save(qr_file, scale=5)

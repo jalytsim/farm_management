@@ -28,6 +28,8 @@ def index():
     districts = District.query.all()
     farmergroups = FarmerGroup.query.all()
     return render_template('farm/index.html',  farms=farms, districts=districts, farmergroups=farmergroups)
+
+
 @bp.route('/farm/create', methods=['GET', 'POST'])
 @login_required
 @farmer_or_admin_required

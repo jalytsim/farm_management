@@ -40,9 +40,9 @@ def generate_tree_qr():
     
         data = f"Forest Name: {forest_name}\nForest ID: {forest_id}\nTree Type: {tree_type}\nDate of Cutting: {date_cutting}\nGPS Coordinates: {gps_coordinates}\nHeight: {height} m\nDiameter: {diameter} cm"
         zip_file_path = generate_qr_codes_dynamic(data, f"Tree_{tree_type}.pdf")
-        print (zip_file_path)
+        print(zip_file_path)
         
-        return send_file(zip_file_path, as_attachment=True)
+        return send_file(zip_file_path, as_attachment=True, download_name=f"Tree_{tree_type}.pdf")
     
     return render_template('qrcode/generate_tree_qr.html')
 
@@ -60,5 +60,6 @@ def generate_farmer_qr():
         
         zip_file_path = generate_qr_codes_dynamic(data, f"Farmer_{farm_id}.pdf")
     
-        return send_file(zip_file_path, as_attachment=True)
+        return send_file(zip_file_path, as_attachment=True, download_name=f"Farmer_{farm_id}.pdf")
+
     return render_template('qrcode/generate_farmer_qr.html')

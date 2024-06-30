@@ -1,10 +1,4 @@
-{% extends 'layout.html' %}
 
-{% block title %}
-Farm List
-{% endblock %}
-
-{% block content %}
 <div class="container ">
     <h1 class="text-2xl font-bold mb-6 text-center">Farm List</h1>
     <div class="bg-white rounded-lg shadow-md">
@@ -71,7 +65,7 @@ Farm List
         <!-- Pagination -->
         <div class="flex justify-center mt-8">
             {% if farms.has_prev %}
-                <a href="{{ url_for('farm.list_farms', page=farms.prev_num) }}" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 mx-1">&laquo; Prev</a>
+                <a href="{{ url_for('farm.index', page=farms.prev_num) }}" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 mx-1">&laquo; Prev</a>
             {% else %}
                 <span class="px-4 py-2 bg-gray-300 text-gray-700 rounded mx-1 cursor-not-allowed">&laquo; Prev</span>
             {% endif %}
@@ -81,7 +75,7 @@ Farm List
                     {% if page_num == farms.page %}
                         <span class="px-4 py-2 bg-blue-500 text-white rounded mx-1">{{ page_num }}</span>
                     {% else %}
-                        <a href="{{ url_for('farm.list_farms', page=page_num) }}" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 mx-1">{{ page_num }}</a>
+                        <a href="{{ url_for('farm.index', page=page_num) }}" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 mx-1">{{ page_num }}</a>
                     {% endif %}
                 {% else %}
                     <span class="px-4 py-2 mx-1">...</span>
@@ -89,7 +83,7 @@ Farm List
             {% endfor %}
 
             {% if farms.has_next %}
-                <a href="{{ url_for('farm.list_farms', page=farms.next_num) }}" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 mx-1">Next &raquo;</a>
+                <a href="{{ url_for('farm.index', page=farms.next_num) }}" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 mx-1">Next &raquo;</a>
             {% else %}
                 <span class="px-4 py-2 bg-gray-300 text-gray-700 rounded mx-1 cursor-not-allowed">Next &raquo;</span>
             {% endif %}
@@ -177,5 +171,3 @@ Farm List
         });
     }
 </script>
-{% endblock %}
-
