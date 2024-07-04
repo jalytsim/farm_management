@@ -72,12 +72,12 @@ def display_all_points():
 @bp.route('/forests/<int:forest_id>/geojson', methods=['GET'])
 def get_forest_geojson(forest_id):
     points = Point.query.filter_by(owner_type='forest', forest_id=forest_id).options(db.load_only(Point.longitude, Point.latitude)).all()
-    
+    forest = Forest.query.filter_by(id=forest_id).first()
     if not points:
         return jsonify({"error": "No points found for the specified forest_id"}), 404
     
     # Create GeoJSON data from points
-    geojson_data = create_geojson(points, forest_id)
+    geojson_data = create_geojson(points, forest)
     
     # Create the Mapbox HTML using the GeoJSON data
     mapbox_html = create_mapbox_html_static(geojson_data)
@@ -89,7 +89,7 @@ def get_forest_geojson(forest_id):
 def get_farm_geojson(farmer_id):
     farm = Farm.query.filter_by(id=farmer_id).first()
     print(farm.farm_id)
-  
+    
     points = Point.query.filter_by(owner_type='farmer', farmer_id=farm.farm_id).options(db.load_only(Point.longitude, Point.latitude)).all()
     
     if not points:
