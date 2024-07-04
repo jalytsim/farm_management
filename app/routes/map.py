@@ -73,6 +73,7 @@ def display_all_points():
 def get_forest_geojson(forest_id):
     points = Point.query.filter_by(owner_type='forest', forest_id=forest_id).options(db.load_only(Point.longitude, Point.latitude)).all()
     forest = Forest.query.filter_by(id=forest_id).first()
+    print(forest)
     if not points:
         return jsonify({"error": "No points found for the specified forest_id"}), 404
     
