@@ -158,7 +158,7 @@ def create_mapbox_html_static(geojson_data):
     fig = go.Figure()
     for feature in geojson_data['features']:
         properties = feature.get('properties', {})
-        hover_text = '\n'.join(f"{key}: {value}" for key, value in properties.items())
+        hover_text = '<br>'.join(f"{key}: {value}" for key, value in properties.items())
         if feature['geometry']['type'] == 'Polygon':
             polygons = [feature['geometry']['coordinates']]
         else:
