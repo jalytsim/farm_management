@@ -107,17 +107,12 @@ def get_farm_geojson(farmer_id):
 
 def create_geojson(points, model_instance):
     coordinates = [(point.longitude, point.latitude) for point in points]
-    
-    # Assuming points form a single polygon
     shapely_polygon = ShapelyPolygon(coordinates)
     geojson_polygon = mapping(shapely_polygon)
-    
-    # Dynamically create properties dictionary
     properties = {column.name: getattr(model_instance, column.name) for column in model_instance.__table__.columns}
-    
+    properties['name'] = model_instance.name
     feature = Feature(geometry=geojson_polygon, properties=properties)
     feature_collection = FeatureCollection([feature])
-    
     return feature_collection
 
 @bp.route('/forests/all/geojson', methods=['GET'])
@@ -160,13 +155,10 @@ def get_all_farm_geojson():
     return render_template('index.html', choropleth_map=mapbox_html)
 
 def create_mapbox_html_static(geojson_data):
-    # Create Plotly figure
     fig = go.Figure()
-
-    # Add Polygon to the figure with dynamic hover text
     for feature in geojson_data['features']:
         properties = feature.get('properties', {})
-        hover_text = ', '.join(f"{key}: {value}" for key, value in properties.items())
+        hover_text = '\n'.join(f"{key}: {value}" for key, value in properties.items())
         if feature['geometry']['type'] == 'Polygon':
             polygons = [feature['geometry']['coordinates']]
         else:
@@ -182,18 +174,13 @@ def create_mapbox_html_static(geojson_data):
                     line=dict(width=2),
                     hoverinfo='text'
                 ))
-
     center_coords = {"lat": 1.27, "lon": 32.29}
-
-    # Update the layout
     fig.update_layout(
         mapbox=dict(
             style="open-street-map",
-            center=center_coords,  # Center the map
+            center=center_coords,
             zoom=7
         ),
         margin={"r": 0, "t": 0, "l": 0, "b": 0}
     )
-
-    # Return the HTML of the figure
     return fig.to_html(full_html=False)
