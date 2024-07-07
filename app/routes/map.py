@@ -2,7 +2,7 @@ from flask import Blueprint, json, jsonify, render_template, render_template_str
 from flask_login import login_required
 from app.models import Farm, Forest, Point
 from app.utils.farm_utils import get_farm_id
-from app.utils.map_utils import create_mapbox_html, create_polygon_from_db, createGeoJSONFeature, createGeojsonFeatureCollection, generate_choropleth_map, generate_choropleth_map_combined, generate_choropleth_map_soil, save_polygon_to_geojson
+from app.utils.map_utils import calculate_area, convert_to_cartesian, create_mapbox_html, create_polygon_from_db, createGeoJSONFeature, createGeojsonFeatureCollection, generate_choropleth_map, generate_choropleth_map_combined, generate_choropleth_map_soil, save_polygon_to_geojson
 from flask import Blueprint, render_template
 from app import db
 from app.utils.point_utils import get_all_points
@@ -155,21 +155,32 @@ def get_all_farm_geojson():
     return render_template('index.html', choropleth_map=mapbox_html)
 
 def create_mapbox_html_static(geojson_data):
+    """Generate a Mapbox plotly figure with static GeoJSON data and display area in hovertext."""
     fig = go.Figure()
     for feature in geojson_data['features']:
         properties = feature.get('properties', {})
-        hover_text = '<br>'.join(f"{key}: {value}" for key, value in properties.items())
+        # Extracting coordinates
         if feature['geometry']['type'] == 'Polygon':
             polygons = [feature['geometry']['coordinates']]
         else:
             polygons = feature['geometry']['coordinates']
         for polygon in polygons:
             for ring in polygon:
+                # Convert the vertices from geo-coordinates to Cartesian coordinates
+                cartesian_vertices = convert_to_cartesian(ring)
+                # Calculate the area of the polygon
+                polygon_area = calculate_area(cartesian_vertices)
+                # Convert the area to square kilometers
+                area_km2 = polygon_area / 1000000
+                # Add area information to properties
+                properties['Area (sq km)'] = f"{area_km2:.2f} km²"
+                # Create hover text
+                hover_text = '<br>'.join(f"{key}: {value}" for key, value in properties.items())
                 fig.add_trace(go.Scattermapbox(
                     fill="toself",
                     lon=[coord[0] for coord in ring],
                     lat=[coord[1] for coord in ring],
-                    text=hover_text, 
+                    text=hover_text,
                     marker={'size': 5, 'color': "red"},
                     line=dict(width=2),
                     hoverinfo='text'
