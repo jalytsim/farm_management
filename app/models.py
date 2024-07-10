@@ -132,3 +132,17 @@ class Point(db.Model):
     )
     date_created = db.Column(db.DateTime, default=datetime.utcnow)
     date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class Tree(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    species = db.Column(db.String(100), nullable=False)
+    height = db.Column(db.Float, nullable=False)
+    diameter = db.Column(db.Float, nullable=False)
+    gps_lat = db.Column(db.Float, nullable=False)
+    gps_lon = db.Column(db.Float, nullable=False)
+    planted_date = db.Column(db.Date, nullable=False)
+    qr_code = db.Column(db.String(100), nullable=True)  # Stocke l'URL ou le chemin du QR code
+
+    def __repr__(self):
+        return f'<Tree {self.name}>'

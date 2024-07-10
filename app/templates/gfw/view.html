@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geographical Data Cards</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .truncate-lines-3 {
+            display: block;
+            overflow: hidden;
+            max-height: 4.5rem; /* Approximately 3 lines */
+            position: relative;
+            transition: max-height 0.5s ease-in-out;
+        }
+        .full-height {
+            max-height: 50rem; /* A large value to ensure full height */
+            transition: max-height 0.5s ease-in-out;
+        }
+        .truncate-lines-3::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 100%;
+            height: 1.5rem; /* Height of the last line */
+            background: linear-gradient(to top, white, transparent);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {% for result in dataset_results %}
+            <div class="bg-white shadow-lg rounded-lg p-6 max-w-sm">
+                <h2 class="text-2xl font-semibold mb-4">{{ result.dataset.replace('_', ' ').title() }}</h2>
+                <div class="text-gray-700 mb-4">
+                    {% for field, value in result.data_fields.items() %}
+                        <p class="font-medium">{{ field.replace('_', ' ').title() }}:</p>
+                        <p class="text-lg">{{ value }}</p>
+                    {% endfor %}
+                </div>
+                <div class="text-gray-700">
+                    <p class="font-medium">Coordinates:</p>
+                    <pre id="coordinates-{{ loop.index }}" class="text-sm truncate-lines-3 whitespace-pre-wrap">{{ result.coordinates | tojson | safe }}</pre>
+                    <button id="toggle-button-{{ loop.index }}" class="mt-2 text-blue-500 hover:underline" onclick="toggleCoordinates('{{ loop.index }}')">Show More</button>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+
+    <script>
+        function toggleCoordinates(index) {
+            var preElement = document.getElementById('coordinates-' + index);
+            var buttonElement = document.getElementById('toggle-button-' + index);
+            if (preElement.classList.contains('truncate-lines-3')) {
+                preElement.classList.remove('truncate-lines-3');
+                preElement.classList.add('full-height');
+                buttonElement.textContent = 'Show Less';
+            } else {
+                preElement.classList.add('truncate-lines-3');
+                preElement.classList.remove('full-height');
+                buttonElement.textContent = 'Show More';
+            }
+        }
+    </script>
+</body>
+</html>
