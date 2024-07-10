@@ -93,7 +93,7 @@ def farmerReport(farm_id):
     gfw(owner_type='farmer', owner_id=farm_id)
 
 @bp.route('/forests/<int:forest_id>/geojson', methods=['GET'])
-def farmerReport(forest_id):
+def forestReport(forest_id):
     gfw(owner_type='forest', owner_id=forest_id)
 
 

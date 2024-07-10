@@ -41,6 +41,9 @@
                         <form action="{{ url_for('map.get_forest_geojson', forest_id=forest.id) }}" method="get" class="inline-block">
                             <button type="submit" class="bg-green-500 text-white px-2 py-1 rounded">View</button>
                         </form>
+                        <form action="{{ url_for('map.forestReport', forest_id=forest.id) }}" method="get" class="inline-block">
+                            <button type="submit" class="bg-green-500 text-white px-2 py-1 rounded">report</button>
+                        </form>
                     </td>
                 </tr>
                 {% endfor %}
