@@ -2,6 +2,7 @@ from flask import Blueprint, json, jsonify, render_template, render_template_str
 from flask_login import login_required
 from app.models import Farm, Forest, Point
 from app.utils.farm_utils import get_farm_id
+from app.utils.forest_watch_utils import query_forest_watch
 from app.utils.map_utils import calculate_area, convert_to_cartesian, create_mapbox_html, create_polygon_from_db, createGeoJSONFeature, createGeojsonFeatureCollection, generate_choropleth_map, generate_choropleth_map_combined, generate_choropleth_map_soil, save_polygon_to_geojson
 from flask import Blueprint, render_template
 from app import db
@@ -85,6 +86,16 @@ def get_forest_geojson(forest_id):
     
     # Render the HTML directly in the response
     return render_template('index.html', choropleth_map=mapbox_html)
+
+
+@bp.route('/farm/<int:farm_id>/report', methods=['GET'])
+def farmerReport(farm_id):
+    gfw(owner_type='farmer', owner_id=farm_id)
+
+@bp.route('/forests/<int:forest_id>/geojson', methods=['GET'])
+def farmerReport(forest_id):
+    gfw(owner_type='forest', owner_id=forest_id)
+
 
 @bp.route('/farm/<int:farmer_id>/geojson', methods=['GET'])
 def get_farm_geojson(farmer_id):
@@ -195,3 +206,62 @@ def create_mapbox_html_static(geojson_data):
         margin={"r": 0, "t": 0, "l": 0, "b": 0}
     )
     return fig.to_html(full_html=False)
+
+
+def get_coordinates(owner_type, owner_id):
+    points = Point.query.filter_by(owner_type=owner_type, owner_id=owner_id).options(db.load_only(Point.longitude, Point.latitude)).all()
+    coordinates = [(point.longitude, point.latitude) for point in points]
+    return coordinates
+
+def create_geojson(points, owner):
+    coordinates = [(point.longitude, point.latitude) for point in points]
+    shapely_polygon = ShapelyPolygon(coordinates)
+    geojson_polygon = mapping(shapely_polygon)
+    properties = {column.name: getattr(owner, column.name) for column in owner.__table__.columns}
+    feature = Feature(geometry=geojson_polygon, properties=properties)
+    return FeatureCollection([feature])
+
+def gfw(owner_type, owner_id):
+    datasets = [
+        'gfw_forest_carbon_gross_emissions',
+        'gfw_forest_carbon_gross_removals',
+        'gfw_forest_carbon_net_flux',
+        'gfw_forest_flux_aboveground_carbon_stock_in_emissions_year',
+        'gfw_forest_flux_belowground_carbon_stock_in_emissions_year',
+        'gfw_forest_flux_deadwood_carbon_stock_in_emissions_year',
+    ]
+
+    all_data = []
+    for dataset in datasets:
+        # Get the dataset from the URL parameters or use a default value
+        datasetss = request.args.get('dataset', dataset)
+        
+        # Get owner type and ID (this should be passed as arguments in the URL)
+
+        if not owner_id:
+            return jsonify({"error": "Owner ID is required"}), 400
+
+        # Get coordinates from the database
+        coordinates = get_coordinates(owner_type, owner_id)
+        if not coordinates:
+            return jsonify({"error": "No points found for the specified owner"}), 404
+        
+        geometry = {
+            "type": "Polygon",
+            "coordinates": [coordinates]
+        }
+
+        # Query data from the dataset
+        sql_query = "SELECT COUNT(*) FROM results"
+        dataset_data = query_forest_watch(datasetss, geometry, sql_query)
+        
+        # Extract fields dynamically, ensuring to handle cases where 'data' key might be missing
+        data_fields = dataset_data.get("data", [{}])[0] if dataset_data else {}
+        
+        all_data.append({
+            'dataset': datasetss,
+            'data_fields': data_fields,
+            'coordinates': geometry["coordinates"]
+        })
+
+    return render_template('gfw/view.html', all_data=all_data)

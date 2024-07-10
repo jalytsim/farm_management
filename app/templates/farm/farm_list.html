@@ -56,6 +56,7 @@
                             <button type="submit" class="bg-green-500 text-white px-2 py-1 rounded">View</button>
                         </form>
                         <a href="{{ url_for('farmdata.index', farm_id=farm.id) }}" class="bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-2 rounded">Add fd</a>
+                        <a href="{{ url_for('map.farmerReport', farm_id=farm.farm_id) }}" class="bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-2 rounded">report</a>
                     </td>
                 </tr>
                 {% endfor %}
