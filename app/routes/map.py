@@ -93,15 +93,14 @@ def farmerReport(farm_id):
     data, status_code = gfw(owner_type='farmer', owner_id=farm_id)
     if status_code != 200:
         return jsonify(data), status_code
-    return render_template('gfw/view.html', all_data=data['all_data'])
+    return render_template('gfw/view.html', dataset_results=data['dataset_results'])
 
 @bp.route('/forests/<int:forest_id>/report', methods=['GET'])
 def forestReport(forest_id):
     data, status_code = gfw(owner_type='forest', owner_id=str(forest_id))
     if status_code != 200:
         return jsonify(data), status_code
-    return render_template('gfw/view.html', all_data=data['all_data'])
-
+    return render_template('gfw/view.html', dataset_results=data['dataset_results'])
 
 
 @bp.route('/farm/<int:farmer_id>/geojson', methods=['GET'])
@@ -244,7 +243,7 @@ def gfw(owner_type, owner_id):
         'gfw_forest_flux_deadwood_carbon_stock_in_emissions_year',
     ]
 
-    all_data = []
+    dataset_results = []
     for dataset in datasets:
         # Get the dataset from the URL parameters or use a default value
         datasetss = request.args.get('dataset', dataset)
@@ -266,10 +265,10 @@ def gfw(owner_type, owner_id):
         # Extract fields dynamically, ensuring to handle cases where 'data' key might be missing
         data_fields = dataset_data.get("data", [{}])[0] if dataset_data else {}
 
-        all_data.append({
+        dataset_results.append({
             'dataset': datasetss,
             'data_fields': data_fields,
             'coordinates': geometry["coordinates"]
         })
 
-    return {"all_data": all_data}
+    return {"dataset_results": dataset_results}, 200
