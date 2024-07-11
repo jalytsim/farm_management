@@ -1,7 +1,7 @@
 from flask import Blueprint, json, jsonify, render_template, render_template_string, request, send_file
 from flask_login import login_required
 from app.models import Farm, Forest, Point
-from app.utils.farm_utils import get_farm_id
+from app.utils.farm_utils import get_farm_id, get_farmProperties
 from app.utils.forest_watch_utils import query_forest_watch
 from app.utils.map_utils import calculate_area, convert_to_cartesian, create_mapbox_html, create_polygon_from_db, createGeoJSONFeature, createGeojsonFeatureCollection, generate_choropleth_map, generate_choropleth_map_combined, generate_choropleth_map_soil, save_polygon_to_geojson
 from flask import Blueprint, render_template
@@ -90,16 +90,58 @@ def get_forest_geojson(forest_id):
 
 @bp.route('/farm/<string:farm_id>/report', methods=['GET'])
 def farmerReport(farm_id):
+
+    farm = Farm.query.filter_by(farm_id=farm_id).first()
+    if not farm:
+        return jsonify({"message": "Farm not found"}), 404
+
+    idfarm = farm.id  # Récupérer l'ID de la ferme
+    farm_properties = get_farmProperties(idfarm) 
+    if farm_properties is None:
+        return jsonify({"error": "No data found for the specified farm"}), 404
+    
+    # Extract data for the report
+    farm_info = {
+        'farm_id': farm_properties[0].farm_id if farm_properties else 'N/A',
+        'name': farm_properties[0].name if farm_properties else 'N/A',
+        'subcounty': farm_properties[0].subcounty if farm_properties else 'N/A',
+        'district_name': farm_properties[0].district_name if farm_properties else 'N/A',
+        'district_region': farm_properties[0].district_region if farm_properties else 'N/A',
+        'geolocation': farm_properties[0].geolocation if farm_properties else 'N/A',
+        'phonenumber': farm_properties[0].phonenumber if farm_properties else 'N/A',
+        'phonenumber2': farm_properties[0].phonenumber2 if farm_properties else 'N/A',
+        'date_created': farm_properties[0].date_created if farm_properties else 'N/A',
+        'date_updated': farm_properties[0].date_updated if farm_properties else 'N/A',
+        'crops': [
+            {
+                'crop_id': fp.crop_id,
+                'tilled_land_size': fp.tilled_land_size,
+                'season': fp.season,
+                'quality': fp.quality,
+                'produce_weight': fp.produce_weight,
+                'harvest_date': fp.harvest_date,
+                'timestamp': fp.timestamp,
+                'channel_partner': fp.channel_partner,
+                'destination_country': fp.destination_country,
+                'customer_name': fp.customer_name
+            } for fp in farm_properties
+        ]
+    }
+    
     data, status_code = gfw(owner_type='farmer', owner_id=farm_id)
     if status_code != 200:
         return jsonify(data), status_code
-    return render_template('gfw/view.html', dataset_results=data['dataset_results'])
+    object_type = 'farm'
+    
+    return render_template('gfw/view.html', dataset_results=data['dataset_results'], farm=farm_info, object_type=object_type)
+
 
 @bp.route('/forests/<int:forest_id>/report', methods=['GET'])
 def forestReport(forest_id):
     data, status_code = gfw(owner_type='forest', owner_id=str(forest_id))
     if status_code != 200:
         return jsonify(data), status_code
+    
     return render_template('gfw/view.html', dataset_results=data['dataset_results'])
 
 
