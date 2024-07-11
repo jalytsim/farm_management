@@ -88,11 +88,11 @@ def get_forest_geojson(forest_id):
     return render_template('index.html', choropleth_map=mapbox_html)
 
 
-@bp.route('/farm/<int:farm_id>/report', methods=['GET'])
+@bp.route('/farm/<string:farm_id>/report', methods=['GET'])
 def farmerReport(farm_id):
     gfw(owner_type='farmer', owner_id=farm_id)
 
-@bp.route('/forests/<int:forest_id>/geojson', methods=['GET'])
+@bp.route('/forests/<int:forest_id>/report', methods=['GET'])
 def forestReport(forest_id):
     gfw(owner_type='forest', owner_id=forest_id)
 
