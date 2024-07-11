@@ -26,7 +26,10 @@ class District(db.Model):
     region = db.Column(db.String(255), nullable=False)
     date_created = db.Column(db.DateTime, default=datetime.utcnow)
     date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+    modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+
+
 class FarmerGroup(db.Model):
     __tablename__ = 'farmergroup'
     id = db.Column(db.Integer, primary_key=True)
@@ -34,6 +37,9 @@ class FarmerGroup(db.Model):
     description = db.Column(db.Text, nullable=True)
     date_created = db.Column(db.DateTime, default=datetime.utcnow)
     date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+
     
 class ProduceCategory(db.Model):
     __tablename__ = 'producecategory'
@@ -43,6 +49,8 @@ class ProduceCategory(db.Model):
     crops = db.relationship('Crop', backref='category', lazy=True)
     date_created = db.Column(db.DateTime, default=datetime.utcnow)
     date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
 
 class SoilData(db.Model):
     __tablename__ = 'soildata'
@@ -62,6 +70,8 @@ class SoilData(db.Model):
     date = db.Column(db.Date, nullable=False)
     date_created = db.Column(db.DateTime, default=datetime.utcnow)
     date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
 
 class Crop(db.Model):
     __tablename__ = 'crop'
@@ -71,6 +81,8 @@ class Crop(db.Model):
     category_id = db.Column(db.Integer, db.ForeignKey('producecategory.id'), nullable=False)
     date_created = db.Column(db.DateTime, default=datetime.utcnow)
     date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
 
 class Farm(db.Model):
     __tablename__ = 'farm'
@@ -85,6 +97,12 @@ class Farm(db.Model):
     phonenumber2 = db.Column(db.String(20), nullable=True)
     date_created = db.Column(db.DateTime, default=datetime.utcnow)
     date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+
+    farmer_group = db.relationship('FarmerGroup', backref='farms')
+    district = db.relationship('District', backref='farms')
+    farm_data = db.relationship('FarmData', backref='farm', lazy=True)
 
 class FarmData(db.Model):
     __tablename__ = 'farmdata'
@@ -106,6 +124,8 @@ class FarmData(db.Model):
     customer_name = db.Column(db.String(255), nullable=False)
     date_created = db.Column(db.DateTime, default=datetime.utcnow)
     date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
 
 class Forest(db.Model):
     __tablename__ = 'forest'
@@ -113,36 +133,45 @@ class Forest(db.Model):
     name = db.Column(db.String(255), nullable=False)
     date_created = db.Column(db.DateTime, default=datetime.utcnow)
     date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
 
 class Point(db.Model):
     __tablename__ = 'point'
     id = db.Column(db.Integer, primary_key=True)
     longitude = db.Column(db.Float, nullable=False)
     latitude = db.Column(db.Float, nullable=False)
-    owner_type = db.Column(db.Enum('forest', 'farmer'), nullable=False)
+    owner_type = db.Column(db.Enum('forest', 'farmer', 'tree'), nullable=False)
     forest_id = db.Column(db.Integer, db.ForeignKey('forest.id'), nullable=True)
     farmer_id = db.Column(db.String(50), db.ForeignKey('farm.farm_id'), nullable=True)
+    tree_id = db.Column(db.Integer, db.ForeignKey('tree.id'), nullable=True)
     district_id = db.Column(db.Integer, db.ForeignKey('district.id'), nullable=False)
     __table_args__ = (
         db.CheckConstraint(
-            "(owner_type = 'forest' AND forest_id IS NOT NULL AND farmer_id IS NULL) OR "
-            "(owner_type = 'farmer' AND farmer_id IS NOT NULL AND forest_id IS NULL)",
+            "(owner_type = 'forest' AND forest_id IS NOT NULL AND farmer_id IS NULL AND tree_id IS NULL) OR "
+            "(owner_type = 'farmer' AND farmer_id IS NOT NULL AND forest_id IS NULL AND tree_id IS NULL) OR "
+            "(owner_type = 'tree' AND tree_id IS NOT NULL AND forest_id IS NULL AND farmer_id IS NULL)",
             name='check_owner_type'
         ),
     )
     date_created = db.Column(db.DateTime, default=datetime.utcnow)
     date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+
+
 
 class Tree(db.Model):
+    __tablename__ = 'tree'
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    species = db.Column(db.String(100), nullable=False)
-    height = db.Column(db.Float, nullable=False)
-    diameter = db.Column(db.Float, nullable=False)
-    gps_lat = db.Column(db.Float, nullable=False)
-    gps_lon = db.Column(db.Float, nullable=False)
-    planted_date = db.Column(db.Date, nullable=False)
-    qr_code = db.Column(db.String(100), nullable=True)  # Stocke l'URL ou le chemin du QR code
-
-    def __repr__(self):
-        return f'<Tree {self.name}>'
+    name = db.Column(db.String(255), nullable=False)
+    type = db.Column(db.String(255), nullable=False)
+    forest_id = db.Column(db.Integer, db.ForeignKey('forest.id'), nullable=False)
+    point_id = db.Column(db.Integer, db.ForeignKey('point.id'), nullable=False)
+    cutting_date = db.Column(db.Date, nullable=True)
+    height = db.Column(db.Float, nullable=True)
+    diameter = db.Column(db.Float, nullable=True)
+    date_created = db.Column(db.DateTime, default=datetime.utcnow)
+    date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)

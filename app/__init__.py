@@ -48,8 +48,17 @@ def create_app():
     app.register_blueprint(producecategory.bp)
     app.register_blueprint(district.bp)
     
-
     from app.routes.testDb import test
     app.register_blueprint(test)
+
+    @app.template_filter('remove_gfw')
+    def remove_gfw(text):
+        if text:
+            # Remplace 'gfw' et 'umd' par une chaîne vide
+            return text.replace('gfw', '').replace('umd', '')
+        return text
+
+    app.jinja_env.filters['remove_gfw'] = remove_gfw
+
 
     return app

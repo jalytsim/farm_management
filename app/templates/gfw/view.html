@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Farm Report</title>
+    <title>Forest Report</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <style>
         .truncate-lines-3 {
@@ -34,6 +34,7 @@
 <body class="bg-gray-100 flex items-center justify-center min-h-screen">
     <div class="container mx-auto p-4">
         {% if object_type == 'farm' %}
+        <div class="container mx-auto p-6">
             <h1 class="text-3xl font-bold mb-6 text-center text-green-800">Farm Report</h1>
             <div class="bg-white shadow-lg rounded-lg p-6 mb-6 border border-gray-200">
                 <h2 class="text-2xl font-semibold mb-4 text-gray-800">Farm Information</h2>
@@ -55,10 +56,15 @@
                         {% for crop in farm.crops %}
                             <li class="bg-white p-4 rounded-md shadow-sm border border-gray-200">
                                 <p><span class="font-semibold">Crop ID:</span> {{ crop.crop_id }}</p>
-                                <p><span class="font-semibold">Tilled Land Size:</span> {{ crop.tilled_land_size }}</p>
+                                <p><span class="font-semibold">Crop Name:</span> {{ crop.crop_name }}</p>
+                                <p><span class="font-semibold">Land Type:</span> {{ crop.land_type }}</p>
+                                <p><span class="font-semibold">Tilled Land Size:</span> {{ crop.tilled_land_size }} sq. meters</p>
+                                <p><span class="font-semibold">Planting Date:</span> {{ crop.planting_date }}</p>
                                 <p><span class="font-semibold">Season:</span> {{ crop.season }}</p>
                                 <p><span class="font-semibold">Quality:</span> {{ crop.quality }}</p>
-                                <p><span class="font-semibold">Produce Weight:</span> {{ crop.produce_weight }}</p>
+                                <p><span class="font-semibold">Quantity:</span> {{ crop.quantity }} units</p>
+                                <p><span class="font-semibold">Expected Yield:</span> {{ crop.expected_yield }} kg</p>
+                                <p><span class="font-semibold">Actual Yield:</span> {{ crop.actual_yield }} kg</p>
                                 <p><span class="font-semibold">Harvest Date:</span> {{ crop.harvest_date }}</p>
                                 <p><span class="font-semibold">Timestamp:</span> {{ crop.timestamp }}</p>
                                 <p><span class="font-semibold">Channel Partner:</span> {{ crop.channel_partner }}</p>
@@ -70,40 +76,29 @@
                 </div>
             </div>
         {% elif object_type == 'forest' %}
+        <div class="container mx-auto p-4">
             <h1 class="text-3xl font-bold mb-6 text-center text-green-800">Forest Report</h1>
             <div class="bg-white shadow-lg rounded-lg p-6 mb-6 border border-gray-200">
                 <h2 class="text-2xl font-semibold mb-4 text-gray-800">Forest Information</h2>
                 <div class="text-gray-700 mb-4">
                     <p class="text-lg font-medium"><span class="font-semibold">Forest Name:</span> {{ forest.name }}</p>
-                    <p class="text-lg font-medium"><span class="font-semibold">Forest ID:</span> {{ forest.forest_id }}</p>
-                    <p class="text-lg font-medium"><span class="font-semibold">Location:</span> {{ forest.location }}</p>
-                    <p class="text-lg font-medium"><span class="font-semibold">Size (ha):</span> {{ forest.size }}</p>
-                    <p class="text-lg font-medium"><span class="font-semibold">Type:</span> {{ forest.type }}</p>
-                    <p class="text-lg font-medium"><span class="font-semibold">Date Established:</span> {{ forest.date_established }}</p>
-                    <p class="text-lg font-medium"><span class="font-semibold">Owner:</span> {{ forest.owner }}</p>
-                </div>
-                <div class="bg-gray-50 p-4 rounded-md border border-gray-300">
-                    <h3 class="text-xl font-semibold mb-4 text-gray-800">Tree Information</h3>
-                    <ul class="space-y-4">
-                        {% for tree in forest.trees %}
-                            <li class="bg-white p-4 rounded-md shadow-sm border border-gray-200">
-                                <p><span class="font-semibold">Tree ID:</span> {{ tree.tree_id }}</p>
-                                <p><span class="font-semibold">Species:</span> {{ tree.species }}</p>
-                                <p><span class="font-semibold">Height:</span> {{ tree.height }} m</p>
-                                <p><span class="font-semibold">Diameter:</span> {{ tree.diameter }} cm</p>
-                                <p><span class="font-semibold">GPS Coordinates:</span> {{ tree.gps_coordinates }}</p>
-                                <p><span class="font-semibold">Date Planted:</span> {{ tree.date_planted }}</p>
-                            </li>
-                        {% endfor %}
-                    </ul>
+                    <p class="text-lg font-medium"><span class="font-semibold">Forest ID:</span> {{ forest.id }}</p>
+                    <p class="text-lg font-medium"><span class="font-semibold">Date Created:</span> {{ forest.date_created.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+                    <p class="text-lg font-medium"><span class="font-semibold">Date Updated:</span> {{ forest.date_updated.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+                    <p class="text-lg font-medium"><span class="font-semibold">Created By User ID:</span> {{ forest.created_by }}</p>
+                    <p class="text-lg font-medium"><span class="font-semibold">Modified By User ID:</span> {{ forest.modified_by }}</p>
+                    <p class="text-lg font-medium"><span class="font-semibold">Created By:</span> {{ forest.created_by_user.username if forest.created_by_user else 'Unknown' }}</p>
+                    <p class="text-lg font-medium"><span class="font-semibold">Modified By:</span> {{ forest.modified_by_user.username if forest.modified_by_user else 'Unknown' }}</p>
                 </div>
             </div>
+        </div>
         {% endif %}
 
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <h1 class="text-3xl font-bold mb-6 text-center text-green-800">Dataset Results</h1>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {% for result in dataset_results %}
-                <div class="bg-white shadow-lg rounded-lg p-6 max-w-sm border border-gray-200">
-                    <h2 class="text-2xl font-semibold mb-4 text-gray-800">{{ result.dataset.replace('_', ' ').title() }}</h2>
+                <div class="card-container bg-white shadow-lg rounded-lg p-6 max-w-sm border border-gray-200">
+                    <h2 class="text-2xl font-semibold mb-4 text-gray-800">{{ result.dataset | remove_gfw | replace('_', ' ') | title }}</h2>
                     <div class="text-gray-700 mb-4">
                         {% for field, value in result.data_fields.items() %}
                             <p class="font-medium text-gray-800">{{ field.replace('_', ' ').title() }}:</p>
@@ -119,19 +114,18 @@
             {% endfor %}
         </div>
     </div>
-
     <script>
         function toggleCoordinates(index) {
             var preElement = document.getElementById('coordinates-' + index);
-            var buttonElement = document.getElementById('toggle-button-' + index);
+            var button = document.getElementById('toggle-button-' + index);
             if (preElement.classList.contains('truncate-lines-3')) {
                 preElement.classList.remove('truncate-lines-3');
                 preElement.classList.add('full-height');
-                buttonElement.textContent = 'Show Less';
+                button.textContent = 'Show Less';
             } else {
                 preElement.classList.add('truncate-lines-3');
                 preElement.classList.remove('full-height');
-                buttonElement.textContent = 'Show More';
+                button.textContent = 'Show More';
             }
         }
     </script>
