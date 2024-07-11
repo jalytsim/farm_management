@@ -100,7 +100,7 @@ def farmerReport(farm_id):
     if farm_properties is None:
         return jsonify({"error": "No data found for the specified farm"}), 404
     
-    print(farm_properties)
+    print(farm_properties.farm_id)
     # Extract data for the report
     farm_info = {
         'farm_id': farm_properties[0].farm_id if farm_properties else 'N/A',
@@ -278,6 +278,7 @@ def create_geojson(points, owner):
 
 def gfw(owner_type, owner_id):
     datasets = [
+        'umd_tree_cover_loss',
         'gfw_forest_carbon_gross_emissions',
         'gfw_forest_carbon_gross_removals',
         'gfw_forest_carbon_net_flux',
