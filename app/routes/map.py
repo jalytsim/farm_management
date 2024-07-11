@@ -94,7 +94,7 @@ def farmerReport(farm_id):
 
 @bp.route('/forests/<int:forest_id>/report', methods=['GET'])
 def forestReport(forest_id):
-    gfw(owner_type='forest', owner_id=forest_id)
+    return gfw(owner_type='forest', owner_id=str(forest_id))
 
 
 @bp.route('/farm/<int:farmer_id>/geojson', methods=['GET'])
@@ -241,17 +241,12 @@ def gfw(owner_type, owner_id):
     for dataset in datasets:
         # Get the dataset from the URL parameters or use a default value
         datasetss = request.args.get('dataset', dataset)
-        
-        # Get owner type and ID (this should be passed as arguments in the URL)
-
-        if not owner_id:
-            return jsonify({"error": "Owner ID is required"}), 400
 
         # Get coordinates from the database
         coordinates = get_coordinates(owner_type, owner_id)
         if not coordinates:
             return jsonify({"error": "No points found for the specified owner"}), 404
-        
+
         geometry = {
             "type": "Polygon",
             "coordinates": [coordinates]
@@ -260,10 +255,10 @@ def gfw(owner_type, owner_id):
         # Query data from the dataset
         sql_query = "SELECT COUNT(*) FROM results"
         dataset_data = query_forest_watch(datasetss, geometry, sql_query)
-        
+
         # Extract fields dynamically, ensuring to handle cases where 'data' key might be missing
         data_fields = dataset_data.get("data", [{}])[0] if dataset_data else {}
-        
+
         all_data.append({
             'dataset': datasetss,
             'data_fields': data_fields,
