@@ -209,7 +209,13 @@ def create_mapbox_html_static(geojson_data):
 
 
 def get_coordinates(owner_type, owner_id):
-    points = Point.query.filter_by(owner_type=owner_type, owner_id=owner_id).options(db.load_only(Point.longitude, Point.latitude)).all()
+    if owner_type == 'forest':
+        points = Point.query.filter_by(owner_type=owner_type, forest_id=owner_id).options(db.load_only(Point.longitude, Point.latitude)).all()
+    elif owner_type == 'farmer':
+        points = Point.query.filter_by(owner_type=owner_type, farmer_id=owner_id).options(db.load_only(Point.longitude, Point.latitude)).all()
+    else:
+        return []
+
     coordinates = [(point.longitude, point.latitude) for point in points]
     return coordinates
 
