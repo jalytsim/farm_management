@@ -91,12 +91,8 @@ def get_forest_geojson(forest_id):
 @bp.route('/farm/<string:farm_id>/report', methods=['GET'])
 def farmerReport(farm_id):
 
-    farm = Farm.query.filter_by(farm_id=farm_id).first()
-    if not farm:
-        return jsonify({"message": "Farm not found"}), 404
-
-    idfarm = farm.id  # Récupérer l'ID de la ferme
-    farm_properties = get_farmProperties(idfarm) 
+    farm_properties = get_farmProperties(farm_id) 
+    
     if farm_properties is None:
         return jsonify({"error": "No data found for the specified farm"}), 404
     
