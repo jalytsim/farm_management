@@ -90,11 +90,18 @@ def get_forest_geojson(forest_id):
 
 @bp.route('/farm/<string:farm_id>/report', methods=['GET'])
 def farmerReport(farm_id):
-    gfw(owner_type='farmer', owner_id=farm_id)
+    data, status_code = gfw(owner_type='farmer', owner_id=farm_id)
+    if status_code != 200:
+        return jsonify(data), status_code
+    return render_template('gfw/view.html', all_data=data['all_data'])
 
 @bp.route('/forests/<int:forest_id>/report', methods=['GET'])
 def forestReport(forest_id):
-    return gfw(owner_type='forest', owner_id=str(forest_id))
+    data, status_code = gfw(owner_type='forest', owner_id=str(forest_id))
+    if status_code != 200:
+        return jsonify(data), status_code
+    return render_template('gfw/view.html', all_data=data['all_data'])
+
 
 
 @bp.route('/farm/<int:farmer_id>/geojson', methods=['GET'])
@@ -245,7 +252,7 @@ def gfw(owner_type, owner_id):
         # Get coordinates from the database
         coordinates = get_coordinates(owner_type, owner_id)
         if not coordinates:
-            return jsonify({"error": "No points found for the specified owner"}), 404
+            return {"error": "No points found for the specified owner"}, 404
 
         geometry = {
             "type": "Polygon",
@@ -265,4 +272,4 @@ def gfw(owner_type, owner_id):
             'coordinates': geometry["coordinates"]
         })
 
-    return render_template('gfw/view.html', all_data=all_data)
+    return {"all_data": all_data}
