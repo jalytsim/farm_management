@@ -97,30 +97,29 @@ def farmerReport(farm_id):
         return jsonify({"error": "No data found for the specified farm"}), 404
     
     print(farm_properties)
-    # Extract data for the report
     farm_info = {
-        'farm_id': farm_properties[0].farm_id if farm_properties else 'N/A',
-        'name': farm_properties[0].name if farm_properties else 'N/A',
-        'subcounty': farm_properties[0].subcounty if farm_properties else 'N/A',
-        'district_name': farm_properties[0].district_name if farm_properties else 'N/A',
-        'district_region': farm_properties[0].district_region if farm_properties else 'N/A',
-        'geolocation': farm_properties[0].geolocation if farm_properties else 'N/A',
-        'phonenumber': farm_properties[0].phonenumber if farm_properties else 'N/A',
-        'phonenumber2': farm_properties[0].phonenumber2 if farm_properties else 'N/A',
-        'date_created': farm_properties[0].date_created if farm_properties else 'N/A',
-        'date_updated': farm_properties[0].date_updated if farm_properties else 'N/A',
+        'farm_id': farm_properties[0][0] if farm_properties else 'N/A',
+        'name': farm_properties[0][12] if farm_properties else 'N/A',
+        'subcounty': farm_properties[0][14] if farm_properties else 'N/A',
+        'district_name': farm_properties[0][15] if farm_properties else 'N/A',
+        'district_region': farm_properties[0][16] if farm_properties else 'N/A',
+        'geolocation': farm_properties[0][2] if farm_properties else 'N/A',
+        'phonenumber': farm_properties[0][5] if farm_properties else 'N/A',
+        'phonenumber2': farm_properties[0][7] if farm_properties else 'N/A',
+        'date_created': farm_properties[0][9] if farm_properties else 'N/A',
+        'date_updated': farm_properties[0][10] if farm_properties else 'N/A',
         'crops': [
             {
-                'crop_id': fp.crop_id,
-                'tilled_land_size': fp.tilled_land_size,
-                'season': fp.season,
-                'quality': fp.quality,
-                'produce_weight': fp.produce_weight,
-                'harvest_date': fp.harvest_date,
-                'timestamp': fp.timestamp,
-                'channel_partner': fp.channel_partner,
-                'destination_country': fp.destination_country,
-                'customer_name': fp.customer_name
+                'crop_id': fp[1],
+                'tilled_land_size': fp[4],
+                'season': fp[5],
+                'quality': fp[6],
+                'produce_weight': fp[8],
+                'harvest_date': fp[9],
+                'timestamp': fp[10],
+                'channel_partner': fp[13],
+                'destination_country': fp[11],
+                'customer_name': fp[12]
             } for fp in farm_properties
         ]
     }
