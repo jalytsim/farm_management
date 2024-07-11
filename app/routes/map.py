@@ -102,7 +102,7 @@ def farmerReport(farm_id):
         'name': farm_properties[0][12] if farm_properties else 'N/A',
         'subcounty': farm_properties[0][14] if farm_properties else 'N/A',
         'district_name': farm_properties[0][15] if farm_properties else 'N/A',
-        'district_region': farm_properties[0][16] if farm_properties else 'N/A',
+        'district_region': farm_properties[0][15] if farm_properties else 'N/A',
         'geolocation': farm_properties[0][2] if farm_properties else 'N/A',
         'phonenumber': farm_properties[0][5] if farm_properties else 'N/A',
         'phonenumber2': farm_properties[0][7] if farm_properties else 'N/A',
