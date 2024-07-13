@@ -22,7 +22,6 @@ def forest_or_admin_required(f):
     return wrap
 
 @bp.route('/forest')
-@login_required
 @forest_or_admin_required
 def index():
     page = request.args.get('page', 1, type=int)
@@ -67,7 +66,6 @@ def handle_create_forest():
     
     
 @bp.route('/forest/update/<int:id>', methods=['POST'])
-@login_required
 @forest_or_admin_required
 def handle_update_forest(id):
     name = request.form['name']
@@ -75,14 +73,12 @@ def handle_update_forest(id):
     return redirect(url_for('forest.index'))
 
 @bp.route('/forest/delete/<int:id>', methods=['POST'])
-@login_required
 @forest_or_admin_required
 def handle_delete_forest(id):
     delete_forest(id)
     return redirect(url_for('forest.index'))
 
 @bp.route('/forest/view')
-@login_required
 @forest_or_admin_required
 def view():
     forests = get_all_forests()

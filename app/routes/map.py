@@ -288,6 +288,7 @@ def create_geojson(points, owner):
 
 def gfw(owner_type, owner_id):
     datasets = [
+        'gfw_radd_alerts',
         'umd_tree_cover_loss',
         'gfw_forest_carbon_gross_emissions',
         'gfw_forest_carbon_gross_removals',
