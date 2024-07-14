@@ -1,7 +1,7 @@
 import pandas as pd
 import os
 from flask import Blueprint, app, jsonify, render_template, request, redirect, url_for, flash
-from flask_login import login_required
+from flask_login import current_user, login_required
 from app.models import District, Farm, Forest, Point
 from app.routes.admin import admin_required
 from app.routes.farm import farmer_or_admin_required
@@ -16,8 +16,15 @@ bp = Blueprint('points', __name__)
 @login_required
 def list_points():
     page = request.args.get('page', 1, type=int)
-    points = Point.query.paginate(page=page, per_page=6)
+    
+    # Check if the user is an admin
+    if current_user.is_admin:
+        points = Point.query.paginate(page=page, per_page=6)
+    else:
+        points = Point.query.filter_by(created_by=current_user.id).paginate(page=page, per_page=6)
+    
     return render_template('points/list.html', points=points)
+
 
 @bp.route('/points/<int:point_id>', methods=['GET'])
 @login_required

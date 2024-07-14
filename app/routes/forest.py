@@ -25,12 +25,18 @@ def forest_or_admin_required(f):
 @forest_or_admin_required
 def index():
     page = request.args.get('page', 1, type=int)
-    forests = Forest.query.paginate(page=page, per_page=6)
+    
+    # Check if the user is an admin
+    if current_user.is_admin:
+        forests = Forest.query.paginate(page=page, per_page=6)
+    else:
+        forests = Forest.query.filter_by(created_by=current_user.id).paginate(page=page, per_page=6)
+
     points = get_all_points()
     districts = get_all_districts()
     owner_types = ['Farmer', 'Forest', 'Both']
+    
     return render_template('forest/forest.html', forests=forests, points=points, districts=districts, owner_types=owner_types)
-
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in Config.ALLOWED_EXTENSIONS

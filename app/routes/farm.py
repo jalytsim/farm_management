@@ -24,11 +24,17 @@ def farmer_or_admin_required(f):
 @farmer_or_admin_required
 def index():
     page = request.args.get('page', 1, type=int)
-    farms = Farm.query.paginate(page=page, per_page=6)
+    
+    # Check if the user is an admin
+    if current_user.is_admin:
+        farms = Farm.query.paginate(page=page, per_page=6)
+    else:
+        farms = Farm.query.filter_by(created_by=current_user.id).paginate(page=page, per_page=6)
+
     districts = District.query.all()
     farmergroups = FarmerGroup.query.all()
-    return render_template('farm/index.html',  farms=farms, districts=districts, farmergroups=farmergroups)
-
+    
+    return render_template('farm/index.html', farms=farms, districts=districts, farmergroups=farmergroups)
 
 @bp.route('/farm/create', methods=['GET', 'POST'])
 @login_required

@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template, redirect, url_for, request, flash
-from flask_login import login_required
+from flask_login import current_user, login_required
 from app.routes.farm import farmer_or_admin_required
 from app.utils import farmdata_utils
 from app.models import Farm, Crop, FarmData
@@ -11,8 +11,21 @@ bp = Blueprint('farmdata', __name__)
 @farmer_or_admin_required
 def index():
     farm_id = request.args.get('farm_id')
-    farmdata_list = FarmData.query.all() if not farm_id else FarmData.query.filter_by(farm_id=farm_id).all()
+    
+    # Check if the user is an admin
+    if current_user.is_admin:
+        if farm_id:
+            farmdata_list = FarmData.query.filter_by(farm_id=farm_id).all()
+        else:
+            farmdata_list = FarmData.query.all()
+    else:
+        if farm_id:
+            farmdata_list = FarmData.query.filter_by(farm_id=farm_id, created_by=current_user.id).all()
+        else:
+            farmdata_list = FarmData.query.filter_by(created_by=current_user.id).all()
+    
     return render_template('farmdata/index.html', farmdata_list=farmdata_list)
+
 
 @bp.route('/farmdata/create', methods=['GET', 'POST'])
 @login_required
