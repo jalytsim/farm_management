@@ -1,11 +1,11 @@
 import json
+import math
 import random
 import plotly.express as px
 import pandas as pd
 from flask import current_app as app
 from sqlalchemy import func
-import math
-
+from math import log, pi, sin, cos, sqrt, atan2, radians, tan
 from app.utils.point_utils import get_points_by_forest_id
 from ..models import db, FarmData, Farm, District, SoilData
 import plotly.graph_objects as go
@@ -406,7 +406,14 @@ def calculate_area(vertices):
 
     area = abs(area) / 2.0
     return area
- 
+
+def lat_lon_to_cartesian(lat, lon, radius=6378137):
+    """Convert latitude and longitude to Cartesian coordinates."""
+    lat = radians(lat)
+    lon = radians(lon)
+    x = radius * lon
+    y = radius * log(tan((pi / 4) + (lat / 2)))
+    return x, y
     
     
     

@@ -1,0 +1,50 @@
+{% extends 'layout.html' %}
+
+{% block title %}Tree List{% endblock %}
+
+{% block content %}
+<div class="container mx-auto p-6">
+    <h1 class="text-2xl font-bold mb-4 animate-fadeIn">Tree List</h1>
+    <div class="mb-4">
+        <a href="{{ url_for('tree.create_tree_route') }}" class="btn">Create New Tree</a>
+    </div>
+    <table class="min-w-full bg-white border border-gray-300 rounded-lg shadow-md">
+        <thead>
+            <tr>
+                <th class="p-4 border-b">ID</th>
+                <th class="p-4 border-b">Name</th>
+                <th class="p-4 border-b">Type</th>
+                <th class="p-4 border-b">Forest ID</th>
+                <th class="p-4 border-b">Point ID</th>
+                <th class="p-4 border-b">Height (m)</th>
+                <th class="p-4 border-b">Diameter (cm)</th>
+                <th class="p-4 border-b">Date Planted</th>
+                <th class="p-4 border-b">Cutting Date</th>
+                <th class="p-4 border-b">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for tree in trees %}
+            <tr>
+                <td class="p-4 border-b">{{ tree.id }}</td>
+                <td class="p-4 border-b">{{ tree.name }}</td>
+                <td class="p-4 border-b">{{ tree.type }}</td>
+                <td class="p-4 border-b">{{ tree.forest_id }}</td>
+                <td class="p-4 border-b">{{ tree.point_id }}</td>
+                <td class="p-4 border-b">{{ tree.height }}</td>
+                <td class="p-4 border-b">{{ tree.diameter }}</td>
+                <td class="p-4 border-b">{{ tree.date_planted.strftime('%Y-%m-%d') }}</td>
+                <td class="p-4 border-b">{{ tree.date_cut.strftime('%Y-%m-%d') if tree.date_cut else '' }}</td>
+                <td class="p-4 border-b">
+                    <a href="{{ url_for('tree.view_tree', tree_id=tree.id) }}" class="btn">View</a>
+                    <a href="{{ url_for('tree.edit_tree_route', tree_id=tree.id) }}" class="btn">Edit</a>
+                    <form action="{{ url_for('tree.delete_tree_route', tree_id=tree.id) }}" method="post" style="display:inline;">
+                        <button type="submit" class="btn btn-danger">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

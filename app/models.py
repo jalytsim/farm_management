@@ -161,17 +161,18 @@ class Point(db.Model):
 
 
 
+
 class Tree(db.Model):
-    __tablename__ = 'tree'
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(255), nullable=False)
-    type = db.Column(db.String(255), nullable=False)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     forest_id = db.Column(db.Integer, db.ForeignKey('forest.id'), nullable=False)
     point_id = db.Column(db.Integer, db.ForeignKey('point.id'), nullable=False)
-    cutting_date = db.Column(db.Date, nullable=True)
-    height = db.Column(db.Float, nullable=True)
-    diameter = db.Column(db.Float, nullable=True)
-    date_created = db.Column(db.DateTime, default=datetime.utcnow)
-    date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    name = db.Column(db.String(255), nullable=False)
+    height = db.Column(db.Float, nullable=False)
+    diameter = db.Column(db.Float, nullable=False)
+    date_planted = db.Column(db.Date, nullable=False)
+    date_cut = db.Column(db.Date, nullable=True)
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    date_created = db.Column(db.DateTime, default=db.func.current_timestamp())
+    date_updated = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
+    type = db.Column(db.String(50), nullable=True)

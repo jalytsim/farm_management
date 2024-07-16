@@ -1,8 +1,30 @@
 {% extends 'layout.html' %}
 
-{% block title %}Tree Details{% endblock %}
+{% block title %}View Tree Details{% endblock %}
 
 {% block content %}
-
-
+<div class="container mx-auto p-6">
+    <h1 class="text-2xl font-bold mb-4 animate-fadeIn">Tree Details</h1>
+    <div class="bg-white shadow-md rounded-lg p-6">
+        <p><strong>ID:</strong> {{ tree.id }}</p>
+        <p><strong>Name:</strong> {{ tree.name }}</p>
+        <p><strong>Type:</strong> {{ tree.type }}</p>
+        <p><strong>Forest ID:</strong> {{ tree.forest_id }}</p>
+        <p><strong>Point ID:</strong> {{ tree.point_id }}</p>
+        <p><strong>Height (m):</strong> {{ tree.height }}</p>
+        <p><strong>Diameter (cm):</strong> {{ tree.diameter }}</p>
+        <p><strong>Date Planted:</strong> {{ tree.date_planted.strftime('%Y-%m-%d') }}</p>
+        <p><strong>Cutting Date:</strong> {{ tree.date_cut.strftime('%Y-%m-%d') if tree.date_cut else 'N/A' }}</p>
+        <p><strong>Created By:</strong> {{ tree.creator.username if tree.creator else 'N/A' }}</p>
+        <p><strong>Modified By:</strong> {{ tree.modifier.username if tree.modifier else 'N/A' }}</p>
+        <p><strong>Date Created:</strong> {{ tree.date_created.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+        <p><strong>Date Updated:</strong> {{ tree.date_updated.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+        <a href="{{ url_for('tree.list_trees') }}" class="btn">Back to List</a>
+        <a href="{{ url_for('tree.edit_tree_route', tree_id=tree.id) }}" class="btn">Edit</a>
+        <form action="{{ url_for('tree.delete_tree_route', tree_id=tree.id) }}" method="post" style="display:inline;">
+            <button type="submit" class="btn btn-danger">Delete</button>
+        </form>
+        <a href="{{ url_for('tree.qr_tree_route', tree_id=tree.id) }}" class="btn">Generate QR Code</a>
+    </div>
+</div>
 {% endblock %}

@@ -3,6 +3,46 @@
 {% block title %}Create Tree Details{% endblock %}
 
 {% block content %}
-
-
+<div class="container mx-auto p-6">
+    <h1 class="text-2xl font-bold mb-4 animate-fadeIn">Create Tree</h1>
+    <div class="bg-white shadow-md rounded-lg p-6">
+        <form action="{{ url_for('tree.create_tree_route') }}" method="post">
+            <div class="mb-4">
+                <label for="name" class="block text-gray-700">Name:</label>
+                <input type="text" id="name" name="name" class="input" required>
+            </div>
+            <div class="mb-4">
+                <label for="type" class="block text-gray-700">Type:</label>
+                <input type="text" id="type" name="type" class="input" required>
+            </div>
+            <div class="mb-4">
+                <label for="forest_id" class="block text-gray-700">Forest ID:</label>
+                <input type="number" id="forest_id" name="forest_id" class="input" required>
+            </div>
+            <div class="mb-4">
+                <label for="point_id" class="block text-gray-700">Point ID:</label>
+                <input type="number" id="point_id" name="point_id" class="input" required>
+            </div>
+            <div class="mb-4">
+                <label for="date_planted" class="block text-gray-700">Date Planted:</label>
+                <input type="date" id="date_planted" name="date_planted" class="input" required>
+            </div>
+            <div class="mb-4">
+                <label for="cutting_date" class="block text-gray-700">Cutting Date:</label>
+                <input type="date" id="cutting_date" name="cutting_date" class="input">
+            </div>
+            <div class="mb-4">
+                <label for="height" class="block text-gray-700">Height (m):</label>
+                <input type="number" step="0.1" id="height" name="height" class="input" required>
+            </div>
+            <div class="mb-4">
+                <label for="diameter" class="block text-gray-700">Diameter (cm):</label>
+                <input type="number" step="0.1" id="diameter" name="diameter" class="input" required>
+            </div>
+            <div class="mb-4">
+                <button type="submit" class="btn">Create Tree</button>
+            </div>
+        </form>
+    </div>
+</div>
 {% endblock %}
