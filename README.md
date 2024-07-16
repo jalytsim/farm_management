@@ -39,14 +39,15 @@ farm_management/
 
 1. Clone the repository:
     ```sh
-    git clone https://github.com/yourusername/farm_management.git
+    git clone https://github.com/jalytsim/farm_management.git
     cd farm_management
     ```
 
 2. Create a virtual environment and activate it:
     ```sh
     python -m venv venv
-    source venv/bin/activate  # On Windows use `venv\Scripts\activate`
+    source venv/bin/activate  # 
+    Windows use `venv\Scripts\activate`
     ```
 
 3. Install the required packages:
@@ -74,4 +75,4 @@ farm_management/
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the Agriyeilds License. See the [LICENSE](LICENSE) file for details.
