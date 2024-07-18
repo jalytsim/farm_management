@@ -13,6 +13,7 @@ test = Blueprint('test', __name__)
 @test.route('/test')
 def test_db():
     datasets = [
+        'umd_tree_cover_loss',
         'gfw_forest_carbon_gross_emissions',
         'gfw_forest_carbon_gross_removals',
         'gfw_forest_carbon_net_flux',
@@ -79,7 +80,7 @@ def test_db():
 @test.route('/testjson')
 def test_gfw():
     datasets = [
-        'gfw_forest_carbon_gross_emissions',
+        'umd_tree_cover_loss',
         'gfw_forest_carbon_gross_removals',
         'gfw_forest_carbon_net_flux',
         'gfw_forest_flux_aboveground_carbon_stock_in_emissions_year',

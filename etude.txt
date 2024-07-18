@@ -1,0 +1,102 @@
+
+### Exercice 2: Modélisation d’un système pour interfaces graphiques
+
+**1. Quel patron de conception est adapté à ce type de problème ?**
+
+Le patron de conception adapté à ce type de problème est le **patron Fabrique Abstraite (Abstract Factory)**. Ce patron permet de créer des familles d'objets liés ou dépendants sans spécifier leurs classes concrètes. Dans ce contexte, il permettra de créer des composants d'interface graphique adaptés à chaque système d'exploitation (Windows, Mac OS, Linux) sans avoir besoin de connaître les classes concrètes des composants.
+
+**2. Proposez une modélisation de l’ensemble du système sous forme de diagrammes de classes.**
+
+### Diagramme de classes
+
+Voici une proposition de diagramme de classes pour la modélisation du système.
+
+```plaintext
++--------------------------+
+|     Interface graphique  |
++--------------------------+
+| + createButton()         |
+| + createScrollBar()      |
+| + createMenu()           |
++--------------------------+
+            ^
+            |
+            |
+            v
++--------------------------+
+|      Fabrique Abstraite  |
++--------------------------+
+| + createButton()         |
+| + createScrollBar()      |
+| + createMenu()           |
++--------------------------+
+|                          |
+|                          |
+|                          |
+|                          |
+|                          |
+|                          |
+|                          |
+v                          v
++--------------------------+         +--------------------------+
+|   Fabrique Windows       |         |     Fabrique Mac         |
++--------------------------+         +--------------------------+
+| + createButton()         |         | + createButton()         |
+| + createScrollBar()      |         | + createScrollBar()      |
+| + createMenu()           |         | + createMenu()           |
++--------------------------+         +--------------------------+
+|                          |
+v                          |
++--------------------------+         +--------------------------+
+|     Fabrique Linux       |         |      Component           |
++--------------------------+         +--------------------------+
+| + createButton()         |         | + render()               |
+| + createScrollBar()      |         +--------------------------+
+| + createMenu()           |                   ^
++--------------------------+                   |
+                                               
+                                               
++------------------+  +------------------+  +------------------+  
+|  WindowsButton   |  | WindowsScrollBar |  |    WindowsMenu   |
++------------------+  +------------------+  +------------------+
+| + render()       |  | + render()       |  | + render()       |
++------------------+  +------------------+  +------------------+
+                                              
++------------------+  +------------------+  +------------------+  
+|    MacButton     |  |  MacScrollBar    |  |      MacMenu     |
++------------------+  +------------------+  +------------------+
+| + render()       |  | + render()       |  | + render()       |
++------------------+  +------------------+  +------------------+
+                                               
++------------------+  +------------------+  +------------------+  
+|   LinuxButton    |  | LinuxScrollBar   |  |     LinuxMenu    |
++------------------+  +------------------+  +------------------+
+| + render()       |  | + render()       |  | + render()       |
++------------------+  +------------------+  +------------------+
+```
+
+### Description des classes
+
+1. **Fabrique Abstraite (Abstract Factory):**
+   - Interface graphique
+   - Définit des méthodes pour créer des objets de chaque type de composant (boutons, barres de défilement, menus).
+
+2. **Fabriques concrètes (Concrete Factories):**
+   - Fabrique Windows
+   - Fabrique Mac
+   - Fabrique Linux
+   - Implémentent les méthodes de la fabrique abstraite pour créer des composants spécifiques à chaque système d’exploitation.
+
+3. **Composants (Components):**
+   - Interface `Component`
+   - Définit une méthode `render()` que tous les composants doivent implémenter.
+
+4. **Composants concrets (Concrete Components):**
+   - `WindowsButton`, `WindowsScrollBar`, `WindowsMenu`
+   - `MacButton`, `MacScrollBar`, `MacMenu`
+   - `LinuxButton`, `LinuxScrollBar`, `LinuxMenu`
+   - Implémentent la méthode `render()` de l'interface `Component` pour chaque type de composant spécifique au système d’exploitation.
+
+### Explication
+
+Le patron de fabrique abstraite permet de créer des familles de produits sans spécifier leurs classes concrètes. Chaque fabrique concrète (Windows, Mac, Linux) implémente la fabrique abstraite pour fournir des composants spécifiques (boutons, barres de défilement, menus) pour le système d’exploitation concerné. Cela permet de maintenir le code flexible et extensible, facilitant l’ajout de nouveaux composants ou de nouveaux systèmes d’exploitation sans modifier le code existant.
