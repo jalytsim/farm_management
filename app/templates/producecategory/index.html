@@ -7,7 +7,7 @@
     <div class="flex justify-between mb-8">
         <button onclick="openModal('producecategoryModal')" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create Produce Category</button>
     </div>
-    
+
     <!-- Modal -->
     <div id="producecategoryModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center">
         <div class="bg-white p-6 rounded-lg shadow-md w-full max-w-lg">
@@ -30,6 +30,45 @@
             </form>
         </div>
     </div>
+
+    <!-- Produce Category List -->
+    <div class="mt-8">
+        <h2 class="text-2xl font-bold mb-4">Produce Categories</h2>
+        <table class="min-w-full bg-white border border-gray-300">
+            <thead>
+                <tr class="w-full bg-gray-200 border-b border-gray-300">
+                    <th class="py-2 px-4 text-left">ID</th>
+                    <th class="py-2 px-4 text-left">Name</th>
+                    <th class="py-2 px-4 text-left">Grade</th>
+                    <th class="py-2 px-4 text-left">Created By</th>
+                    <th class="py-2 px-4 text-left">Modified By</th>
+                    <th class="py-2 px-4 text-left">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pc in pcs %}
+                    <tr class="border-b border-gray-300">
+                        <td class="py-2 px-4">{{ pc.id }}</td>
+                        <td class="py-2 px-4">{{ pc.name }}</td>
+                        <td class="py-2 px-4">{{ pc.grade }}</td>
+                        <td class="py-2 px-4">{{ pc.created_by }}</td>
+                        <td class="py-2 px-4">{{ pc.modified_by }}</td>
+                        <td class="py-2 px-4">
+                            <a href="{{ url_for('producecategory.edit_pc', pc_id=pc.id) }}" class="text-blue-500 hover:text-blue-700">Edit</a>
+                            <form action="{{ url_for('producecategory.delete_pc', pc_id=pc.id) }}" method="POST" class="inline">
+                                <button type="submit" class="text-red-500 hover:text-red-700">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="6" class="py-2 px-4 text-center">No produce categories found.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
     <script>
         function openModal(modalId) {
             document.getElementById(modalId).classList.remove('hidden');

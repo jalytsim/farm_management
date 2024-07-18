@@ -15,7 +15,7 @@
                 <div>
                     <label for="category_id" class="block text-gray-700">Category:</label>
                     <select id="category_id" name="category_id" class="w-full p-2 border border-gray-300 rounded mt-1" required>
-                        {% for category in categories %}
+                        {% for category in pc %}
                             <option value="{{ category.id }}">{{ category.name }}</option>
                         {% endfor %}
                     </select>

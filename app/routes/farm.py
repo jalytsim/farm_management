@@ -33,8 +33,9 @@ def index():
 
     districts = District.query.all()
     farmergroups = FarmerGroup.query.all()
+    pc = ProduceCategory.query.all()
     
-    return render_template('farm/index.html', farms=farms, districts=districts, farmergroups=farmergroups)
+    return render_template('farm/index.html', farms=farms, districts=districts, farmergroups=farmergroups, pc=pc)
 
 @bp.route('/farm/create', methods=['GET', 'POST'])
 @login_required

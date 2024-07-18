@@ -74,6 +74,17 @@
                         {% endfor %}
                     </ul>
                 </div>
+                {% if current_user.is_admin %}
+        <div class="container mx-auto p-4">
+            <div class="bg-white shadow-lg rounded-lg p-6 mb-6 border border-gray-200">
+                <h2 class="text-2xl font-semibold mb-4 text-gray-800">Download Report</h2>
+                <a href="{{ url_for('map.download_farm_report', forest_id=forest.id) }}" 
+                   class="inline-block px-6 py-3 bg-green-500 text-white font-semibold rounded-lg shadow-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-400">
+                    Download Forest Report
+                </a>
+            </div>
+        </div>
+        {% endif %}
             </div>
         {% elif object_type == 'forest' %}
         <div class="container mx-auto p-4">
@@ -92,7 +103,20 @@
                 </div>
             </div>
         </div>
+        {% if current_user.is_admin %}
+        <div class="container mx-auto p-4">
+            <div class="bg-white shadow-lg rounded-lg p-6 mb-6 border border-gray-200">
+                <h2 class="text-2xl font-semibold mb-4 text-gray-800">Download Report</h2>
+                <a href="{{ url_for('map.download_forest_report', forest_id=forest.id) }}" 
+                   class="inline-block px-6 py-3 bg-green-500 text-white font-semibold rounded-lg shadow-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-400">
+                    Download Forest Report
+                </a>
+            </div>
+        </div>
         {% endif %}
+        {% endif %}
+
+        
 
         <h1 class="text-3xl font-bold mb-6 text-center text-green-800">Dataset Results</h1>
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
@@ -101,30 +125,31 @@
                     <h2 class="text-2xl font-semibold mb-4 text-gray-800">{{ result.dataset | remove_gfw | replace('_', ' ') | title }}</h2>
                     <div class="text-gray-700 mb-4">
                         {% for field, value in result.data_fields.items() %}
-                            <p class="font-medium text-gray-800">{{ field.replace('_', ' ').title() }}:</p>
+                            <p class="font-medium text-gray-800">Result</p>
                             <p class="text-lg">{{ value }}</p>
                         {% endfor %}
                     </div>
                     <div class="text-gray-700">
                         <p class="font-medium text-gray-800">Coordinates:</p>
                         <pre id="coordinates-{{ loop.index }}" class="text-sm truncate-lines-3 whitespace-pre-wrap">{{ result.coordinates | tojson | safe }}</pre>
-                        <button id="toggle-button-{{ loop.index }}" class="mt-2 text-blue-500 hover:underline" onclick="toggleCoordinates('{{ loop.index }}')">Show More</button>
+                        <button id="toggle-button-{{ loop.index }}" class="mt-2 text-blue-500 hover:underline" onclick="toggleView('coordinates-{{ loop.index }}')">Show More</button>
                     </div>
                 </div>
             {% endfor %}
         </div>
     </div>
+
     <script>
-        function toggleCoordinates(index) {
-            var preElement = document.getElementById('coordinates-' + index);
-            var button = document.getElementById('toggle-button-' + index);
-            if (preElement.classList.contains('truncate-lines-3')) {
-                preElement.classList.remove('truncate-lines-3');
-                preElement.classList.add('full-height');
+        function toggleView(elementId) {
+            var element = document.getElementById(elementId);
+            var button = document.querySelector('#' + elementId + '+ button');
+            if (element.classList.contains('truncate-lines-3')) {
+                element.classList.remove('truncate-lines-3');
+                element.classList.add('full-height');
                 button.textContent = 'Show Less';
             } else {
-                preElement.classList.add('truncate-lines-3');
-                preElement.classList.remove('full-height');
+                element.classList.remove('full-height');
+                element.classList.add('truncate-lines-3');
                 button.textContent = 'Show More';
             }
         }

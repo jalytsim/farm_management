@@ -1,6 +1,7 @@
+import csv
 from flask import Blueprint, abort, json, jsonify, render_template, render_template_string, request, send_file
 from flask_login import login_required
-from app.models import Farm, FarmData, Forest, Point
+from app.models import Crop, Farm, FarmData, Forest, Point
 from app.utils.farm_utils import get_farm_id, get_farmProperties
 from app.utils.forest_watch_utils import query_forest_watch
 from app.utils.map_utils import calculate_area, convert_to_cartesian, create_mapbox_html, create_polygon_from_db, createGeoJSONFeature, createGeojsonFeatureCollection, generate_choropleth_map, generate_choropleth_map_combined, generate_choropleth_map_soil, save_polygon_to_geojson
@@ -327,3 +328,149 @@ def gfw(owner_type, owner_id):
         })
 
     return {"dataset_results": dataset_results}, 200
+
+
+@bp.route('/forest/<int:forest_id>/report/download', methods=['GET'])
+@login_required
+def download_forest_report(forest_id):
+    # Fetch the forest details
+    forest = Forest.query.filter_by(id=forest_id).first()
+
+    if forest is None:
+        abort(404, description="Forest not found")
+
+    # Fetch related data for the forest
+    forest_data = Point.query.filter_by(owner_type='forest', forest_id=forest_id).all()
+    print(forest_data)
+
+    # Extract forest info
+    forest_info = {
+        'forest_id': forest.id,
+        'name': forest.name,
+        'geolocation': [
+            {
+                'longitude': point.longitude,
+                'latitude': point.latitude
+            } for point in forest_data
+        ],
+        'additional_info': 'Additional information if needed'
+    }
+    print(forest_info)
+
+    # Fetch GFW data for the forest
+    data, status_code = gfw(owner_type='forest', owner_id=str(forest_id))
+    if status_code != 200:
+        return jsonify(data), status_code
+
+    # Create a temporary file for the report
+    with NamedTemporaryFile(delete=False, suffix='.csv', mode='w', newline='', encoding='utf-8') as temp_file:
+        fieldnames = ['Field', 'Value']
+        writer = csv.DictWriter(temp_file, fieldnames=fieldnames)
+        writer.writeheader()
+
+        # Write forest information
+        for key, value in forest_info.items():
+            if isinstance(value, list):
+                for item in value:
+                    writer.writerow({'Field': key, 'Value': json.dumps(item)})
+            else:
+                writer.writerow({'Field': key, 'Value': value})
+
+        writer.writerow({})  # Blank line to separate sections
+
+        # Write GFW data
+        gfw_fieldnames = ['dataset', 'area_ha']
+        writer = csv.DictWriter(temp_file, fieldnames=gfw_fieldnames)
+        writer.writeheader()
+
+        for result in data['dataset_results']:
+            writer.writerow({
+                'dataset': result['dataset'],
+                'area_ha': result['data_fields'].get('area__ha', 'N/A'),
+            })
+
+        temp_file_path = temp_file.name
+
+    return send_file(temp_file_path, as_attachment=True, download_name=f'forest_{forest_id}_gfw_report.csv')
+
+@bp.route('/farm/<string:farm_id>/report/download', methods=['GET'])
+@login_required
+def download_farm_report(farm_id):
+    # Fetch the farm details
+    farm = Farm.query.filter_by(farm_id=farm_id).first()
+
+    if farm is None:
+        abort(404, description="Farm not found")
+
+    # Fetch related data for the farm
+    farm_data = FarmData.query.filter_by(farm_id=farm_id).all()
+    print(farm_data)
+
+    # Extract farm info
+    farm_info = {
+        'farm_id': farm.farm_id,
+        'name': farm.name,
+        'subcounty': farm.subcounty,
+        'district_name': farm.district.name if farm.district else 'N/A',
+        'district_region': farm.district.region if farm.district else 'N/A',
+        'geolocation': farm.geolocation,
+        'phonenumber': farm.phonenumber,
+        'phonenumber2': farm.phonenumber2,
+        'date_created': farm.date_created.strftime('%Y-%m-%d %H:%M:%S'),
+        'date_updated': farm.date_updated.strftime('%Y-%m-%d %H:%M:%S'),
+        'crops': [
+            {
+                'crop': Crop.query.get_or_404(data.crop_id).name,
+                'land_type': data.land_type,
+                'tilled_land_size': data.tilled_land_size,
+                'planting_date': data.planting_date.strftime('%Y-%m-%d') if data.planting_date else 'N/A',
+                'season': data.season,
+                'quality': data.quality,
+                'quantity': data.quantity,
+                'harvest_date': data.harvest_date.strftime('%Y-%m-%d') if data.harvest_date else 'N/A',
+                'expected_yield': data.expected_yield,
+                'actual_yield': data.actual_yield,
+                'timestamp': data.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+                'channel_partner': data.channel_partner,
+                'destination_country': data.destination_country,
+                'customer_name': data.customer_name
+            } for data in farm_data
+        ]
+    }
+    print(farm_info)
+
+    # Fetch GFW data for the farm
+    data, status_code = gfw(owner_type='farmer', owner_id=farm_id)
+    if status_code != 200:
+        return jsonify(data), status_code
+
+    # Create a temporary file for the report
+    with NamedTemporaryFile(delete=False, suffix='.csv', mode='w', newline='', encoding='utf-8') as temp_file:
+        fieldnames = ['Field', 'Value']
+        writer = csv.DictWriter(temp_file, fieldnames=fieldnames)
+        writer.writeheader()
+
+        # Write farm information
+        for key, value in farm_info.items():
+            if isinstance(value, list):
+                for item in value:
+                    writer.writerow({'Field': key, 'Value': json.dumps(item)})
+            else:
+                writer.writerow({'Field': key, 'Value': value})
+
+        writer.writerow({})  # Blank line to separate sections
+
+        # Write GFW data
+        gfw_fieldnames = ['dataset', 'area_ha']
+        writer = csv.DictWriter(temp_file, fieldnames=gfw_fieldnames)
+        writer.writeheader()
+
+        for result in data['dataset_results']:
+            writer.writerow({
+                'dataset': result['dataset'],
+                'area_ha': result['data_fields'].get('area__ha', 'N/A'),
+                            })
+
+        temp_file_path = temp_file.name
+
+    return send_file(temp_file_path, as_attachment=True, download_name=f'farm_{farm_id}_gfw_report.csv')

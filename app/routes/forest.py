@@ -64,7 +64,7 @@ def handle_create_forest():
             filename = None
 
         create_forest(name)
-        flash('Forest created successfully', 'success')
+        print('Forest created successfully', 'success')
         return redirect(url_for('forest.index'))
     
     return redirect(url_for('forest.index'))
