@@ -100,3 +100,10 @@ v                          |
 ### Explication
 
 Le patron de fabrique abstraite permet de créer des familles de produits sans spécifier leurs classes concrètes. Chaque fabrique concrète (Windows, Mac, Linux) implémente la fabrique abstraite pour fournir des composants spécifiques (boutons, barres de défilement, menus) pour le système d’exploitation concerné. Cela permet de maintenir le code flexible et extensible, facilitant l’ajout de nouveaux composants ou de nouveaux systèmes d’exploitation sans modifier le code existant.
+
+
+ALTER TABLE producecategory 
+ADD COLUMN modified_by INT NULL,
+ADD COLUMN created_by INT NULL,
+ADD CONSTRAINT fk_modified_by FOREIGN KEY (modified_by) REFERENCES user(id),
+ADD CONSTRAINT fk_created_by FOREIGN KEY (created_by) REFERENCES user(id);

@@ -107,8 +107,8 @@ def farmerReport(farm_id):
         'farm_id': farm.farm_id,
         'name': farm.name,
         'subcounty': farm.subcounty,
-        'district_name': district.name if district else 'N/A',
-        'district_region': district.region if district else 'N/A',
+        'district_name': farm.district.name if farm.district else 'N/A',
+        'district_region': farm.district.region if farm.district else 'N/A',
         'geolocation': farm.geolocation,
         'phonenumber': farm.phonenumber,
         'phonenumber2': farm.phonenumber2,
@@ -116,7 +116,7 @@ def farmerReport(farm_id):
         'date_updated': farm.date_updated.strftime('%Y-%m-%d %H:%M:%S'),
         'crops': [
             {
-                'crop_id': data.crop_id,
+                'crop': Crop.query.get_or_404(data.crop_id).name,
                 'land_type': data.land_type,
                 'tilled_land_size': data.tilled_land_size,
                 'planting_date': data.planting_date.strftime('%Y-%m-%d') if data.planting_date else 'N/A',
