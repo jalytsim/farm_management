@@ -6,11 +6,11 @@ from zipfile import ZipFile
 import tempfile
 from reportlab.pdfgen import canvas
 import os
-from app.utils.farm_utils import get_farmProperties  # Use SQLAlchemy for queries
+from app.utils.farm_utils import get_farm_properties  # Use SQLAlchemy for queries
 from app.models import Crop, Farm, FarmerGroup, db
 
 def generate_qr_codes(farm_id):
-    data = get_farmProperties(farm_id)
+    data = get_farm_properties(farm_id)
 
     if not data:
         print("No data found for the farm.")

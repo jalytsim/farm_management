@@ -1,7 +1,5 @@
 import os
 from flask import Blueprint, jsonify, render_template, request
-from app.utils.point_utils import get_all_points, get_pointDetails
-from app.utils.district_utils import get_all_districts
 from app.utils.forest_watch_utils import create_sql_query, get_pixel_meaning, query_forest_watch
 from ..models import db, Farm, Forest, Point
 

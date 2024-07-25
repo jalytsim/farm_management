@@ -1,26 +1,37 @@
-from app.models import Farm, District, Forest, Point
-from ..models import db, FarmData, Farm, District, SoilData
-# utils/point_utils.py
+from datetime import datetime
+from flask_login import current_user
 from app import db
-from app.models import Point
+from app.models import Point, Forest, Farm, District, Tree
 
-def create_point(longitude, latitude, owner_type, forest_id, farmer_id, district_id):
+def create_point(longitude, latitude, owner_type, district_id, forest_id=None, farmer_id=None, tree_id=None, ):
     if owner_type == 'forest' and forest_id:
         forest = db.session.query(Forest).filter_by(id=forest_id).first()
         if not forest:
             raise ValueError(f'Forest ID {forest_id} does not exist.')
-    
+    elif owner_type == 'farmer' and farmer_id:
+        farmer = db.session.query(Farm).filter_by(farm_id=farmer_id).first()
+        if not farmer:
+            raise ValueError(f'Farmer ID {farmer_id} does not exist.')
+    elif owner_type == 'tree' and tree_id:
+        tree = db.session.query(Tree).filter_by(id=tree_id).first()
+        if not tree:
+            raise ValueError(f'Tree ID {tree_id} does not exist.')
+
     point = Point(
         longitude=longitude,
         latitude=latitude,
         owner_type=owner_type,
         forest_id=forest_id,
         farmer_id=farmer_id,
-        district_id=district_id
+        tree_id=tree_id,
+        district_id=district_id,
+        created_by=current_user.id,
+        modified_by=current_user.id,
+        date_created=datetime.utcnow(),
+        date_updated=datetime.utcnow()
     )
     db.session.add(point)
     db.session.commit()
-
 
 def delete_point(point_id):
     point = Point.query.get(point_id)
@@ -34,7 +45,7 @@ def get_all_points():
 def get_point_by_id(point_id):
     return Point.query.get(point_id)
 
-def update_point(point_id, longitude, latitude, owner_type, forest_id, farmer_id, district_id):
+def update_point(point_id, longitude, latitude, owner_type, district_id, forest_id=None, farmer_id=None, tree_id=None):
     point = Point.query.get(point_id)
     if not point:
         raise ValueError(f'Point ID {point_id} does not exist.')
@@ -43,17 +54,27 @@ def update_point(point_id, longitude, latitude, owner_type, forest_id, farmer_id
         forest = db.session.query(Forest).filter_by(id=forest_id).first()
         if not forest:
             raise ValueError(f'Forest ID {forest_id} does not exist.')
-    
+    elif owner_type == 'farmer' and farmer_id:
+        farmer = db.session.query(Farm).filter_by(farm_id=farmer_id).first()
+        if not farmer:
+            raise ValueError(f'Farmer ID {farmer_id} does not exist.')
+    elif owner_type == 'tree' and tree_id:
+        tree = db.session.query(Tree).filter_by(id=tree_id).first()
+        if not tree:
+            raise ValueError(f'Tree ID {tree_id} does not exist.')
+
     point.longitude = longitude
     point.latitude = latitude
     point.owner_type = owner_type
     point.forest_id = forest_id
     point.farmer_id = farmer_id
+    point.tree_id = tree_id
     point.district_id = district_id
+    point.modified_by = current_user.id
+    point.date_updated = datetime.utcnow()
     db.session.commit()
 
-
-def get_pointDetails(point_id):
+def get_point_details(point_id):
     point = db.session.query(Point).filter(Point.id == point_id).first()
     if not point:
         return None
@@ -64,7 +85,10 @@ def get_pointDetails(point_id):
         owner = db.session.query(Forest).filter(Forest.id == point.forest_id).first()
         owner_name = owner.name if owner else None
     elif point.owner_type == 'farmer' and point.farmer_id:
-        owner = db.session.query(Farm).filter(Farm.id == point.farmer_id).first()
+        owner = db.session.query(Farm).filter(Farm.farm_id == point.farmer_id).first()
+        owner_name = owner.name if owner else None
+    elif point.owner_type == 'tree' and point.tree_id:
+        owner = db.session.query(Tree).filter(Tree.id == point.tree_id).first()
         owner_name = owner.name if owner else None
 
     return {
@@ -78,7 +102,6 @@ def get_pointDetails(point_id):
         'district_region': district.region if district else None
     }
 
-
 def get_all_points_other():
     points = db.session.query(Point).all()
     all_points_details = []
@@ -90,7 +113,10 @@ def get_all_points_other():
             owner = db.session.query(Forest).filter(Forest.id == point.forest_id).first()
             owner_name = owner.name if owner else None
         elif point.owner_type == 'farmer' and point.farmer_id:
-            owner = db.session.query(Farm).filter(Farm.id == point.farmer_id).first()
+            owner = db.session.query(Farm).filter(Farm.farm_id == point.farmer_id).first()
+            owner_name = owner.name if owner else None
+        elif point.owner_type == 'tree' and point.tree_id:
+            owner = db.session.query(Tree).filter(Tree.id == point.tree_id).first()
             owner_name = owner.name if owner else None
 
         point_details = {
@@ -108,17 +134,14 @@ def get_all_points_other():
 
     return all_points_details
 
-
-
-def get_all_points():
-    return db.session.query(Point).all()
-
-
 def get_points_by_forest_id(forest_id):
     return db.session.query(Point).filter(Point.forest_id == forest_id).all()
 
 def get_points_by_farm_id(farm_id):
     return db.session.query(Point).filter(Point.farmer_id == farm_id).all()
+
+def get_points_by_tree_id(tree_id):
+    return db.session.query(Point).filter(Point.tree_id == tree_id).all()
 
 def point_exists(longitude, latitude, district_id, owner_type, owner_id):
     query = db.session.query(Point).filter(
@@ -131,6 +154,8 @@ def point_exists(longitude, latitude, district_id, owner_type, owner_id):
         query = query.filter(Point.forest_id == owner_id)
     elif owner_type == 'farmer':
         query = query.filter(Point.farmer_id == owner_id)
+    elif owner_type == 'tree':
+        query = query.filter(Point.tree_id == owner_id)
     
     return db.session.query(query.exists()).scalar()
 
@@ -145,14 +170,3 @@ def calculate_area(vertices):
 
     area = abs(area) / 2.0
     return area
-
-# Exemple d'utilisation avec vos coordonnées
-# vertices = [
-#     (34.5678, 12.3456),
-#     (34.6789, 12.4567),
-#     (34.7890, 12.5678),
-#     (34.8901, 12.6789)
-# ]
-
-# polygon_area = calculate_area(vertices)
-# print(f"L'aire du polygone est : {polygon_area} unités carrées")

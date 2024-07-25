@@ -1,6 +1,6 @@
 import pandas as pd
 import os
-from flask import Blueprint, app, jsonify, render_template, request, redirect, url_for, flash
+from flask import Blueprint, jsonify, render_template, request, redirect, url_for, flash
 from flask_login import current_user, login_required
 from app.models import District, Farm, Forest, Point
 from app.routes.admin import admin_required
@@ -25,11 +25,13 @@ def list_points():
     
     return render_template('points/list.html', points=points)
 
-
 @bp.route('/points/<int:point_id>', methods=['GET'])
 @login_required
 def view_point(point_id):
     point = get_point_by_id(point_id)
+    if not point:
+        flash('Point not found.', 'error')
+        return redirect(url_for('points.list_points'))
     return render_template('points/view.html', point=point)
 
 @bp.route('/points/create', methods=['GET', 'POST'])
@@ -42,11 +44,18 @@ def create_point_route():
         forest_id = request.form.get('forest_id')
         farmer_id = request.form.get('farmer_id')
         district_id = request.form.get('district_id')
-        
+        print(district_id)
+
+        # Validate required fields
+        if not longitude or not latitude or not owner_type:
+            flash('Longitude, latitude, and owner type are required.', 'error')
+            return render_template('points/create.html')
+
+        # Validate and process forest_id and farmer_id based on owner_type
         if owner_type == 'forest':
             if forest_id:
                 forest_id = int(forest_id)
-                forest = db.session.query(Forest).filter_by(id=forest_id).first()
+                forest = Forest.query.get(forest_id)
                 if not forest:
                     flash('Invalid Forest ID.', 'error')
                     return render_template('points/create.html')
@@ -56,9 +65,17 @@ def create_point_route():
         elif owner_type == 'farmer':
             farmer_id = int(farmer_id) if farmer_id else None
             forest_id = None
+        else:
+            flash('Invalid owner type.', 'error')
+            return render_template('points/create.html')
 
-        create_point(longitude, latitude, owner_type, forest_id, farmer_id, district_id)
-        flash('Point created successfully.', 'success')
+        try:
+            create_point(longitude, latitude, owner_type, district_id, forest_id, farmer_id)
+            flash('Point created successfully!', 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error creating point: {e}', 'error')
+
         return redirect(url_for('points.list_points'))
     
     districts = District.query.all()
@@ -82,10 +99,16 @@ def edit_point_route(point_id):
         farmer_id = request.form.get('farmer_id')
         district_id = request.form.get('district_id')
 
+        # Validate required fields
+        if not longitude or not latitude or not owner_type:
+            flash('Longitude, latitude, and owner type are required.', 'error')
+            return render_template('points/edit.html', point=point)
+
+        # Validate and process forest_id and farmer_id based on owner_type
         if owner_type == 'forest':
             if forest_id:
                 forest_id = int(forest_id)
-                forest = db.session.query(Forest).filter_by(id=forest_id).first()
+                forest = Forest.query.get(forest_id)
                 if not forest:
                     flash('Invalid Forest ID.', 'error')
                     return render_template('points/edit.html', point=point)
@@ -93,11 +116,19 @@ def edit_point_route(point_id):
                 forest_id = None
             farmer_id = None
         elif owner_type == 'farmer':
-            farmer_id = farmer_id.strip() if farmer_id else None
+            farmer_id = int(farmer_id) if farmer_id else None
             forest_id = None
+        else:
+            flash('Invalid owner type.', 'error')
+            return render_template('points/edit.html', point=point)
 
-        update_point(point_id, longitude, latitude, owner_type, forest_id, farmer_id, district_id)
-        flash('Point updated successfully.', 'success')
+        try:
+            update_point(point_id, longitude, latitude, owner_type, district_id, forest_id, farmer_id, )
+            flash('Point updated successfully!', 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error updating point: {e}', 'error')
+
         return redirect(url_for('points.list_points'))
 
     districts = District.query.all()
@@ -108,8 +139,13 @@ def edit_point_route(point_id):
 @bp.route('/points/delete/<int:point_id>', methods=['POST'])
 @login_required
 def delete_point_route(point_id):
-    delete_point(point_id)
-    flash('Point deleted successfully.', 'success')
+    try:
+        delete_point(point_id)
+        flash('Point deleted successfully!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error deleting point: {e}', 'error')
+    
     return redirect(url_for('points.list_points'))
 
 def validate_csv_columns(file_path, required_columns):
@@ -144,19 +180,25 @@ def upload_points_route():
             # Read and process the CSV data
             data = pd.read_csv(file_path)
             for index, row in data.iterrows():
-                point = Point(
-                    longitude=row['longitude'],
-                    latitude=row['latitude'],
-                    owner_type=row['owner_type'],
-                    forest_id=row['forest_id'] if not pd.isna(row['forest_id']) else None,
-                    farmer_id=row['farmer_id'] if not pd.isna(row['farmer_id']) else None,
-                    district_id=row['district_id']
-                )
-                db.session.add(point)
-            db.session.commit()
-            flash('Points uploaded and created successfully.', 'success')
-            return redirect(url_for('points.list_points'))
+                try:
+                    point = Point(
+                        longitude=row['longitude'],
+                        latitude=row['latitude'],
+                        owner_type=row['owner_type'],
+                        forest_id=row['forest_id'] if not pd.isna(row['forest_id']) else None,
+                        farmer_id=row['farmer_id'] if not pd.isna(row['farmer_id']) else None,
+                        district_id=row['district_id']
+                    )
+                    db.session.add(point)
+                except Exception as e:
+                    flash(f'Error processing row {index}: {e}', 'error')
+            try:
+                db.session.commit()
+                flash('Points uploaded and created successfully!', 'success')
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Error uploading points: {e}', 'error')
         else:
             flash('Invalid file format. Please upload a CSV file.', 'error')
-            return render_template('points/upload.html')
+    
     return render_template('points/upload.html')

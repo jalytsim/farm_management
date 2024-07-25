@@ -27,7 +27,7 @@
         <select id="forest_id" name="forest_id"  class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
             <option value="">None</option>
             {% for forest in forests %}
-                <option value="{{ point.farmer_id if point else '' }}" {% if point.owner_type == 'farmer' %}disabled{% endif %}>{{ forest.name }}</option>
+                <option value="{{ point.farmer_id if point else '' }}"  {% if point.forest_id == forest.id %}selected{% endif %} {% if point.owner_type == 'farmer' %}disabled{% endif %}>{{ forest.name }}</option>
             {% endfor %}
         </select>
     </div>
@@ -36,7 +36,7 @@
         <select id="farmer_id" name="farmer_id"  class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
             <option value="">None</option>
             {% for farm in farms %}
-                <option value="{{ point.farm_id if point else '' }}" {% if point.owner_type == 'forest' %}disabled{% endif %}>{{ farm.name }}</option>
+                <option value="{{ point.farm_id if point else '' }}" {% if point.farmer_id == farm.id %}selected{% endif %} {% if point.owner_type == 'forest' %}disabled{% endif %} >{{ farm.name }}</option>
             {% endfor %}
         </select>
     </div>
@@ -45,7 +45,7 @@
         <select id="district_id" name="district_id" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
             <option value="">None</option>
             {% for district in districts %}
-                <option value="{{ district.id }}">{{ district.name }}</option>
+                <option value="{{ district.id }}" {% if point.district_id == district.id %}selected{% endif %}>{{ district.name }}</option>
             {% endfor %}
         </select>
     </div>

@@ -2,7 +2,7 @@ import csv
 from flask import Blueprint, abort, json, jsonify, render_template, render_template_string, request, send_file
 from flask_login import login_required
 from app.models import Crop, Farm, FarmData, Forest, Point
-from app.utils.farm_utils import get_farm_id, get_farmProperties
+from app.utils.farm_utils import get_farm_id, get_farm_properties
 from app.utils.forest_watch_utils import query_forest_watch
 from app.utils.map_utils import calculate_area, convert_to_cartesian, create_mapbox_html, create_polygon_from_db, createGeoJSONFeature, createGeojsonFeatureCollection, generate_choropleth_map, generate_choropleth_map_combined, generate_choropleth_map_soil, save_polygon_to_geojson
 from flask import Blueprint, render_template
