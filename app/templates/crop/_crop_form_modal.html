@@ -1,4 +1,3 @@
-<!-- templates/crop/_crop_form_modal.html -->
 <div id="cropModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center">
     <div class="bg-white p-6 rounded-lg shadow-md w-full max-w-lg">
         <h1 class="text-2xl font-bold mb-4">{% if crop %}Edit{% else %}Create{% endif %} Crop</h1>
@@ -21,9 +20,9 @@
                     </select>
                 </div>
             </div>
-            <button type="button" onclick="closeModal('cropModal')" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded mr-2">Cancel</button>
+            <button type="button" id="cancelCropButton" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded mr-2">Cancel</button>
             <button type="submit" class="mt-4 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">{% if crop %}Update{% else %}Create{% endif %}</button>
-            <a href="{{url_for('producecategory.index')}}">create category</a>
+            <a href="{{ url_for('producecategory.index') }}">create category</a>
         </form>
     </div>
 </div>

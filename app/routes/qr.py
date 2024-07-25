@@ -37,14 +37,22 @@ def generate_tree_qr():
         gps_coordinates = request.form['gps_coordinates']
         height = request.form['height']
         diameter = request.form['diameter']
-    
-        data = f"Forest Name: {forest_name}\nForest ID: {forest_id}\nTree Type: {tree_type}\nDate of Cutting: {date_cutting}\nGPS Coordinates: {gps_coordinates}\nHeight: {height} m\nDiameter: {diameter} cm"
+        export = request.form.get('export')  # Checkbox value
+        export_name = request.form.get('export_name')  # Export name if provided
+
+        data = (f"Forest Name: {forest_name}\nForest ID: {forest_id}\nTree Type: {tree_type}\n"
+                f"Date of Cutting: {date_cutting}\nGPS Coordinates: {gps_coordinates}\n"
+                f"Height: {height} m\nDiameter: {diameter} cm")
+
+        if export and export_name:
+            data += f"\nExport Name: {export_name}"
+
         zip_file_path = generate_qr_codes_dynamic(data, f"Tree_{tree_type}.pdf")
-        print(zip_file_path)
         
         return send_file(zip_file_path, as_attachment=True, download_name=f"Tree_{tree_type}.pdf")
     
     return render_template('qrcode/generate_tree_qr.html')
+
 
 @bp.route('/generate_farmer_qr', methods=['GET', 'POST'])
 @login_required
@@ -54,10 +62,16 @@ def generate_farmer_qr():
         weight = request.form['weight']
         price_per_kg = request.form['price_per_kg']
         total_value = request.form['total_value']
-    
-        data = f"Farm ID: {farm_id}\nWeight: {weight} kgs\nPrice per Kg: {price_per_kg} Ugshs\nTotal Value: {total_value} Ugshs"
-        
-        
+        store_id = request.form['store_id']
+        warehouse = request.form['warehouse']
+        export = request.form.get('export')  # Checkbox value
+        export_name = request.form.get('export_name')  # Export name if provided
+
+        data = f"Farm ID: {farm_id}\nWeight: {weight} kgs\nPrice per Kg: {price_per_kg} Ugshs\nTotal Value: {total_value} Ugshs\nStore ID: {store_id}\nWarehouse: {warehouse}\n"
+
+        if export and export_name:
+            data += f"Export Name: {export_name}\n"
+
         zip_file_path = generate_qr_codes_dynamic(data, f"Farmer_{farm_id}.pdf")
     
         return send_file(zip_file_path, as_attachment=True, download_name=f"Farmer_{farm_id}.pdf")

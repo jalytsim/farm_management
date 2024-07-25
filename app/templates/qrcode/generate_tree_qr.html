@@ -16,8 +16,22 @@
             <input type="text" name="gps_coordinates" placeholder="GPS Coordinates" class="border p-2 mb-4 w-full rounded" required>
             <input type="text" name="height" placeholder="Height (m)" class="border p-2 mb-4 w-full rounded" required>
             <input type="text" name="diameter" placeholder="Diameter (cm)" class="border p-2 mb-4 w-full rounded" required>
+
+            <div class="mb-4">
+                <input type="checkbox" id="export_checkbox" name="export" class="mr-2">
+                <label for="export_checkbox">Export</label>
+            </div>
+
+            <input type="text" id="export_name" name="export_name" placeholder="Export Name" class="border p-2 mb-4 w-full rounded" disabled>
+
             <button type="submit" class="bg-green-500 text-white px-4 py-2 rounded">Generate QR for Tree Cutting</button>
         </form>
     </div>
 </div>
+
+<script>
+document.getElementById('export_checkbox').addEventListener('change', function() {
+    document.getElementById('export_name').disabled = !this.checked;
+});
+</script>
 {% endblock %}

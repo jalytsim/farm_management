@@ -8,7 +8,7 @@ def get_farm_properties(farm_id):
     print(farm_id)
     try:
         data = db.session.query(
-            Farm.id.label('farm_id'),
+            Farm.farm_id,
             Farm.farmergroup_id,
             Farm.geolocation,
             Farm.district_id,
@@ -24,10 +24,11 @@ def get_farm_properties(farm_id):
             FarmData.customer_name,
             District.name.label('district_name'),
             District.region.label('district_region')
-        ).join(FarmData, Farm.id == FarmData.farm_id) \
+        ).join(FarmData, Farm.farm_id == FarmData.farm_id) \
          .join(District, Farm.district_id == District.id) \
-         .filter(Farm.id == farm_id).all()
+         .filter(Farm.farm_id == farm_id).all()
 
+        print(data)
         return data
 
     except Exception as e:

@@ -41,7 +41,8 @@
 
 {% include 'crop/_crop_form_modal.html' %}
 <script>
-    function openModal(modalId, cropId = null) {
+
+function openModal(modalId, cropId = null) {
         if (cropId) {
             fetch(`/crop/${cropId}/edit`)
                 .then(response => response.json())
@@ -58,9 +59,19 @@
         }
         document.getElementById(modalId).classList.remove('hidden');
     }
+    document.addEventListener('DOMContentLoaded', function() {
+        
+        function closeModal(modalId) {
+            console.log('Closing modal:', modalId);
+            const modal = document.getElementById(modalId);
+            modal.classList.add('hidden');
+        }
 
-    function closeModal(modalId) {
-        document.getElementById(modalId).classList.add('hidden');
-    }
+        document.getElementById('cancelCropButton').addEventListener('click', function() {
+            closeModal('cropModal');
+        });
+
+        console.log('Script loaded and event listeners attached');
+    });
 </script>
 {% endblock %}

@@ -1,79 +1,64 @@
 {% extends 'layout.html' %}
 
 {% block content %}
-    <h1 class="text-4xl font-bold mb-8 text-center">Farm Management</h1>
+<h1 class="text-4xl font-bold mb-8 text-center">Farm Management</h1>
 
-    <div class="flex justify-between mb-8">
-        <a href="{{ url_for('points.create_point_route') }}">create point</a>
-        <button onclick="openModal('farmModal')" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create Farm</button>
-        <button onclick="openModal('farmerGroupModal')" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create Farmer Group</button>
-        <button onclick="openModal('cropModal')" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create Crop</button>
-    </div>
+<div class="flex justify-between mb-8">
+    <a href="{{ url_for('points.create_point_route') }}">create point</a>
+    <button onclick="openModal('farmModal')" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create Farm</button>
+    <button onclick="openModal('fgModal')" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create Farmer Group</button>
+    <button onclick="openModal('cropModal')" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create Crop</button>
+</div>
 
-    {% include 'farm/farm_list.html' %}
-    {% include 'farm/_farm_form_modal.html' %}
-    {% include 'farmergroup/_farmergroup_form_modal.html' %}
-    {% include 'crop/_crop_form_modal.html' %}
-    <a href="{{ url_for('map.get_all_farm_geojson') }}" class="text-blue-500 mb-4 inline-block">View All farm on Map</a>
+{% include 'farm/farm_list.html' %}
+{% include 'farm/_farm_form_modal.html' %}
+{% include 'farmergroup/_farmergroup_form_modal.html' %}
+{% include 'crop/_crop_form_modal.html' %}
+<a href="{{ url_for('map.get_all_farm_geojson') }}" class="text-blue-500 mb-4 inline-block">View All farm on Map</a>
 
-    <script>
-        function openModal(modalId) {
-            document.getElementById(modalId).classList.remove('hidden');
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        function openModal(modalId, cropId = null) {
+            console.log('Opening modal:', modalId, 'with cropId:', cropId);
+            const modal = document.getElementById(modalId);
+
+            if (cropId && modalId === 'cropModal') {
+                fetch(`/crop/${cropId}/edit`)
+                    .then(response => response.json())
+                    .then(data => {
+                        document.getElementById('name').value = data.name;
+                        document.getElementById('weight').value = data.weight;
+                        document.getElementById('category_id').value = data.category_id;
+                    });
+            } else {
+                // Reset form for creating new crop
+                if (modalId === 'cropModal') {
+                    document.getElementById('name').value = '';
+                    document.getElementById('weight').value = '';
+                    document.getElementById('category_id').value = '';
+                }
+            }
+            modal.classList.remove('hidden');
         }
 
         function closeModal(modalId) {
-            document.getElementById(modalId).classList.add('hidden');
+            console.log('Closing modal:', modalId);
+            const modal = document.getElementById(modalId);
+            modal.classList.add('hidden');
         }
 
-        // function updateFarm(farmId) {
-        //     const name = document.querySelector(`.farm-name[data-id='${farmId}']`).value;
-        //     const district_id = document.querySelector(`.farm-district[data-id='${farmId}']`).value;
-        //     const farmergroup_id = document.querySelector(`.farm-farmergroup[data-id='${farmId}']`).value;
-        //     const longitude = document.querySelector(`.farm-longitude[data-id='${farmId}']`).value;
-        //     const latitude = document.querySelector(`.farm-latitude[data-id='${farmId}']`).value;
-        //     const geolocation = `${longitude},${latitude}`;
+        document.getElementById('cancelCropButton').addEventListener('click', function() {
+            closeModal('cropModal');
+        });
 
-        //     fetch(`/farm/${farmId}/update`, {
-        //         method: 'POST',
-        //         headers: {
-        //             'Content-Type': 'application/json',
-        //         },
-        //         body: JSON.stringify({
-        //             name: name,
-        //             district_id: district_id,
-        //             farmergroup_id: farmergroup_id,
-        //             geolocation: geolocation
-        //         })
-        //     })
-        //     .then(response => response.json())
-        //     .then(data => {
-        //         if (data.success) {
-        //             alert('Farm updated successfully');
-        //         } else {
-        //             alert('Error updating farm');
-        //         }
-        //     });
-        // }
+        document.getElementById('cancelfgButton').addEventListener('click', function() {
+            closeModal('fgModal');
+        });
+        document.getElementById('cancelfarmButton').addEventListener('click', function() {
+            closeModal('farmModal');
+        });
 
-        // Fonctions pour ouvrir les modals depuis la sidebar
-        function openCreateCropModal() {
-            openModal('cropModal');
-        }
-
-        function openCreateDistrictModal() {
-            openModal('districtModal');
-        }
-
-        function openCreateFarmerGroupModal() {
-            openModal('farmerGroupModal');
-        }
-
-        function openCreatePointModal() {
-            openModal('pointModal');
-        }
-
-        function openCreateFarmModal() {
-            openModal('farmModal');
-        }
-    </script>
+        console.log('Script loaded and event listeners attached');
+    });
+</script>
 {% endblock %}

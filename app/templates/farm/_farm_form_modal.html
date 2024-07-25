@@ -65,7 +65,7 @@
             </div>
 
             <div class="flex items-center justify-between">
-                <button type="button" onclick="closeModal('farmModal')" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded mr-2">Cancel</button>
+                <button type="button" id="cancelfarmButton" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded mr-2">Cancel</button>
                 <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">Create Farm</button>
             </div>
         </form>
@@ -77,11 +77,6 @@
     function openModal(modalId) {
         document.getElementById(modalId).classList.remove('hidden');
     }
-
-    function closeModal(modalId) {
-        document.getElementById(modalId).classList.add('hidden');
-    }
-
     function addPhoneNumberField() {
         const phoneNumber2Container = document.getElementById('phonenumber2-container');
         if (phoneNumber2Container.classList.contains('hidden')) {

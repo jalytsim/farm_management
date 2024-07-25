@@ -13,8 +13,41 @@
             <input type="text" name="weight" placeholder="Weight (kgs)" class="border p-2 mb-4 w-full rounded" required>
             <input type="text" name="price_per_kg" placeholder="Price per kg (Ugshs)" class="border p-2 mb-4 w-full rounded" required>
             <input type="text" name="total_value" placeholder="Total Value (Ugshs)" class="border p-2 mb-4 w-full rounded" required>
+            <input type="text" name="store_id" placeholder="Store ID" class="border p-2 mb-4 w-full rounded" required>
+            <input type="text" name="warehouse" placeholder="Warehouse" class="border p-2 mb-4 w-full rounded" required>
+            <div class="mb-4">
+                <label class="inline-flex items-center">
+                    <input type="checkbox" id="exportCheckbox" name="export" class="form-checkbox" value="yes">
+                    <span class="ml-2">Export</span>
+                </label>
+            </div>
+            <div class="mb-4">
+                <input type="text" id="exportName" name="export_name" placeholder="Export Name" class="border p-2 w-full rounded" disabled>
+            </div>
             <button type="submit" class="bg-green-500 text-white px-4 py-2 rounded">Generate QR and E-Receipt</button>
         </form>
     </div>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const exportCheckbox = document.getElementById('exportCheckbox');
+        const exportNameInput = document.getElementById('exportName');
+
+        // Function to toggle the disabled state of the export name input
+        function toggleExportNameInput() {
+            if (exportCheckbox.checked) {
+                exportNameInput.disabled = false;
+            } else {
+                exportNameInput.disabled = true;
+            }
+        }
+
+        // Initial state
+        toggleExportNameInput();
+
+        // Add event listener for changes to the checkbox
+        exportCheckbox.addEventListener('change', toggleExportNameInput);
+    });
+</script>
 {% endblock %}

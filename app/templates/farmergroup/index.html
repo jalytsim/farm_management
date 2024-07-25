@@ -5,7 +5,7 @@
 {% block content %}
 <div class="flex justify-between mb-8">
     <h1 class="text-4xl font-bold">Farmer Groups</h1>
-    <button onclick="openModal('createFarmerGroupModal')" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create Farmer Group</button>
+    <button onclick="openModal('fgModal')" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create Farmer Group</button>
 </div>
 
 <div class="bg-white shadow-md rounded my-6">
@@ -33,37 +33,27 @@
         </tbody>
     </table>
 </div>
-
-<!-- Create Farmer Group Modal -->
-<div id="createFarmerGroupModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center">
-    <div class="bg-white p-6 rounded-lg shadow-md w-full max-w-lg">
-        <h2 class="text-2xl font-bold mb-4">Create Farmer Group</h2>
-        <form action="{{ url_for('farmergroup.create_fg') }}" method="POST">
-            <div class="grid grid-cols-1 gap-6">
-                <div>
-                    <label for="name" class="block text-gray-700">Name:</label>
-                    <input type="text" id="name" name="name" class="w-full p-2 border border-gray-300 rounded mt-1">
-                </div>
-                <div>
-                    <label for="description" class="block text-gray-700">Description:</label>
-                    <textarea id="description" name="description" class="w-full p-2 border border-gray-300 rounded mt-1"></textarea>
-                </div>
-            </div>
-            <div class="flex justify-end mt-4">
-                <button type="button" onclick="closeModal('createFarmerGroupModal')" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded mr-2">Cancel</button>
-                <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Create Farmer Group</button>
-            </div>
-        </form>
-    </div>
+{% include 'farmergroup/_farmergroup_form_modal.html' %}
 </div>
 <script>
     function openModal(modalId) {
             document.getElementById(modalId).classList.remove('hidden');
         }
 
+    document.addEventListener('DOMContentLoaded', function() {
+        
         function closeModal(modalId) {
-            document.getElementById(modalId).classList.add('hidden');
+            console.log('Closing modal:', modalId);
+            const modal = document.getElementById(modalId);
+            modal.classList.add('hidden');
         }
+
+        document.getElementById('cancelfgButton').addEventListener('click', function() {
+            closeModal('fgModal');
+        });
+
+        console.log('Script loaded and event listeners attached');
+    });
 </script>
 
 {% endblock %}
