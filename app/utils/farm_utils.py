@@ -91,6 +91,7 @@ def update_farm(farm_id, name, subcounty, farmergroup_id, district_id, geolocati
 
 def delete_farm(farm_id):
     farm = db.session.query(Farm).get(farm_id)
+    print(farm)
     if farm:
         db.session.delete(farm)
         db.session.commit()

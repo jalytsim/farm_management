@@ -63,7 +63,7 @@ def create_point_route():
                 forest_id = None
             farmer_id = None
         elif owner_type == 'farmer':
-            farmer_id = int(farmer_id) if farmer_id else None
+            farmer_id = farmer_id if farmer_id else None
             forest_id = None
         else:
             flash('Invalid owner type.', 'error')
@@ -79,10 +79,14 @@ def create_point_route():
         return redirect(url_for('points.list_points'))
     
     districts = District.query.all()
-    forests = Forest.query.all()
-    farms = Farm.query.all()
-    return render_template('points/create.html', districts=districts, forests=forests, farms=farms)
+    if current_user.is_admin :
+        farms = Farm.query.all()
+        forests = Forest.query.all()
+    else :
+        farms = Farm.query.filter_by(created_by=current_user.id)
+        forests = Forest.query.filter_by(created_by=current_user.id)
 
+    return render_template('points/create.html', districts=districts, forests=forests, farms=farms)
 @bp.route('/points/edit/<int:point_id>', methods=['GET', 'POST'])
 @login_required
 def edit_point_route(point_id):
@@ -113,17 +117,26 @@ def edit_point_route(point_id):
                     flash('Invalid Forest ID.', 'error')
                     return render_template('points/edit.html', point=point)
             else:
-                forest_id = None
+                flash('Forest ID is required for owner type "forest".', 'error')
+                return render_template('points/edit.html', point=point)
             farmer_id = None
         elif owner_type == 'farmer':
-            farmer_id = int(farmer_id) if farmer_id else None
+            if farmer_id:
+                farmer_id = farmer_id
+                farmer = Farm.query.filter_by(farm_id=farmer_id).first()
+                if not farmer:
+                    flash('Invalid Farmer ID.', 'error')
+                    return render_template('points/edit.html', point=point)
+            else:
+                flash('Farmer ID is required for owner type "farmer".', 'error')
+                return render_template('points/edit.html', point=point)
             forest_id = None
         else:
             flash('Invalid owner type.', 'error')
             return render_template('points/edit.html', point=point)
 
         try:
-            update_point(point_id, longitude, latitude, owner_type, district_id, forest_id, farmer_id, )
+            update_point(point_id, longitude, latitude, owner_type, district_id, forest_id, farmer_id)
             flash('Point updated successfully!', 'success')
         except Exception as e:
             db.session.rollback()
@@ -132,8 +145,12 @@ def edit_point_route(point_id):
         return redirect(url_for('points.list_points'))
 
     districts = District.query.all()
-    forests = Forest.query.all()
-    farms = Farm.query.all()
+    if current_user.is_admin:
+        farms = Farm.query.all()
+        forests = Forest.query.all()
+    else:
+        farms = Farm.query.filter_by(created_by=current_user.id)
+        forests = Forest.query.filter_by(created_by=current_user.id)
     return render_template('points/edit.html', point=point, districts=districts, forests=forests, farms=farms)
 
 @bp.route('/points/delete/<int:point_id>', methods=['POST'])

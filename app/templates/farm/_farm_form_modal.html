@@ -2,11 +2,10 @@
     <div class="bg-white p-6 rounded-lg shadow-md w-full max-w-lg">
         <h2 class="text-2xl font-bold mb-4">Create Farm</h2>
         <form action="{{ url_for('farm.create_farm') }}" method="POST" class="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
-        
             <div class="flex flex-wrap -mx-3 mb-4">
                 <div class="w-full md:w-1/2 px-3 mb-4 md:mb-0">
                     <label for="farm_id" class="block text-gray-700 text-sm font-bold mb-2">Farm ID:</label>
-                    <input type="text" id="farm_id" name="farm_id" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                    <input type="text" id="farm_id" name="farm_id" required value="{{ next_farm_id }}" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
                 </div>
                 <div class="w-full md:w-1/2 px-3">
                     <label for="name" class="block text-gray-700 text-sm font-bold mb-2">Farm Name:</label>
@@ -84,35 +83,4 @@
         }
     }
 
-    // function updateFarm(farmId) {
-    //     const name = document.querySelector(`.farm-name[data-id='${farmId}']`).value;
-    //     const district_id = document.querySelector(`.farm-district[data-id='${farmId}']`).value;
-    //     const farmergroup_id = document.querySelector(`.farm-farmergroup[data-id='${farmId}']`).value;
-    //     const longitude = document.querySelector(`.farm-longitude[data-id='${farmId}']`).value;
-    //     const latitude = document.querySelector(`.farm-latitude[data-id='${farmId}']`).value;
-    //     const phonenumber = document.querySelector(`.farm-phonenumber[data-id='${farmId}']`).value;
-    //     const geolocation = `${longitude},${latitude}`;
-
-    //     fetch(`/farm/${farmId}/update`, {
-    //         method: 'POST',
-    //         headers: {
-    //             'Content-Type': 'application/json',
-    //         },
-    //         body: JSON.stringify({
-    //             name: name,
-    //             district_id: district_id,
-    //             farmergroup_id: farmergroup_id,
-    //             geolocation: geolocation,
-    //             phonenumber: phonenumber
-    //         })
-    //     })
-    //     .then(response => response.json())
-    //     .then(data => {
-    //         if (data.success) {
-    //             alert('Farm updated successfully');
-    //         } else {
-    //             alert('Error updating farm');
-    //         }
-    //     });
-    // }
 </script>

@@ -1,7 +1,9 @@
 import csv
-from flask import Blueprint, abort, json, jsonify, render_template, render_template_string, request, send_file
-from flask_login import login_required
+from flask import Blueprint, abort, flash, json, jsonify, redirect, render_template, render_template_string, request, send_file, url_for
+from flask_login import current_user, login_required
 from app.models import Crop, Farm, FarmData, Forest, Point
+from app.routes.farm import farmer_or_admin_required
+from app.routes.forest import forest_or_admin_required
 from app.utils.farm_utils import get_farm_id, get_farm_properties
 from app.utils.forest_watch_utils import query_forest_watch
 from app.utils.map_utils import calculate_area, convert_to_cartesian, create_mapbox_html, create_polygon_from_db, createGeoJSONFeature, createGeojsonFeatureCollection, generate_choropleth_map, generate_choropleth_map_combined, generate_choropleth_map_soil, save_polygon_to_geojson
@@ -15,6 +17,9 @@ from geojson import Polygon, MultiPolygon, Feature, FeatureCollection
 from sqlalchemy.orm import load_only
 from tempfile import NamedTemporaryFile
 import plotly.graph_objects as go
+import plotly.graph_objects as go
+from shapely.geometry import Polygon
+from pyproj import Transformer
 
 bp = Blueprint('map', __name__)
 
@@ -72,13 +77,14 @@ def display_all_points():
 
 
 @bp.route('/forests/<int:forest_id>/geojson', methods=['GET'])
+@forest_or_admin_required 
 def get_forest_geojson(forest_id):
     points = Point.query.filter_by(owner_type='forest', forest_id=forest_id).options(db.load_only(Point.longitude, Point.latitude)).all()
     forest = Forest.query.filter_by(id=forest_id).first()
     print(forest)
     if not points:
-        return jsonify({"error": "No points found for the specified forest_id"}), 404
-    
+        flash("error: No points found for the specified forest_id"), 404
+        return redirect(url_for('forest.index'))
     # Create GeoJSON data from points
     geojson_data = create_geojson(points, forest)
     
@@ -90,6 +96,7 @@ def get_forest_geojson(forest_id):
 
 
 @bp.route('/farm/<string:farm_id>/report', methods=['GET'])
+@farmer_or_admin_required
 def farmerReport(farm_id):
     # Fetch the farm details
     farm = Farm.query.filter_by(farm_id=farm_id).first()
@@ -145,10 +152,12 @@ def farmerReport(farm_id):
 
 
 @bp.route('/forests/<int:forest_id>/report', methods=['GET'])
+@forest_or_admin_required 
 def forestReport(forest_id):
     data, status_code = gfw(owner_type='forest', owner_id=str(forest_id))
     if status_code != 200:
         return jsonify(data), status_code
+    
     
     forest = Forest.query.filter_by(id=forest_id).first()
     print(forest.name)
@@ -158,6 +167,7 @@ def forestReport(forest_id):
 
 
 @bp.route('/farm/<int:farmer_id>/geojson', methods=['GET'])
+@farmer_or_admin_required
 def get_farm_geojson(farmer_id):
     farm = Farm.query.filter_by(id=farmer_id).first()
     print(farm.farm_id)
@@ -165,7 +175,8 @@ def get_farm_geojson(farmer_id):
     points = Point.query.filter_by(owner_type='farmer', farmer_id=farm.farm_id).options(db.load_only(Point.longitude, Point.latitude)).all()
     
     if not points:
-        return jsonify({"error": "No points found for the specified farm_id"  }), 404
+        flash("error: No points found for the specified farm_id"  ), 404
+        return redirect(url_for('farm.index'))
     
     # Create GeoJSON data from points
     geojson_data = create_geojson(points, farm)
@@ -187,8 +198,12 @@ def create_geojson(points, model_instance):
     return feature_collection
 
 @bp.route('/forests/all/geojson', methods=['GET'])
+@forest_or_admin_required   
 def get_all_forests_geojson():
-    forests = Forest.query.all()
+    if current_user.is_admin:
+        forests = Forest.query.all()
+    else:
+        forests = Forest.query.filter_by(created_by=current_user.id)
     features = []
 
     for forest in forests:
@@ -198,7 +213,8 @@ def get_all_forests_geojson():
             features.extend(geojson_data['features'])
 
     if not features:
-        return jsonify({"error": "No points found for any forest"}), 404
+        flash("error: No points found for any forest"), 404
+        return redirect(url_for('forest.index'))
 
     feature_collection = FeatureCollection(features)
     mapbox_html = create_mapbox_html_static(feature_collection)
@@ -206,11 +222,15 @@ def get_all_forests_geojson():
     return render_template('index.html', choropleth_map=mapbox_html)
 
 @bp.route('/farm/all/geojson', methods=['GET'])
+@farmer_or_admin_required
 def get_all_farm_geojson():
-    farmers = Farm.query.all()
+    if current_user.is_admin:
+        farms = Farm.query.all()
+    else:
+        farms = Farm.query.filter_by(created_by=current_user.id)
     features = []
 
-    for farmer in farmers:
+    for farmer in farms:
         
         points = Point.query.filter_by(owner_type='farmer', farmer_id=farmer.farm_id).options(db.load_only(Point.longitude, Point.latitude)).all()
         if points:
@@ -218,35 +238,37 @@ def get_all_farm_geojson():
             features.extend(geojson_data['features'])
 
     if not features:
-        return jsonify({"error": "No points found for any farm"}), 404
+        flash("error: No points found for any farm"), 404
+        return redirect(url_for('farm.index'))
 
     feature_collection = FeatureCollection(features)
     mapbox_html = create_mapbox_html_static(feature_collection)
 
     return render_template('index.html', choropleth_map=mapbox_html)
 
+
 def create_mapbox_html_static(geojson_data):
     """Generate a Mapbox plotly figure with static GeoJSON data and display area in hovertext."""
     fig = go.Figure()
+    
     for feature in geojson_data['features']:
         properties = feature.get('properties', {})
+        
         # Extracting coordinates
         if feature['geometry']['type'] == 'Polygon':
             polygons = [feature['geometry']['coordinates']]
         else:
             polygons = feature['geometry']['coordinates']
+        
         for polygon in polygons:
             for ring in polygon:
-                # Convert the vertices from geo-coordinates to Cartesian coordinates
-                cartesian_vertices = convert_to_cartesian(ring)
                 # Calculate the area of the polygon
-                polygon_area = calculate_area(cartesian_vertices)
-                # Convert the area to square kilometers
-                area_km2 = polygon_area / 1000000
-                # Add area information to properties
-                properties['Area (sq km)'] = f"{area_km2:.2f} km²"
+                area_km2 = calculate_area(ring)
+                properties['Area (sq km)'] = f"{area_km2:.4f} km²"
+                
                 # Create hover text
                 hover_text = '<br>'.join(f"{key}: {value}" for key, value in properties.items())
+                
                 fig.add_trace(go.Scattermapbox(
                     fill="toself",
                     lon=[coord[0] for coord in ring],
@@ -256,6 +278,7 @@ def create_mapbox_html_static(geojson_data):
                     line=dict(width=2),
                     hoverinfo='text'
                 ))
+    
     center_coords = {"lat": 1.27, "lon": 32.29}
     fig.update_layout(
         mapbox=dict(
@@ -474,3 +497,22 @@ def download_farm_report(farm_id):
         temp_file_path = temp_file.name
 
     return send_file(temp_file_path, as_attachment=True, download_name=f'farm_{farm_id}_gfw_report.csv')
+
+
+def calculate_area(polygon_coords):
+    # Convert the coordinates to (longitude, latitude) for Shapely
+    coordinates = [(coord[0], coord[1]) for coord in polygon_coords]
+
+    # Create a Shapely polygon
+    polygon = Polygon(coordinates)
+
+    # Use pyproj to transform the coordinates for accurate area calculation
+    transformer = Transformer.from_crs("epsg:4326", "epsg:3857", always_xy=True)
+    projected_coords = [transformer.transform(lon, lat) for lon, lat in coordinates]
+
+    # Create a Shapely polygon with projected coordinates
+    projected_polygon = Polygon(projected_coords)
+
+    # Calculate area in square meters and convert to square kilometers
+    area_km2 = projected_polygon.area / 1_000_000
+    return area_km2

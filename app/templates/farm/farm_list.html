@@ -5,6 +5,7 @@
         <table class="w-full table-auto border-collapse">
             <thead>
                 <tr class="bg-gray-200">
+                    <th class="px-4 py-2">Farm ID</th>
                     <th class="px-4 py-2">Name</th>
                     <th class="px-4 py-2">District</th>
                     <th class="px-4 py-2">Farmer Group</th>
@@ -18,6 +19,9 @@
             <tbody>
                 {% for farm in farms.items %}
                 <tr class="bg-white hover:bg-gray-100">
+                    <td class="border px-4 py-2">
+                        <input type="text" value="{{ farm.farm_id }}" class="w-full p-2 border border-gray-300 rounded mt-1 farm-name" data-id="{{ farm.farm_id }} "disabled>
+                    </td>
                     <td class="border px-4 py-2">
                         <input type="text" value="{{ farm.name }}" class="w-full p-2 border border-gray-300 rounded mt-1 farm-name" data-id="{{ farm.id }}">
                     </td>

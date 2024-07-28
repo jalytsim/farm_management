@@ -24,19 +24,19 @@
     </div>
     <div class="mb-4">
         <label for="forest_id" class="block text-gray-700 text-sm font-bold mb-2">Forest name:</label>
-        <select id="forest_id" name="forest_id"  class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+        <select id="forest_id" name="forest_id" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" {% if point.owner_type == 'farmer' %}disabled{% endif %}>
             <option value="">None</option>
             {% for forest in forests %}
-                <option value="{{ point.farmer_id if point else '' }}"  {% if point.forest_id == forest.id %}selected{% endif %} {% if point.owner_type == 'farmer' %}disabled{% endif %}>{{ forest.name }}</option>
+                <option value="{{ forest.id }}" {% if point.forest_id == forest.id %}selected{% endif %}>{{ forest.name }}</option>
             {% endfor %}
         </select>
     </div>
     <div class="mb-4">
         <label for="farmer_id" class="block text-gray-700 text-sm font-bold mb-2">Farmer name:</label>
-        <select id="farmer_id" name="farmer_id"  class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+        <select id="farmer_id" name="farmer_id" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" {% if point.owner_type == 'forest' %}disabled{% endif %}>
             <option value="">None</option>
             {% for farm in farms %}
-                <option value="{{ point.farm_id if point else '' }}" {% if point.farmer_id == farm.id %}selected{% endif %} {% if point.owner_type == 'forest' %}disabled{% endif %} >{{ farm.name }}</option>
+                <option value="{{ farm.farm_id }}" {% if point.farmer_id == farm.farm_id %}selected{% endif %}>{{ farm.name }}</option>
             {% endfor %}
         </select>
     </div>

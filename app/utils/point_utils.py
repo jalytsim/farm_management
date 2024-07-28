@@ -46,23 +46,49 @@ def get_point_by_id(point_id):
     return Point.query.get(point_id)
 
 def update_point(point_id, longitude, latitude, owner_type, district_id, forest_id=None, farmer_id=None, tree_id=None):
+    # Retrieve the point by ID
     point = Point.query.get(point_id)
     if not point:
         raise ValueError(f'Point ID {point_id} does not exist.')
 
-    if owner_type == 'forest' and forest_id:
-        forest = db.session.query(Forest).filter_by(id=forest_id).first()
-        if not forest:
-            raise ValueError(f'Forest ID {forest_id} does not exist.')
-    elif owner_type == 'farmer' and farmer_id:
-        farmer = db.session.query(Farm).filter_by(farm_id=farmer_id).first()
-        if not farmer:
-            raise ValueError(f'Farmer ID {farmer_id} does not exist.')
-    elif owner_type == 'tree' and tree_id:
-        tree = db.session.query(Tree).filter_by(id=tree_id).first()
-        if not tree:
-            raise ValueError(f'Tree ID {tree_id} does not exist.')
+    # Validate the owner_type and corresponding ID
+    if owner_type == 'forest':
+        if forest_id:
+            forest = Forest.query.get(forest_id)
+            if not forest:
+                raise ValueError(f'Forest ID {forest_id} does not exist.')
+        else:
+            raise ValueError('Forest ID is required for owner type "forest".')
+        # Clear other IDs
+        farmer_id = None
+        tree_id = None
 
+    elif owner_type == 'farmer':
+        if farmer_id:
+            farmer = Farm.query.filter_by(farm_id =farmer_id)
+            if not farmer:
+                raise ValueError(f'Farmer ID {farmer_id} does not exist.')
+        else:
+            raise ValueError('Farmer ID is required for owner type "farmer".')
+        # Clear other IDs
+        forest_id = None
+        tree_id = None
+
+    elif owner_type == 'tree':
+        if tree_id:
+            tree = Tree.query.get(tree_id)
+            if not tree:
+                raise ValueError(f'Tree ID {tree_id} does not exist.')
+        else:
+            raise ValueError('Tree ID is required for owner type "tree".')
+        # Clear other IDs
+        forest_id = None
+        farmer_id = None
+
+    else:
+        raise ValueError(f'Invalid owner type: {owner_type}')
+
+    # Update the point fields
     point.longitude = longitude
     point.latitude = latitude
     point.owner_type = owner_type
@@ -72,7 +98,10 @@ def update_point(point_id, longitude, latitude, owner_type, district_id, forest_
     point.district_id = district_id
     point.modified_by = current_user.id
     point.date_updated = datetime.utcnow()
+
+    # Commit the changes to the database
     db.session.commit()
+
 
 def get_point_details(point_id):
     point = db.session.query(Point).filter(Point.id == point_id).first()

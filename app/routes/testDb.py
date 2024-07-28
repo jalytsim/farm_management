@@ -2,7 +2,8 @@ import os
 from flask import Blueprint, jsonify, render_template, request
 from app.utils.forest_watch_utils import create_sql_query, get_pixel_meaning, query_forest_watch
 from ..models import db, Farm, Forest, Point
-
+from shapely.geometry import Polygon
+from geopy.distance import geodesic
 from shapely.geometry import mapping, Polygon as ShapelyPolygon
 from geojson import Feature, FeatureCollection
 
@@ -11,13 +12,9 @@ test = Blueprint('test', __name__)
 @test.route('/test')
 def test_db():
     datasets = [
-        'umd_tree_cover_loss',
-        'gfw_forest_carbon_gross_emissions',
-        'gfw_forest_carbon_gross_removals',
-        'gfw_forest_carbon_net_flux',
-        'gfw_forest_flux_aboveground_carbon_stock_in_emissions_year',
-        'gfw_forest_flux_belowground_carbon_stock_in_emissions_year',
-        'gfw_forest_flux_deadwood_carbon_stock_in_emissions_year',
+       'fao_forest_change',
+        'fao_forest_extent',
+        'fao_forest_employment',
     ]
 
     geometry = {
@@ -53,7 +50,7 @@ def test_db():
         # Get the dataset from the URL parameters or use a default value
         datasetss = request.args.get('dataset', dataset)
 
-        sql_query = "SELECT SUM(area__ha) FROM results"
+        sql_query = "SELECT SUM(*) FROM results"
 
         # Query data from the dataset
         dataset_data = query_forest_watch(datasetss, geometry, sql_query)
@@ -135,3 +132,13 @@ def create_geojson(points, owner):
     properties = {column.name: getattr(owner, column.name) for column in owner.__table__.columns}
     feature = Feature(geometry=geojson_polygon, properties=properties)
     return FeatureCollection([feature])
+
+def calculate_area(polygon):
+    coords = list(polygon.exterior.coords)
+    area = 0.0
+    for i in range(len(coords) - 1):
+        p1 = coords[i]
+        p2 = coords[i + 1]
+        edge_length = geodesic((p1[1], p1[0]), (p2[1], p2[0])).meters
+        area += edge_length * geodesic((0, p1[0]), (0, p2[0])).meters
+    return abs(area) / 2.0
