@@ -7,7 +7,7 @@
 {% block content %}
 <div class="bg-gray-100">
     <div class="container mx-auto py-8">
-        <h1 class="text-2xl font-bold mb-4 text-center">Generate QR Code for Tree Cutting</h1>
+        <h1 class="text-2xl font-bold mb-4 text-center">Generate Digital codes for Tree Cutting</h1>
         <form action="{{ url_for('qr.generate_tree_qr') }}" method="post" class="max-w-sm mx-auto bg-white p-6 rounded-lg shadow-lg">
             <input type="text" name="forest_name" placeholder="Forest Name" class="border p-2 mb-4 w-full rounded" required>
             <input type="text" name="forest_id" placeholder="Forest ID" class="border p-2 mb-4 w-full rounded" required>
@@ -24,7 +24,7 @@
 
             <input type="text" id="export_name" name="export_name" placeholder="Export Name" class="border p-2 mb-4 w-full rounded" disabled>
 
-            <button type="submit" class="bg-green-500 text-white px-4 py-2 rounded">Generate QR for Tree Cutting</button>
+            <button type="submit" class="bg-green-500 text-white px-4 py-2 rounded">Generate Digital codes for Tree Cutting</button>
         </form>
     </div>
 </div>

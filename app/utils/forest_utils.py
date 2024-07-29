@@ -3,9 +3,10 @@ from ..models import db, FarmData, Farm, District, SoilData
 from datetime import datetime
 from flask_login import current_user
 
-def create_forest(name):
+def create_forest(name, tree_type):
     new_forest = Forest(
         name=name,
+        tree_type=tree_type,
         date_created=datetime.utcnow(),
         date_updated=datetime.utcnow(),
         created_by=current_user.id,
@@ -14,10 +15,11 @@ def create_forest(name):
     db.session.add(new_forest)
     db.session.commit()
 
-def update_forest(id, name):
+def update_forest(id, name, tree_type):
     forest = db.session.query(Forest).get(id)
     if forest:
         forest.name = name
+        forest.tree_type = tree_type
         forest.date_updated = datetime.utcnow()
         forest.modified_by = current_user.id
         db.session.commit()

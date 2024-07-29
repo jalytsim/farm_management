@@ -26,7 +26,6 @@ def forest_or_admin_required(f):
 def index():
     page = request.args.get('page', 1, type=int)
     
-    # Check if the user is an admin
     if current_user.is_admin:
         forests = Forest.query.paginate(page=page, per_page=6)
     else:
@@ -46,6 +45,7 @@ def allowed_file(filename):
 def handle_create_forest():
     if request.method == 'POST':
         name = request.form.get('name')
+        tree_type = request.form.get('tree_type')
         
         if 'image' in request.files:
             file = request.files['image']
@@ -63,19 +63,18 @@ def handle_create_forest():
         else:
             filename = None
 
-        create_forest(name)
+        create_forest(name, tree_type)
         print('Forest created successfully', 'success')
         return redirect(url_for('forest.index'))
     
     return redirect(url_for('forest.index'))
 
-    
-    
 @bp.route('/forest/update/<int:id>', methods=['POST'])
 @forest_or_admin_required
 def handle_update_forest(id):
     name = request.form['name']
-    update_forest(id, name)
+    tree_type = request.form['tree_type']
+    update_forest(id, name, tree_type)
     return redirect(url_for('forest.index'))
 
 @bp.route('/forest/delete/<int:id>', methods=['POST'])

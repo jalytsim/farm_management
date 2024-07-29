@@ -131,6 +131,7 @@ class Forest(db.Model):
     __tablename__ = 'forest'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False)
+    tree_type = db.Column(db.String(255), nullable=False)
     date_created = db.Column(db.DateTime, default=datetime.utcnow)
     date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
