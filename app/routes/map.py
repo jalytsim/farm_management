@@ -274,7 +274,7 @@ def create_mapbox_html_static(geojson_data):
                     lon=[coord[0] for coord in ring],
                     lat=[coord[1] for coord in ring],
                     text=hover_text,
-                    marker={'size': 5, 'color': "green"},
+                    marker={'size': 5, 'color': "red"},
                     line=dict(width=2),
                     hoverinfo='text'
                 ))

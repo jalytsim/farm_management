@@ -14,17 +14,17 @@
     <main class="container mx-auto py-8">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div class="bg-white p-6 rounded-lg shadow-lg">
-                <h2 class="text-xl font-bold mb-2">Generate Farm QR Code</h2>
+                <h2 class="text-xl font-bold mb-2">Produce Stamps</h2>
                 <p class="mb-4">Generate Digital codes for a farm with details such as weight, price per kg, and total value.</p>
                 <a href="{{ url_for('qr.generate_farmer_qr') }}" class="bg-green-500 text-white px-4 py-2 rounded">Generate Farm Digital codes</a>
             </div>
             <div class="bg-white p-6 rounded-lg shadow-lg">
-                <h2 class="text-xl font-bold mb-2">Generate Tree Cutting Digital codes</h2>
+                <h2 class="text-xl font-bold mb-2">Forest Conservation Stamps</h2>
                 <p class="mb-4">Generate Digital codes for marking tree cuttings with details such as forest name, tree type, and GPS coordinates.</p>
                 <a href="{{ url_for('qr.generate_tree_qr') }}" class="bg-green-500 text-white px-4 py-2 rounded">Generate Tree Cutting Digital codes</a>
             </div>
             <div class="bg-white p-6 rounded-lg shadow-lg">
-                <h2 class="text-xl font-bold mb-2">Generate Custom QR Code</h2>
+                <h2 class="text-xl font-bold mb-2">Digital Export Stamps</h2>
                 <p class="mb-4">Generate a custom Digital codes for a specified farm. Upload a zip file containing the Digital codes images.</p>
                 <form action="{{ url_for('qr.generate_qr') }}" method="post" class="flex flex-col">
                     <input type="text" name="farm_id" placeholder="Enter Farm ID" class="border p-2 mb-4 rounded">
