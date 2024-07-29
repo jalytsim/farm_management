@@ -274,7 +274,7 @@ def create_mapbox_html_static(geojson_data):
                     lon=[coord[0] for coord in ring],
                     lat=[coord[1] for coord in ring],
                     text=hover_text,
-                    marker={'size': 5, 'color': "red"},
+                    marker={'size': 5, 'color': "green"},
                     line=dict(width=2),
                     hoverinfo='text'
                 ))
@@ -516,3 +516,65 @@ def calculate_area(polygon_coords):
     # Calculate area in square meters and convert to square kilometers
     area_km2 = projected_polygon.area / 1_000_000
     return area_km2
+
+def calculate_area_m2(polygon_coords, utm_zone=36):
+    """
+    Calculate the area of a polygon in square meters using UTM projection.
+
+    Args:
+        polygon_coords (list): List of coordinates of the polygon in (longitude, latitude).
+        utm_zone (int): UTM zone number (default is 36 for UTM 36N).
+
+    Returns:
+        float: Area of the polygon in square meters.
+    """
+    # Convert the coordinates to (longitude, latitude) for Shapely
+    coordinates = [(coord[0], coord[1]) for coord in polygon_coords]
+
+    # Define UTM CRS for the specified zone (36 for UTM 36N)
+    utm_crs = f"epsg:326{utm_zone}"
+
+    # Create a Shapely polygon
+    polygon = Polygon(coordinates)
+
+    # Use pyproj to transform the coordinates for accurate area calculation
+    transformer = Transformer.from_crs("epsg:4326", utm_crs, always_xy=True)
+    projected_coords = [transformer.transform(lon, lat) for lon, lat in coordinates]
+
+    # Create a Shapely polygon with projected coordinates
+    projected_polygon = Polygon(projected_coords)
+
+    # Calculate area in square meters
+    area_m2 = projected_polygon.area
+    return area_m2
+
+def calculate_area_accurate(polygon_coords, utm_zone=36):
+    """
+    Calculate the area of a polygon in square meters using UTM projection with corrected accuracy.
+
+    Args:
+        polygon_coords (list): List of coordinates of the polygon in (longitude, latitude).
+        utm_zone (int): UTM zone number (default is 36 for UTM 36N).
+
+    Returns:
+        float: Area of the polygon in square meters.
+    """
+    # Convert the coordinates to (longitude, latitude) for Shapely
+    coordinates = [(coord[0], coord[1]) for coord in polygon_coords]
+
+    # Define UTM CRS for the specified zone (36 for UTM 36N)
+    utm_crs = f"epsg:326{utm_zone}"
+
+    # Create a Shapely polygon
+    polygon = Polygon(coordinates)
+
+    # Use pyproj to transform the coordinates for accurate area calculation
+    transformer = Transformer.from_crs("epsg:4326", utm_crs, always_xy=True)
+    projected_coords = [transformer.transform(lon, lat) for lon, lat in coordinates]
+
+    # Create a Shapely polygon with projected coordinates
+    projected_polygon = Polygon(projected_coords)
+
+    # Calculate area in square meters
+    area_m2 = projected_polygon.area
+    return area_m2

@@ -54,7 +54,7 @@
     <!-- Pagination -->
     <div class="flex justify-center mt-8">
         {% if forests.has_prev %}
-            <a href="{{ url_for('forest.list_forests', page=forests.prev_num) }}" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 mx-1">&laquo; Prev</a>
+            <a href="{{ url_for('forest.index', page=forests.prev_num) }}" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 mx-1">&laquo; Prev</a>
         {% else %}
             <span class="px-4 py-2 bg-gray-300 text-gray-700 rounded mx-1 cursor-not-allowed">&laquo; Prev</span>
         {% endif %}
@@ -64,7 +64,7 @@
                 {% if page_num == forests.page %}
                     <span class="px-4 py-2 bg-blue-500 text-white rounded mx-1">{{ page_num }}</span>
                 {% else %}
-                    <a href="{{ url_for('forest.list_forests', page=page_num) }}" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 mx-1">{{ page_num }}</a>
+                    <a href="{{ url_for('forest.index', page=page_num) }}" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 mx-1">{{ page_num }}</a>
                 {% endif %}
             {% else %}
                 <span class="px-4 py-2 mx-1">...</span>
@@ -72,7 +72,7 @@
         {% endfor %}
 
         {% if forests.has_next %}
-            <a href="{{ url_for('forest.list_forests', page=forests.next_num) }}" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 mx-1">Next &raquo;</a>
+            <a href="{{ url_for('forest.index', page=forests.next_num) }}" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 mx-1">Next &raquo;</a>
         {% else %}
             <span class="px-4 py-2 bg-gray-300 text-gray-700 rounded mx-1 cursor-not-allowed">Next &raquo;</span>
         {% endif %}
