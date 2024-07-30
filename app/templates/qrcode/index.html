@@ -26,10 +26,9 @@
             <div class="bg-white p-6 rounded-lg shadow-lg">
                 <h2 class="text-xl font-bold mb-2">Digital Export Stamps</h2>
                 <p class="mb-4">Generate a custom Digital codes for a specified farm. Upload a zip file containing the Digital codes images.</p>
-                <form action="{{ url_for('qr.generate_qr') }}" method="post" class="flex flex-col">
-                    <input type="text" name="farm_id" placeholder="Enter Farm ID" class="border p-2 mb-4 rounded">
-                    <button type="submit" class="bg-green-500 text-white px-4 py-2 rounded">Generate Digital codes</button>
-                </form>
+                
+                <a href="{{ url_for('qr.generate_qr') }}" class="bg-green-500 text-white px-4 py-2 rounded">Generate Tree Cutting Digital codes</a>
+
             </div>
         </div>
     </main>
