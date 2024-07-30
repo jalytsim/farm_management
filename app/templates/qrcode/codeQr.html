@@ -1,4 +1,3 @@
-
 {% extends 'layout.html' %}
 
 {% block title %}
@@ -9,30 +8,151 @@
 <div class="bg-gray-100">
     <div class="container mx-auto py-8">
         <div class="flex justify-between items-center mb-4">
-            <h1 class="text-2xl font-bold">Agriyields Digital codes Generator</h1>
+            <h1 class="text-2xl font-bold">Agriyields Digital Codes Generator</h1>
             <div class="space-x-4">
                 <button
                     class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg focus:outline-none focus:shadow-outline"
-                    onclick="window.location.href='/home'">home</button>
+                    onclick="window.location.href='/home'">Home</button>
             </div>
         </div>
         <h1 class="text-3xl font-bold mb-4 text-center">Digital Export Stamps</h1>
-        <form action="{{ url_for('qr.generate_qr') }}" method="post" class="max-w-sm mx-auto">
-            <div class="mb-4">
-                <label for="farm_id" class="block text-sm font-medium text-gray-700">Enter Digital ID:</label>
-                <input type="text" id="farm_id" name="farm_id"
-                    class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                    required>
-            </div>
-            <div class="text-center">
-                <button type="submit"
-                    class="inline-block px-4 py-2 leading-none border rounded text-white bg-indigo-500 hover:bg-indigo-600 mt-2">
-                    Generate Digital codes</button>
-            </div>
-        </form>
+        <div id="form-container" class="max-w-4xl mx-auto">
+            <form action="{{ url_for('qr.generate_qr_static') }}" method="post">
+                <!-- Form Fields -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div class="field mb-4">
+                        <label for="country" class="block text-sm font-medium text-gray-700">Country:</label>
+                        <input type="text" id="country" name="country" value="Uganda"
+                            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            required>
+                    </div>
+                    <div class="field mb-4">
+                        <label for="farm_id" class="block text-sm font-medium text-gray-700">Farm ID:</label>
+                        <input type="text" id="farm_id" name="farm_id" value="Lwetutte Brian"
+                            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            required>
+                    </div>
+                    <div class="field mb-4">
+                        <label for="group_id" class="block text-sm font-medium text-gray-700">Group ID:</label>
+                        <input type="text" id="group_id" name="group_id" value="HFZ Kabumba"
+                            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            required>
+                    </div>
+                    <div class="field mb-4">
+                        <label for="geolocation" class="block text-sm font-medium text-gray-700">Geolocation:</label>
+                        <input type="text" id="geolocation" name="geolocation" value="0.545614,32.579339"
+                            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            required>
+                    </div>
+                    <div class="field mb-4">
+                        <label for="land_boundaries" class="block text-sm font-medium text-gray-700">Land Boundaries:</label>
+                        <input type="text" id="land_boundaries" name="land_boundaries" value="http://164.92.211.54:5000/boundaries/Wakiso/WAK0002"
+                            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            required>
+                    </div>
+                    <div class="field mb-4">
+                        <label for="district" class="block text-sm font-medium text-gray-700">District:</label>
+                        <input type="text" id="district" name="district" value="Wakiso"
+                            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            required>
+                    </div>
+                    <div class="field mb-4">
+                        <label for="crop" class="block text-sm font-medium text-gray-700">Crop:</label>
+                        <input type="text" id="crop" name="crop" value="Hass Avocado"
+                            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            required>
+                    </div>
+                    <div class="field mb-4">
+                        <label for="grade" class="block text-sm font-medium text-gray-700">Grade:</label>
+                        <input type="text" id="grade" name="grade" value="4"
+                            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            required>
+                    </div>
+                    <div class="field mb-4">
+                        <label for="tilled_land_size" class="block text-sm font-medium text-gray-700">Tilled Land Size:</label>
+                        <input type="text" id="tilled_land_size" name="tilled_land_size" value="2.0 ACRES"
+                            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            required>
+                    </div>
+                    <div class="field mb-4">
+                        <label for="season" class="block text-sm font-medium text-gray-700">Season:</label>
+                        <input type="text" id="season" name="season" value="2"
+                            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            required>
+                    </div>
+                    <div class="field mb-4">
+                        <label for="quality" class="block text-sm font-medium text-gray-700">Quality:</label>
+                        <input type="text" id="quality" name="quality" value="1"
+                            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            required>
+                    </div>
+                    <div class="field mb-4">
+                        <label for="produce_weight" class="block text-sm font-medium text-gray-700">Produce Weight:</label>
+                        <input type="text" id="produce_weight" name="produce_weight" value="2 KG"
+                            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            required>
+                    </div>
+                    <div class="field mb-4">
+                        <label for="harvest_date" class="block text-sm font-medium text-gray-700">Harvest Date:</label>
+                        <input type="date" id="harvest_date" name="harvest_date" value="2024-08-29"
+                            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            required>
+                    </div>
+                    <div class="field mb-4">
+                        <label for="timestamp" class="block text-sm font-medium text-gray-700">Timestamp:</label>
+                        <input type="datetime-local" id="timestamp" name="timestamp" value="2024-08-30T20:03:00"
+                            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            required>
+                    </div>
+                    <div class="field mb-4">
+                        <label for="district_region" class="block text-sm font-medium text-gray-700">District Region:</label>
+                        <input type="text" id="district_region" name="district_region" value="Central"
+                            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            required>
+                    </div>
+                    <div class="field mb-4">
+                        <label for="batch_number" class="block text-sm font-medium text-gray-700">Batch Number:</label>
+                        <input type="text" id="batch_number" name="batch_number" value="1"
+                            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            required>
+                    </div>
+                    <div class="field mb-4">
+                        <label for="channel_partner" class="block text-sm font-medium text-gray-700">Channel Partner:</label>
+                        <input type="text" id="channel_partner" name="channel_partner" value="Sasakawa"
+                            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            required>
+                    </div>
+                    <div class="field mb-4">
+                        <label for="destination_country" class="block text-sm font-medium text-gray-700">Destination Country:</label>
+                        <input type="text" id="destination_country" name="destination_country" value="Italy"
+                            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            required>
+                    </div>
+                    <div class="field mb-4">
+                        <label for="customer_name" class="block text-sm font-medium text-gray-700">Customer Name:</label>
+                        <input type="text" id="customer_name" name="customer_name" value="AgroPlus"
+                            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            required>
+                    </div>
+                    <div class="field mb-4">
+                        <label for="serial_number" class="block text-sm font-medium text-gray-700">Serial Number:</label>
+                        <input type="text" id="serial_number" name="serial_number" value="33ce46a983069a23a5df2ba578c5b379"
+                            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            required>
+                    </div>
+                </div>
+
+                <div class="text-center mt-4">
+                    <button type="submit" class="inline-block px-4 py-2 leading-none border rounded text-white bg-indigo-500 hover:bg-indigo-600">
+                        Submit
+                    </button>
+                </div>
+            </form>
+        </div>
+
         {% if qr_image %}
         <div class="mt-8 text-center">
-            <P class="text-sm font-medium text-green-700">{{ qr_image }}</P>
+            <p class="text-sm font-medium text-green-700">{{ qr_image }}</p>
             <img src="{{ qr_image }}" alt="QR Code" class="mx-auto">
             <a href="{{ url_for('qr.generate_qr', farm_id=farm_id) }}" download="QR_code"></a>
         </div>

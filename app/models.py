@@ -14,6 +14,7 @@ class User(UserMixin, db.Model):
     is_admin = db.Column(db.Boolean, default=False)
     date_created = db.Column(db.DateTime, default=datetime.utcnow)
     date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    id_start = db.Column(db.String(10), nullable=True)
 
     def __repr__(self):
         return f'<User {self.username}>'

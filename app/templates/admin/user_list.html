@@ -2,9 +2,9 @@
 <div class="bg-white p-6 rounded-lg shadow-md mt-6">
     <h1 class="text-xl font-bold mb-4">List of Users</h1>
     <ul class="space-y-3">
-        {% for user in users %}
+        {% for user in users.items %}
             <li class="flex justify-between items-center">
-                <span>{{ user.username }} - {{ user.email }}</span>
+                <span>{{ user.username }} - {{ user.email }} - {{ user.phonenumber }} - {{ user.user_type }} - {{ user.id_start }}</span>
                 <div>
                     <button onclick="showUpdateForm({{ user.id }})" class="text-blue-600 hover:underline mr-2">Update</button>
                     <button onclick="deleteUser({{ user.id }})" class="text-red-600 hover:underline">Delete</button>
@@ -12,11 +12,26 @@
             </li>
         {% endfor %}
     </ul>
+    <!-- Pagination Controls -->
+    <div class="mt-4">
+        <nav class="flex justify-between">
+            {% if users.has_prev %}
+                <a href="{{ url_for('admin.admin_dashboard', page=users.prev_num) }}" class="px-3 py-1 bg-blue-500 text-white rounded">Previous</a>
+            {% else %}
+                <span class="px-3 py-1 bg-gray-300 text-gray-700 rounded">Previous</span>
+            {% endif %}
+            {% if users.has_next %}
+                <a href="{{ url_for('admin.admin_dashboard', page=users.next_num) }}" class="px-3 py-1 bg-blue-500 text-white rounded">Next</a>
+            {% else %}
+                <span class="px-3 py-1 bg-gray-300 text-gray-700 rounded">Next</span>
+            {% endif %}
+        </nav>
+    </div>
 </div>
 
 <!-- Update User Form Modal (hidden by default) -->
 <div id="updateFormModal" class="fixed inset-0 flex items-center justify-center bg-gray-900 bg-opacity-50 hidden">
-    <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+    <div class="bg-white p-4 rounded-lg shadow-lg w-full max-w-sm">
         <h1 class="text-xl font-bold mb-4">Update User</h1>
         <form id="updateUserForm" method="POST" action="{{ url_for('admin.update_user') }}">
             <input type="hidden" name="user_id" id="user_id_u">
@@ -36,6 +51,10 @@
                 <label for="user_type" class="block text-sm font-medium text-gray-700">User Type:</label>
                 <input type="text" id="user_type_u" name="user_type" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
             </div>
+            <div class="mb-4">
+                <label for="id_start" class="block text-sm font-medium text-gray-700">ID Start:</label>
+                <input type="text" id="id_start_u" name="id_start" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+            </div>
             <div class="mb-4 flex items-center">
                 <input type="checkbox" id="is_admin_u" name="is_admin" class="mr-2">
                 <label for="is_admin" class="text-sm font-medium text-gray-700">Is Admin</label>
@@ -54,12 +73,12 @@
         fetch(`/admin/user/${userId}`)
             .then(response => response.json())
             .then(data => {
-                console.log(data);
                 document.getElementById('user_id_u').value = data.id;
                 document.getElementById('username_u').value = data.username;
                 document.getElementById('email_u').value = data.email;
                 document.getElementById('phone_u').value = data.phonenumber;
                 document.getElementById('user_type_u').value = data.user_type;
+                document.getElementById('id_start_u').value = data.id_start;
                 document.getElementById('is_admin_u').checked = data.is_admin;
                 document.getElementById('updateFormModal').classList.remove('hidden');
             });

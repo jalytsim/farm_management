@@ -19,7 +19,8 @@ def admin_required(f):
 @admin_bp.route('/admin')
 @admin_required
 def admin_dashboard():
-    users = User.query.all()
+    page = request.args.get('page', 1, type=int)
+    users = User.query.paginate(page=page, per_page=6)
     return render_template('admin/dashboard.html', users=users)
 
 
@@ -33,6 +34,7 @@ def create_user():
         phonenumber = request.form.get('phonenumber')
         user_type = request.form.get('user_type')
         is_admin = 'is_admin' in request.form
+        id_start = request.form.get('id_start')
 
         user = User.query.filter_by(email=email).first()
         if user:
@@ -45,7 +47,8 @@ def create_user():
             password=generate_password_hash(password, method='pbkdf2:sha256'),
             phonenumber=phonenumber,
             user_type=user_type,
-            is_admin=is_admin
+            is_admin=is_admin,
+            id_start=id_start
         )
         db.session.add(new_user)
         db.session.commit()
@@ -57,7 +60,7 @@ def create_user():
 @admin_required
 def get_user(user_id):
     user = User.query.get_or_404(user_id)
-    return jsonify(id=user.id, username=user.username, email=user.email, phonenumber=user.phonenumber, user_type=user.user_type, is_admin=user.is_admin)
+    return jsonify(id=user.id, username=user.username, email=user.email, phonenumber=user.phonenumber, user_type=user.user_type, is_admin=user.is_admin, id_start=user.id_start)
 
 @admin_bp.route('/admin/user', methods=['POST'])
 @admin_required
@@ -70,6 +73,7 @@ def update_user():
     user.phonenumber = data.get('phone')
     user.user_type = data.get('user_type')
     user.is_admin = data.get('is_admin') == 'on'
+    user.id_start = data.get('id_start')
     db.session.commit()
     return redirect(url_for('admin.admin_dashboard'))
 

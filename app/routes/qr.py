@@ -13,6 +13,11 @@ bp = Blueprint('qr', __name__)
 def qrcode():
     return render_template('qrcode/index.html')
 
+@bp.route('/test')
+@login_required
+def test():
+    pass
+
 @bp.route('/generate_qr', methods=['POST', 'GET'])
 @login_required
 def generate_qr():
@@ -77,3 +82,61 @@ def generate_farmer_qr():
         return send_file(zip_file_path, as_attachment=True, download_name=f"Farmer_{farm_id}.pdf")
 
     return render_template('qrcode/generate_farmer_qr.html')
+
+@bp.route('/generate_qr_static', methods=['POST', 'GET'])
+@login_required
+def generate_qr_static():
+    if request.method == 'POST':
+        # Extract form data
+        country = request.form['country']
+        farm_id = request.form['farm_id']
+        group_id = request.form['group_id']
+        geolocation = request.form['geolocation']
+        land_boundaries = request.form['land_boundaries']
+        district = request.form['district']
+        crop = request.form['crop']
+        grade = request.form['grade']
+        tilled_land_size = request.form['tilled_land_size']
+        season = request.form['season']
+        quality = request.form['quality']
+        produce_weight = request.form['produce_weight']
+        harvest_date = request.form['harvest_date']
+        timestamp = request.form['timestamp']
+        district_region = request.form['district_region']
+        batch_number = request.form['batch_number']
+        channel_partner = request.form['channel_partner']
+        destination_country = request.form['destination_country']
+        customer_name = request.form['customer_name']
+        serial_number = request.form['serial_number']
+
+        # Prepare data for QR code generation
+        data = (
+            f"Country: {country}\n"
+            f"Farm ID: {farm_id}\n"
+            f"Group ID: {group_id}\n"
+            f"Geolocation: {geolocation}\n"
+            f"Land Boundaries: {land_boundaries}\n"
+            f"District: {district}\n"
+            f"Crop: {crop}\n"
+            f"Grade: {grade}\n"
+            f"Tilled Land Size: {tilled_land_size}\n"
+            f"Season: {season}\n"
+            f"Quality: {quality}\n"
+            f"Produce Weight: {produce_weight}\n"
+            f"Harvest Date: {harvest_date}\n"
+            f"Timestamp: {timestamp}\n"
+            f"District Region: {district_region}\n"
+            f"Batch Number: {batch_number}\n"
+            f"Channel Partner: {channel_partner}\n"
+            f"Destination Country: {destination_country}\n"
+            f"Customer Name: {customer_name}\n"
+            f"Serial Number: {serial_number}\n"
+        )
+
+        # Generate QR codes and save to PDF
+        zip_file_path = generate_qr_codes_dynamic(data, f"Farmer_{farm_id}.pdf")
+
+        # Send the file to the client
+        return send_file(zip_file_path, as_attachment=True, download_name=f"Farmer_{farm_id}.pdf")
+
+    return render_template('qrcode/codeQr.html')
