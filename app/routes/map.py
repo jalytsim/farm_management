@@ -303,6 +303,8 @@ def gfw(owner_type, owner_id):
         })
     return {"dataset_results": dataset_results}, 200
 
+
+
 @bp.route('/forest/<int:forest_id>/report/download', methods=['GET'])
 @login_required
 def download_forest_report(forest_id):
@@ -310,9 +312,10 @@ def download_forest_report(forest_id):
     forest = Forest.query.filter_by(id=forest_id).first()
     if forest is None:
         abort(404, description="Forest not found")
+    
     # Fetch related data for the forest
     forest_data = Point.query.filter_by(owner_type='forest', forest_id=forest_id).all()
-    print(forest_data)
+    
     # Extract forest info
     forest_info = {
         'forest_id': forest.id,
@@ -325,35 +328,44 @@ def download_forest_report(forest_id):
         ],
         'additional_info': 'Additional information if needed'
     }
-    print(forest_info)
+    
     # Fetch GFW data for the forest
     data, status_code = gfw(owner_type='forest', owner_id=str(forest_id))
     if status_code != 200:
         return jsonify(data), status_code
-    # Create a temporary file for the report
-    with NamedTemporaryFile(delete=False, suffix='.csv', mode='w', newline='', encoding='utf-8') as temp_file:
-        fieldnames = ['Field', 'Value']
-        writer = csv.DictWriter(temp_file, fieldnames=fieldnames)
-        writer.writeheader()
-        # Write forest information
-        for key, value in forest_info.items():
-            if isinstance(value, list):
-                for item in value:
-                    writer.writerow({'Field': key, 'Value': json.dumps(item)})
-            else:
-                writer.writerow({'Field': key, 'Value': value})
-        writer.writerow({})  # Blank line to separate sections
-        # Write GFW data
-        gfw_fieldnames = ['dataset', 'area_ha']
-        writer = csv.DictWriter(temp_file, fieldnames=gfw_fieldnames)
-        writer.writeheader()
-        for result in data['dataset_results']:
-            writer.writerow({
-                'dataset': result['dataset'],
-                'area_ha': result['data_fields'].get('area__ha', 'N/A'),
-            })
-        temp_file_path = temp_file.name
-    return send_file(temp_file_path, as_attachment=True, download_name=f'forest_{forest_id}_gfw_report.csv')
+    
+    # Create PDF
+    response = make_response()
+    response.headers['Content-Type'] = 'application/pdf'
+    response.headers['Content-Disposition'] = f'attachment; filename=forest_{forest_id}_report.pdf'
+    
+    c = canvas.Canvas(response.stream, pagesize=letter)
+    width, height = letter
+    
+    c.drawString(100, height - 100, f"Forest Report: {forest.name}")
+    
+    c.drawString(100, height - 120, f"Forest ID: {forest_info['forest_id']}")
+    c.drawString(100, height - 140, f"Name: {forest_info['name']}")
+    c.drawString(100, height - 160, "Geolocation:")
+    y = height - 180
+    for geo in forest_info['geolocation']:
+        c.drawString(120, y, f"Longitude: {geo['longitude']}, Latitude: {geo['latitude']}")
+        y -= 20
+    
+    c.drawString(100, y, f"Additional Info: {forest_info['additional_info']}")
+    
+    y -= 40
+    c.drawString(100, y, "GFW Data:")
+    y -= 20
+    for result in data['dataset_results']:
+        c.drawString(120, y, f"Dataset: {result['dataset']}")
+        y -= 20
+        c.drawString(140, y, f"Area (ha): {result['data_fields'].get('area__ha', 'N/A')}")
+        y -= 20
+    
+    c.save()
+    
+    return response
 
 @bp.route('/farm/<string:farm_id>/report/download', methods=['GET'])
 @login_required
