@@ -1,5 +1,5 @@
 import csv
-from flask import Blueprint, abort, flash, json, jsonify, redirect, render_template, request, send_file, url_for
+from flask import Blueprint, abort, flash, json, jsonify, make_response, redirect, render_template, request, send_file, url_for
 from flask_login import current_user, login_required
 from app.models import Crop, Farm, FarmData, Forest, Point
 from app.routes.farm import farmer_or_admin_required
@@ -17,6 +17,8 @@ import plotly.graph_objects as go
 import plotly.graph_objects as go
 from shapely.geometry import Polygon
 from pyproj import Transformer
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
 
 bp = Blueprint('map', __name__)
 
@@ -362,7 +364,7 @@ def download_farm_report(farm_id):
         abort(404, description="Farm not found")
     # Fetch related data for the farm
     farm_data = FarmData.query.filter_by(farm_id=farm_id).all()
-    print(farm_data)
+    
     # Extract farm info
     farm_info = {
         'farm_id': farm.farm_id,
@@ -394,36 +396,80 @@ def download_farm_report(farm_id):
             } for data in farm_data
         ]
     }
-    print(farm_info)
+    
     # Fetch GFW data for the farm
     data, status_code = gfw(owner_type='farmer', owner_id=farm_id)
     if status_code != 200:
         return jsonify(data), status_code
-    # Create a temporary file for the report
-    with NamedTemporaryFile(delete=False, suffix='.csv', mode='w', newline='', encoding='utf-8') as temp_file:
-        fieldnames = ['Field', 'Value']
-        writer = csv.DictWriter(temp_file, fieldnames=fieldnames)
-        writer.writeheader()
-        # Write farm information
-        for key, value in farm_info.items():
-            if isinstance(value, list):
-                for item in value:
-                    writer.writerow({'Field': key, 'Value': json.dumps(item)})
-            else:
-                writer.writerow({'Field': key, 'Value': value})
-        writer.writerow({})  # Blank line to separate sections
-        # Write GFW data
-        gfw_fieldnames = ['dataset', 'area_ha']
-        writer = csv.DictWriter(temp_file, fieldnames=gfw_fieldnames)
-        writer.writeheader()
-        for result in data['dataset_results']:
-            writer.writerow({
-                'dataset': result['dataset'],
-                'area_ha': result['data_fields'].get('area__ha', 'N/A'),
-                            })
-        temp_file_path = temp_file.name
-    return send_file(temp_file_path, as_attachment=True, download_name=f'farm_{farm_id}_gfw_report.csv')
-
+    
+    # Create PDF
+    response = make_response()
+    response.headers['Content-Type'] = 'application/pdf'
+    response.headers['Content-Disposition'] = f'attachment; filename=farm_{farm_id}_report.pdf'
+    
+    c = canvas.Canvas(response.stream, pagesize=letter)
+    width, height = letter
+    
+    c.drawString(100, height - 100, f"Farm Report: {farm.name}")
+    
+    c.drawString(100, height - 120, f"Farm ID: {farm_info['farm_id']}")
+    c.drawString(100, height - 140, f"Name: {farm_info['name']}")
+    c.drawString(100, height - 160, f"Subcounty: {farm_info['subcounty']}")
+    c.drawString(100, height - 180, f"District Name: {farm_info['district_name']}")
+    c.drawString(100, height - 200, f"District Region: {farm_info['district_region']}")
+    c.drawString(100, height - 220, f"Geolocation: {farm_info['geolocation']}")
+    c.drawString(100, height - 240, f"Phone Number: {farm_info['phonenumber']}")
+    c.drawString(100, height - 260, f"Phone Number 2: {farm_info['phonenumber2']}")
+    c.drawString(100, height - 280, f"Date Created: {farm_info['date_created']}")
+    c.drawString(100, height - 300, f"Date Updated: {farm_info['date_updated']}")
+    
+    y = height - 320
+    c.drawString(100, y, "Crops:")
+    for crop in farm_info['crops']:
+        y -= 20
+        c.drawString(120, y, f"Crop: {crop['crop']}")
+        y -= 20
+        c.drawString(140, y, f"Land Type: {crop['land_type']}")
+        y -= 20
+        c.drawString(140, y, f"Tilled Land Size: {crop['tilled_land_size']}")
+        y -= 20
+        c.drawString(140, y, f"Planting Date: {crop['planting_date']}")
+        y -= 20
+        c.drawString(140, y, f"Season: {crop['season']}")
+        y -= 20
+        c.drawString(140, y, f"Quality: {crop['quality']}")
+        y -= 20
+        c.drawString(140, y, f"Quantity: {crop['quantity']}")
+        y -= 20
+        c.drawString(140, y, f"Harvest Date: {crop['harvest_date']}")
+        y -= 20
+        c.drawString(140, y, f"Expected Yield: {crop['expected_yield']}")
+        y -= 20
+        c.drawString(140, y, f"Actual Yield: {crop['actual_yield']}")
+        y -= 20
+        c.drawString(140, y, f"Timestamp: {crop['timestamp']}")
+        y -= 20
+        c.drawString(140, y, f"Channel Partner: {crop['channel_partner']}")
+        y -= 20
+        c.drawString(140, y, f"Destination Country: {crop['destination_country']}")
+        y -= 20
+        c.drawString(140, y, f"Customer Name: {crop['customer_name']}")
+        y -= 20
+    
+    c.showPage()
+    
+    c.drawString(100, height - 100, "GFW Data:")
+    y = height - 120
+    for result in data['dataset_results']:
+        y -= 20
+        c.drawString(100, y, f"Dataset: {result['dataset']}")
+        y -= 20
+        c.drawString(120, y, f"Area (ha): {result['data_fields'].get('area__ha', 'N/A')}")
+        y -= 20
+    
+    c.save()
+    
+    return response
 def calculate_area(polygon_coords):
     # Convert the coordinates to (longitude, latitude) for Shapely
     coordinates = [(coord[0], coord[1]) for coord in polygon_coords]
