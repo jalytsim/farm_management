@@ -1,20 +1,17 @@
 import csv
-from flask import Blueprint, abort, flash, json, jsonify, redirect, render_template, render_template_string, request, send_file, url_for
+from flask import Blueprint, abort, flash, json, jsonify, redirect, render_template, request, send_file, url_for
 from flask_login import current_user, login_required
 from app.models import Crop, Farm, FarmData, Forest, Point
 from app.routes.farm import farmer_or_admin_required
 from app.routes.forest import forest_or_admin_required
-from app.utils.farm_utils import get_farm_id, get_farm_properties
 from app.utils.forest_watch_utils import query_forest_watch
-from app.utils.map_utils import calculate_area, convert_to_cartesian, create_mapbox_html, create_polygon_from_db, createGeoJSONFeature, createGeojsonFeatureCollection, generate_choropleth_map, generate_choropleth_map_combined, generate_choropleth_map_soil, save_polygon_to_geojson
+from app.utils.map_utils import calculate_area, create_mapbox_html,generate_choropleth_map, generate_choropleth_map_combined, generate_choropleth_map_soil
 from flask import Blueprint, render_template
 from app import db
 from app.utils.point_utils import get_all_points
 import json
-import datetime
 from shapely.geometry import mapping, Polygon as ShapelyPolygon
-from geojson import Polygon, MultiPolygon, Feature, FeatureCollection
-from sqlalchemy.orm import load_only
+from geojson import Polygon, Feature, FeatureCollection
 from tempfile import NamedTemporaryFile
 import plotly.graph_objects as go
 import plotly.graph_objects as go
@@ -39,11 +36,9 @@ def index_dynamics():
     end_date = request.args.get('end_date')
     # Get the selected crop ID from the request
     crop = request.args.get('crop', None)
-
     # Generate the choropleth map HTML code
     choropleth_map = generate_choropleth_map(
         data_variable=data_variable, start_date=start_date, end_date=end_date, crop=crop)
-
     # Render the template with the choropleth map
     return render_template('dynamic.html', choropleth_map=choropleth_map)
 
@@ -52,7 +47,6 @@ def index_dynamics():
 def index_combined():
     # Generate the choropleth map HTML code
     choropleth_map = generate_choropleth_map_combined()
-
     # Render the template with the choropleth map
     return render_template('index.html', choropleth_map=choropleth_map)
 
@@ -61,7 +55,6 @@ def index_combined():
 def index_soil():
     # Generate the choropleth map HTML code
     choropleth_map = generate_choropleth_map_soil()
-
     # Render the template with the choropleth map
     return render_template('index.html', choropleth_map=choropleth_map)
 
@@ -70,11 +63,8 @@ def index_soil():
 def display_all_points():
     geojson_file = 'multipolygon.json'
     points = get_all_points()
-
     choropleth_map = create_mapbox_html(geojson_file, points)
-
     return render_template('index.html', choropleth_map=choropleth_map)
-
 
 @bp.route('/forests/<int:forest_id>/geojson', methods=['GET'])
 @forest_or_admin_required 
@@ -87,10 +77,8 @@ def get_forest_geojson(forest_id):
         return redirect(url_for('forest.index'))
     # Create GeoJSON data from points
     geojson_data = create_geojson(points, forest)
-    
     # Create the Mapbox HTML using the GeoJSON data
     mapbox_html = create_mapbox_html_static(geojson_data)
-    
     # Render the HTML directly in the response
     return render_template('index.html', choropleth_map=mapbox_html)
 
@@ -100,15 +88,12 @@ def get_forest_geojson(forest_id):
 def farmerReport(farm_id):
     # Fetch the farm details
     farm = Farm.query.filter_by(farm_id=farm_id).first()
-
     if farm is None:
         abort(404, description="Farm not found")
-
     # Fetch related data for the farm
     farmer_group = farm.farmer_group
     district = farm.district
     farm_data = FarmData.query.filter_by(farm_id=farm_id).all()
-
     # Extract farm info
     farm_info = {
         'farm_id': farm.farm_id,
@@ -140,14 +125,11 @@ def farmerReport(farm_id):
             } for data in farm_data
         ]
     }
-
     # Fetch GFW data for the farm
     data, status_code = gfw(owner_type='farmer', owner_id=farm_id)
     if status_code != 200:
         return jsonify(data), status_code
-
     object_type = 'farm'
-
     return render_template('gfw/view.html', dataset_results=data['dataset_results'], farm=farm_info, object_type=object_type)
 
 
@@ -157,12 +139,9 @@ def forestReport(forest_id):
     data, status_code = gfw(owner_type='forest', owner_id=str(forest_id))
     if status_code != 200:
         return jsonify(data), status_code
-    
-    
     forest = Forest.query.filter_by(id=forest_id).first()
     print(forest.name)
     object_type = 'forest'
-    
     return render_template('gfw/view.html', dataset_results=data['dataset_results'], forest=forest,  object_type = object_type)
 
 
@@ -171,19 +150,14 @@ def forestReport(forest_id):
 def get_farm_geojson(farmer_id):
     farm = Farm.query.filter_by(id=farmer_id).first()
     print(farm.farm_id)
-    
     points = Point.query.filter_by(owner_type='farmer', farmer_id=farm.farm_id).options(db.load_only(Point.longitude, Point.latitude)).all()
-    
     if not points:
         flash("error: No points found for the specified farm_id"  ), 404
         return redirect(url_for('farm.index'))
-    
     # Create GeoJSON data from points
     geojson_data = create_geojson(points, farm)
-    
     # Create the Mapbox HTML using the GeoJSON data
     mapbox_html = create_mapbox_html_static(geojson_data)
-    
     # Render the HTML directly in the response
     return render_template('index.html', choropleth_map=mapbox_html)
 
@@ -205,20 +179,16 @@ def get_all_forests_geojson():
     else:
         forests = Forest.query.filter_by(created_by=current_user.id)
     features = []
-
     for forest in forests:
         points = Point.query.filter_by(owner_type='forest', forest_id=forest.id).options(db.load_only(Point.longitude, Point.latitude)).all()
         if points:
             geojson_data = create_geojson(points, forest)
             features.extend(geojson_data['features'])
-
     if not features:
         flash("error: No points found for any forest"), 404
         return redirect(url_for('forest.index'))
-
     feature_collection = FeatureCollection(features)
     mapbox_html = create_mapbox_html_static(feature_collection)
-
     return render_template('index.html', choropleth_map=mapbox_html)
 
 @bp.route('/farm/all/geojson', methods=['GET'])
@@ -229,46 +199,35 @@ def get_all_farm_geojson():
     else:
         farms = Farm.query.filter_by(created_by=current_user.id)
     features = []
-
     for farmer in farms:
-        
         points = Point.query.filter_by(owner_type='farmer', farmer_id=farmer.farm_id).options(db.load_only(Point.longitude, Point.latitude)).all()
         if points:
             geojson_data = create_geojson(points, farmer)
             features.extend(geojson_data['features'])
-
     if not features:
         flash("error: No points found for any farm"), 404
         return redirect(url_for('farm.index'))
-
     feature_collection = FeatureCollection(features)
     mapbox_html = create_mapbox_html_static(feature_collection)
-
     return render_template('index.html', choropleth_map=mapbox_html)
-
 
 def create_mapbox_html_static(geojson_data):
     """Generate a Mapbox plotly figure with static GeoJSON data and display area in hovertext."""
     fig = go.Figure()
-    
     for feature in geojson_data['features']:
-        properties = feature.get('properties', {})
-        
+        properties = feature.get('properties', {})        
         # Extracting coordinates
         if feature['geometry']['type'] == 'Polygon':
             polygons = [feature['geometry']['coordinates']]
         else:
-            polygons = feature['geometry']['coordinates']
-        
+            polygons = feature['geometry']['coordinates']        
         for polygon in polygons:
             for ring in polygon:
                 # Calculate the area of the polygon
                 area_km2 = calculate_area(ring)
                 properties['Area (sq km)'] = f"{area_km2:.4f} km²"
-                
                 # Create hover text
                 hover_text = '<br>'.join(f"{key}: {value}" for key, value in properties.items())
-                
                 fig.add_trace(go.Scattermapbox(
                     fill="toself",
                     lon=[coord[0] for coord in ring],
@@ -278,7 +237,6 @@ def create_mapbox_html_static(geojson_data):
                     line=dict(width=2),
                     hoverinfo='text'
                 ))
-    
     center_coords = {"lat": 1.27, "lon": 32.29}
     fig.update_layout(
         mapbox=dict(
@@ -290,7 +248,6 @@ def create_mapbox_html_static(geojson_data):
     )
     return fig.to_html(full_html=False)
 
-
 def get_coordinates(owner_type, owner_id):
     if owner_type == 'forest':
         points = Point.query.filter_by(owner_type=owner_type, forest_id=owner_id).options(db.load_only(Point.longitude, Point.latitude)).all()
@@ -298,7 +255,6 @@ def get_coordinates(owner_type, owner_id):
         points = Point.query.filter_by(owner_type=owner_type, farmer_id=owner_id).options(db.load_only(Point.longitude, Point.latitude)).all()
     else:
         return []
-
     coordinates = [(point.longitude, point.latitude) for point in points]
     return coordinates
 
@@ -321,51 +277,40 @@ def gfw(owner_type, owner_id):
         'gfw_forest_flux_belowground_carbon_stock_in_emissions_year',
         'gfw_forest_flux_deadwood_carbon_stock_in_emissions_year',
     ]
-
     dataset_results = []
     for dataset in datasets:
         # Get the dataset from the URL parameters or use a default value
         datasetss = request.args.get('dataset', dataset)
-
         # Get coordinates from the database
         coordinates = get_coordinates(owner_type, owner_id)
         if not coordinates:
             return {"error": "No points found for the specified owner"}, 404
-
         geometry = {
             "type": "Polygon",
             "coordinates": [coordinates]
         }
-
         # Query data from the dataset
         sql_query = "SELECT SUM(area__ha) FROM results"
         dataset_data = query_forest_watch(datasetss, geometry, sql_query)
-
         # Extract fields dynamically, ensuring to handle cases where 'data' key might be missing
         data_fields = dataset_data.get("data", [{}])[0] if dataset_data else {}
-
         dataset_results.append({
             'dataset': datasetss,
             'data_fields': data_fields,
             'coordinates': geometry["coordinates"]
         })
-
     return {"dataset_results": dataset_results}, 200
-
 
 @bp.route('/forest/<int:forest_id>/report/download', methods=['GET'])
 @login_required
 def download_forest_report(forest_id):
     # Fetch the forest details
     forest = Forest.query.filter_by(id=forest_id).first()
-
     if forest is None:
         abort(404, description="Forest not found")
-
     # Fetch related data for the forest
     forest_data = Point.query.filter_by(owner_type='forest', forest_id=forest_id).all()
     print(forest_data)
-
     # Extract forest info
     forest_info = {
         'forest_id': forest.id,
@@ -379,18 +324,15 @@ def download_forest_report(forest_id):
         'additional_info': 'Additional information if needed'
     }
     print(forest_info)
-
     # Fetch GFW data for the forest
     data, status_code = gfw(owner_type='forest', owner_id=str(forest_id))
     if status_code != 200:
         return jsonify(data), status_code
-
     # Create a temporary file for the report
     with NamedTemporaryFile(delete=False, suffix='.csv', mode='w', newline='', encoding='utf-8') as temp_file:
         fieldnames = ['Field', 'Value']
         writer = csv.DictWriter(temp_file, fieldnames=fieldnames)
         writer.writeheader()
-
         # Write forest information
         for key, value in forest_info.items():
             if isinstance(value, list):
@@ -398,22 +340,17 @@ def download_forest_report(forest_id):
                     writer.writerow({'Field': key, 'Value': json.dumps(item)})
             else:
                 writer.writerow({'Field': key, 'Value': value})
-
         writer.writerow({})  # Blank line to separate sections
-
         # Write GFW data
         gfw_fieldnames = ['dataset', 'area_ha']
         writer = csv.DictWriter(temp_file, fieldnames=gfw_fieldnames)
         writer.writeheader()
-
         for result in data['dataset_results']:
             writer.writerow({
                 'dataset': result['dataset'],
                 'area_ha': result['data_fields'].get('area__ha', 'N/A'),
             })
-
         temp_file_path = temp_file.name
-
     return send_file(temp_file_path, as_attachment=True, download_name=f'forest_{forest_id}_gfw_report.csv')
 
 @bp.route('/farm/<string:farm_id>/report/download', methods=['GET'])
@@ -421,14 +358,11 @@ def download_forest_report(forest_id):
 def download_farm_report(farm_id):
     # Fetch the farm details
     farm = Farm.query.filter_by(farm_id=farm_id).first()
-
     if farm is None:
         abort(404, description="Farm not found")
-
     # Fetch related data for the farm
     farm_data = FarmData.query.filter_by(farm_id=farm_id).all()
     print(farm_data)
-
     # Extract farm info
     farm_info = {
         'farm_id': farm.farm_id,
@@ -461,18 +395,15 @@ def download_farm_report(farm_id):
         ]
     }
     print(farm_info)
-
     # Fetch GFW data for the farm
     data, status_code = gfw(owner_type='farmer', owner_id=farm_id)
     if status_code != 200:
         return jsonify(data), status_code
-
     # Create a temporary file for the report
     with NamedTemporaryFile(delete=False, suffix='.csv', mode='w', newline='', encoding='utf-8') as temp_file:
         fieldnames = ['Field', 'Value']
         writer = csv.DictWriter(temp_file, fieldnames=fieldnames)
         writer.writeheader()
-
         # Write farm information
         for key, value in farm_info.items():
             if isinstance(value, list):
@@ -480,39 +411,29 @@ def download_farm_report(farm_id):
                     writer.writerow({'Field': key, 'Value': json.dumps(item)})
             else:
                 writer.writerow({'Field': key, 'Value': value})
-
         writer.writerow({})  # Blank line to separate sections
-
         # Write GFW data
         gfw_fieldnames = ['dataset', 'area_ha']
         writer = csv.DictWriter(temp_file, fieldnames=gfw_fieldnames)
         writer.writeheader()
-
         for result in data['dataset_results']:
             writer.writerow({
                 'dataset': result['dataset'],
                 'area_ha': result['data_fields'].get('area__ha', 'N/A'),
                             })
-
         temp_file_path = temp_file.name
-
     return send_file(temp_file_path, as_attachment=True, download_name=f'farm_{farm_id}_gfw_report.csv')
-
 
 def calculate_area(polygon_coords):
     # Convert the coordinates to (longitude, latitude) for Shapely
     coordinates = [(coord[0], coord[1]) for coord in polygon_coords]
-
     # Create a Shapely polygon
     polygon = Polygon(coordinates)
-
     # Use pyproj to transform the coordinates for accurate area calculation
     transformer = Transformer.from_crs("epsg:4326", "epsg:3857", always_xy=True)
     projected_coords = [transformer.transform(lon, lat) for lon, lat in coordinates]
-
     # Create a Shapely polygon with projected coordinates
     projected_polygon = Polygon(projected_coords)
-
     # Calculate area in square meters and convert to square kilometers
     area_km2 = projected_polygon.area / 1_000_000
     return area_km2
@@ -520,7 +441,6 @@ def calculate_area(polygon_coords):
 def calculate_area_m2(polygon_coords, utm_zone=36):
     """
     Calculate the area of a polygon in square meters using UTM projection.
-
     Args:
         polygon_coords (list): List of coordinates of the polygon in (longitude, latitude).
         utm_zone (int): UTM zone number (default is 36 for UTM 36N).
@@ -530,20 +450,15 @@ def calculate_area_m2(polygon_coords, utm_zone=36):
     """
     # Convert the coordinates to (longitude, latitude) for Shapely
     coordinates = [(coord[0], coord[1]) for coord in polygon_coords]
-
     # Define UTM CRS for the specified zone (36 for UTM 36N)
     utm_crs = f"epsg:326{utm_zone}"
-
     # Create a Shapely polygon
     polygon = Polygon(coordinates)
-
     # Use pyproj to transform the coordinates for accurate area calculation
     transformer = Transformer.from_crs("epsg:4326", utm_crs, always_xy=True)
     projected_coords = [transformer.transform(lon, lat) for lon, lat in coordinates]
-
     # Create a Shapely polygon with projected coordinates
     projected_polygon = Polygon(projected_coords)
-
     # Calculate area in square meters
     area_m2 = projected_polygon.area
     return area_m2
@@ -561,20 +476,61 @@ def calculate_area_accurate(polygon_coords, utm_zone=36):
     """
     # Convert the coordinates to (longitude, latitude) for Shapely
     coordinates = [(coord[0], coord[1]) for coord in polygon_coords]
-
     # Define UTM CRS for the specified zone (36 for UTM 36N)
     utm_crs = f"epsg:326{utm_zone}"
-
     # Create a Shapely polygon
     polygon = Polygon(coordinates)
-
     # Use pyproj to transform the coordinates for accurate area calculation
     transformer = Transformer.from_crs("epsg:4326", utm_crs, always_xy=True)
     projected_coords = [transformer.transform(lon, lat) for lon, lat in coordinates]
-
     # Create a Shapely polygon with projected coordinates
     projected_polygon = Polygon(projected_coords)
-
     # Calculate area in square meters
     area_m2 = projected_polygon.area
     return area_m2
+
+
+
+
+def create_mapbox_html_static_token(geojson_data):
+    """Generate a Mapbox plotly figure with static GeoJSON data and display area in hovertext."""
+    fig = go.Figure()
+    mapbox_access_token = "acess token"
+    mapbox_style = ""
+    for feature in geojson_data['features']:
+        properties = feature.get('properties', {})        
+        # Extracting coordinates
+        if feature['geometry']['type'] == 'Polygon':
+            polygons = [feature['geometry']['coordinates']]
+        else:
+            polygons = feature['geometry']['coordinates']
+        
+        for polygon in polygons:
+            for ring in polygon:
+                # Calculate the area of the polygon
+                area_km2 = calculate_area(ring)
+                properties['Area (sq km)'] = f"{area_km2:.4f} km²"
+                # Create hover text
+                hover_text = '<br>'.join(f"{key}: {value}" for key, value in properties.items())
+                fig.add_trace(go.Scattermapbox(
+                    fill="toself",
+                    lon=[coord[0] for coord in ring],
+                    lat=[coord[1] for coord in ring],
+                    text=hover_text,
+                    marker={'size': 5, 'color': "red"},
+                    line=dict(width=2),
+                    hoverinfo='text'
+                ))
+                
+    center_coords = {"lat": 1.27, "lon": 32.29}
+    fig.update_layout(
+        mapbox=dict(
+            accesstoken=mapbox_access_token,  # Your Mapbox access token
+            style=mapbox_style,  # Your custom Mapbox style
+            center=center_coords,
+            zoom=7
+        ),
+        margin={"r": 0, "t": 0, "l": 0, "b": 0}
+    )
+    
+    return fig.to_html(full_html=False)

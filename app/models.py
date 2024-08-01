@@ -100,7 +100,6 @@ class Farm(db.Model):
     date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
-
     farmer_group = db.relationship('FarmerGroup', backref='farms')
     district = db.relationship('District', backref='farms')
     farm_data = db.relationship('FarmData', backref='farm', lazy=True)
