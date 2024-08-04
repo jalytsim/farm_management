@@ -13,8 +13,7 @@ import json
 from shapely.geometry import mapping, Polygon as ShapelyPolygon
 from geojson import Polygon, Feature, FeatureCollection
 from tempfile import NamedTemporaryFile
-import plotly.graph_objects as go
-import plotly.graph_objects as go
+import plotly.graph_objs as go
 from shapely.geometry import Polygon
 from pyproj import Transformer
 
@@ -157,7 +156,7 @@ def get_farm_geojson(farmer_id):
     # Create GeoJSON data from points
     geojson_data = create_geojson(points, farm)
     # Create the Mapbox HTML using the GeoJSON data
-    mapbox_html = create_mapbox_html_static(geojson_data)
+    mapbox_html = create_mapbox_html_static_token(geojson_data)
     # Render the HTML directly in the response
     return render_template('index.html', choropleth_map=mapbox_html)
 
@@ -188,7 +187,7 @@ def get_all_forests_geojson():
         flash("error: No points found for any forest"), 404
         return redirect(url_for('forest.index'))
     feature_collection = FeatureCollection(features)
-    mapbox_html = create_mapbox_html_static(feature_collection)
+    mapbox_html = create_mapbox_html_static_token(feature_collection)
     return render_template('index.html', choropleth_map=mapbox_html)
 
 @bp.route('/farm/all/geojson', methods=['GET'])
@@ -208,7 +207,7 @@ def get_all_farm_geojson():
         flash("error: No points found for any farm"), 404
         return redirect(url_for('farm.index'))
     feature_collection = FeatureCollection(features)
-    mapbox_html = create_mapbox_html_static(feature_collection)
+    mapbox_html = create_mapbox_html_static_token(feature_collection)
     return render_template('index.html', choropleth_map=mapbox_html)
 
 def create_mapbox_html_static(geojson_data):
@@ -490,26 +489,31 @@ def calculate_area_accurate(polygon_coords, utm_zone=36):
     return area_m2
 
 
-
-
 def create_mapbox_html_static_token(geojson_data):
     """Generate a Mapbox plotly figure with static GeoJSON data and display area in hovertext."""
     fig = go.Figure()
-    mapbox_access_token = "acess token"
-    mapbox_style = ""
+    mapbox_access_token = "sk.eyJ1IjoidHNpbWlqYWx5IiwiYSI6ImNsejhzMW0wbDA0Z3MybXI2MjhkeDQwdGsifQ.3vcw0Dg-8a-9pEdsYcHDtg"
+    mapbox_style = "mapbox://styles/mapbox/satellite-v9"
+    
     for feature in geojson_data['features']:
-        properties = feature.get('properties', {})        
+        properties = feature.get('properties', {})
+        geometry = feature['geometry']
+        geo_type = geometry['type']
+        
         # Extracting coordinates
-        if feature['geometry']['type'] == 'Polygon':
-            polygons = [feature['geometry']['coordinates']]
+        if geo_type == 'Polygon':
+            polygons = [geometry['coordinates']]
+        elif geo_type == 'MultiPolygon':
+            polygons = geometry['coordinates']
         else:
-            polygons = feature['geometry']['coordinates']
+            continue  # Skip non-polygon geometries
         
         for polygon in polygons:
             for ring in polygon:
                 # Calculate the area of the polygon
                 area_km2 = calculate_area(ring)
                 properties['Area (sq km)'] = f"{area_km2:.4f} km²"
+                
                 # Create hover text
                 hover_text = '<br>'.join(f"{key}: {value}" for key, value in properties.items())
                 fig.add_trace(go.Scattermapbox(
@@ -521,15 +525,13 @@ def create_mapbox_html_static_token(geojson_data):
                     line=dict(width=2),
                     hoverinfo='text'
                 ))
-                
+    
     center_coords = {"lat": 1.27, "lon": 32.29}
     fig.update_layout(
-        mapbox=dict(
-            accesstoken=mapbox_access_token,  # Your Mapbox access token
-            style=mapbox_style,  # Your custom Mapbox style
-            center=center_coords,
-            zoom=7
-        ),
+        mapbox_style='dark',
+        mapbox_accesstoken=mapbox_access_token,
+        mapbox_center=center_coords,
+        mapbox_zoom=7,
         margin={"r": 0, "t": 0, "l": 0, "b": 0}
     )
     

@@ -3,6 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_mysqldb import MySQL
 from flask_login import LoginManager
 from flask_migrate import Migrate
+from flask_cors import CORS  # Importer Flask-CORS
 from config import Config
 
 db = SQLAlchemy()
@@ -26,14 +27,21 @@ def create_app():
     login_manager.login_message_category = 'info'
     migrate.init_app(app, db)
 
+    # Configurer CORS pour toutes les origines
+    CORS(app)
+
     with app.app_context():
-        from app.models import User  # Ensure models are imported after app context is set up
+        from app.models import User  # Assurez-vous que les modèles sont importés après la configuration de l'application
 
     from app.routes import auth, farm, qr, map, main, forest, point, admin, farmdata, tree
     from app.routes import crop
     from app.routes import farmergroup  
     from app.routes import producecategory
     from app.routes import district
+    from app.routes import weather
+    from app.routes import stgl
+    app.register_blueprint(stgl.bp)
+    app.register_blueprint(weather.bp)
     app.register_blueprint(auth.bp)
     app.register_blueprint(farm.bp)
     app.register_blueprint(qr.bp)
@@ -60,6 +68,5 @@ def create_app():
         return text
 
     app.jinja_env.filters['remove_gfw'] = remove_gfw
-
 
     return app

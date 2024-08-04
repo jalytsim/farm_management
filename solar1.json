@@ -1,0 +1,281 @@
+{
+    "hours": [
+        {
+            "downwardShortWaveRadiationFlux": {
+                "noaa": 17.22,
+                "sg": 17.22
+            },
+            "time": "2024-08-03T21:00:00+00:00",
+            "uvIndex": {
+                "noaa": 0.0,
+                "sg": 0.0
+            }
+        },
+        {
+            "downwardShortWaveRadiationFlux": {
+                "noaa": 21.82,
+                "sg": 21.82
+            },
+            "time": "2024-08-03T22:00:00+00:00",
+            "uvIndex": {
+                "noaa": 0.0,
+                "sg": 0.0
+            }
+        },
+        {
+            "downwardShortWaveRadiationFlux": {
+                "noaa": 26.42,
+                "sg": 26.42
+            },
+            "time": "2024-08-03T23:00:00+00:00",
+            "uvIndex": {
+                "noaa": 0.0,
+                "sg": 0.0
+            }
+        },
+        {
+            "downwardShortWaveRadiationFlux": {
+                "noaa": 31.02,
+                "sg": 31.02
+            },
+            "time": "2024-08-04T00:00:00+00:00",
+            "uvIndex": {
+                "noaa": 0.0,
+                "sg": 0.0
+            }
+        },
+        {
+            "downwardShortWaveRadiationFlux": {
+                "noaa": 66.09,
+                "sg": 66.09
+            },
+            "time": "2024-08-04T01:00:00+00:00",
+            "uvIndex": {
+                "noaa": 0.0,
+                "sg": 0.0
+            }
+        },
+        {
+            "downwardShortWaveRadiationFlux": {
+                "noaa": 101.16,
+                "sg": 101.16
+            },
+            "time": "2024-08-04T02:00:00+00:00",
+            "uvIndex": {
+                "noaa": 0.0,
+                "sg": 0.0
+            }
+        },
+        {
+            "downwardShortWaveRadiationFlux": {
+                "noaa": 136.23,
+                "sg": 136.23
+            },
+            "time": "2024-08-04T03:00:00+00:00",
+            "uvIndex": {
+                "noaa": 0.0,
+                "sg": 0.0
+            }
+        },
+        {
+            "downwardShortWaveRadiationFlux": {
+                "noaa": 171.3,
+                "sg": 171.3
+            },
+            "time": "2024-08-04T04:00:00+00:00",
+            "uvIndex": {
+                "noaa": 0.0,
+                "sg": 0.0
+            }
+        },
+        {
+            "downwardShortWaveRadiationFlux": {
+                "noaa": 206.37,
+                "sg": 206.37
+            },
+            "time": "2024-08-04T05:00:00+00:00",
+            "uvIndex": {
+                "noaa": 0.01,
+                "sg": 0.01
+            }
+        },
+        {
+            "downwardShortWaveRadiationFlux": {
+                "noaa": 241.44,
+                "sg": 241.44
+            },
+            "time": "2024-08-04T06:00:00+00:00",
+            "uvIndex": {
+                "noaa": 0.02,
+                "sg": 0.02
+            }
+        },
+        {
+            "downwardShortWaveRadiationFlux": {
+                "noaa": 265.51,
+                "sg": 265.51
+            },
+            "time": "2024-08-04T07:00:00+00:00",
+            "uvIndex": {
+                "noaa": 0.03,
+                "sg": 0.03
+            }
+        },
+        {
+            "downwardShortWaveRadiationFlux": {
+                "noaa": 289.57,
+                "sg": 289.57
+            },
+            "time": "2024-08-04T08:00:00+00:00",
+            "uvIndex": {
+                "noaa": 0.05,
+                "sg": 0.05
+            }
+        },
+        {
+            "downwardShortWaveRadiationFlux": {
+                "noaa": 313.64,
+                "sg": 313.64
+            },
+            "time": "2024-08-04T09:00:00+00:00",
+            "uvIndex": {
+                "noaa": 0.08,
+                "sg": 0.08
+            }
+        },
+        {
+            "downwardShortWaveRadiationFlux": {
+                "noaa": 337.71,
+                "sg": 337.71
+            },
+            "time": "2024-08-04T10:00:00+00:00",
+            "uvIndex": {
+                "noaa": 0.09,
+                "sg": 0.09
+            }
+        },
+        {
+            "downwardShortWaveRadiationFlux": {
+                "noaa": 361.77,
+                "sg": 361.77
+            },
+            "time": "2024-08-04T11:00:00+00:00",
+            "uvIndex": {
+                "noaa": 0.1,
+                "sg": 0.1
+            }
+        },
+        {
+            "downwardShortWaveRadiationFlux": {
+                "noaa": 385.84,
+                "sg": 385.84
+            },
+            "time": "2024-08-04T12:00:00+00:00",
+            "uvIndex": {
+                "noaa": 0.09,
+                "sg": 0.09
+            }
+        },
+        {
+            "downwardShortWaveRadiationFlux": {
+                "noaa": 322.15,
+                "sg": 322.15
+            },
+            "time": "2024-08-04T13:00:00+00:00",
+            "uvIndex": {
+                "noaa": 0.08,
+                "sg": 0.08
+            }
+        },
+        {
+            "downwardShortWaveRadiationFlux": {
+                "noaa": 258.46,
+                "sg": 258.46
+            },
+            "time": "2024-08-04T14:00:00+00:00",
+            "uvIndex": {
+                "noaa": 0.06,
+                "sg": 0.06
+            }
+        },
+        {
+            "downwardShortWaveRadiationFlux": {
+                "noaa": 194.77,
+                "sg": 194.77
+            },
+            "time": "2024-08-04T15:00:00+00:00",
+            "uvIndex": {
+                "noaa": 0.03,
+                "sg": 0.03
+            }
+        },
+        {
+            "downwardShortWaveRadiationFlux": {
+                "noaa": 131.08,
+                "sg": 131.08
+            },
+            "time": "2024-08-04T16:00:00+00:00",
+            "uvIndex": {
+                "noaa": 0.02,
+                "sg": 0.02
+            }
+        },
+        {
+            "downwardShortWaveRadiationFlux": {
+                "noaa": 67.39,
+                "sg": 67.39
+            },
+            "time": "2024-08-04T17:00:00+00:00",
+            "uvIndex": {
+                "noaa": 0.01,
+                "sg": 0.01
+            }
+        },
+        {
+            "downwardShortWaveRadiationFlux": {
+                "noaa": 3.7,
+                "sg": 3.7
+            },
+            "time": "2024-08-04T18:00:00+00:00",
+            "uvIndex": {
+                "noaa": 0.0,
+                "sg": 0.0
+            }
+        },
+        {
+            "downwardShortWaveRadiationFlux": {
+                "noaa": 3.09,
+                "sg": 3.09
+            },
+            "time": "2024-08-04T19:00:00+00:00",
+            "uvIndex": {
+                "noaa": 0.0,
+                "sg": 0.0
+            }
+        },
+        {
+            "downwardShortWaveRadiationFlux": {
+                "noaa": 2.49,
+                "sg": 2.49
+            },
+            "time": "2024-08-04T20:00:00+00:00",
+            "uvIndex": {
+                "noaa": 0.0,
+                "sg": 0.0
+            }
+        }
+    ],
+    "meta": {
+        "cost": 1,
+        "dailyQuota": 10,
+        "end": "2024-08-04 20:59",
+        "lat": 58.7984,
+        "lng": 17.8081,
+        "params": [
+            "uvIndex",
+            "downwardShortWaveRadiationFlux"
+        ],
+        "requestCount": 1,
+        "start": "2024-08-03 21:00"
+    }
+}

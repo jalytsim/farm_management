@@ -1,36 +1,64 @@
-from shapely.geometry import Polygon
-from pyproj import Transformer
+import json
+from datetime import datetime
+from app import db
+from app.models import Solar
+from app.utils.solar_utils import create_solar
 
-# Coordonnées géographiques (latitude, longitude)
-coordinates = [
-    (0.54519, 32.588851),
-    (0.545424, 32.588883),
-    (0.545861, 32.58914),
-    (0.545409, 32.590049),
-    (0.545245, 32.590066),
-    (0.545663, 32.590386),
-    (0.545458, 32.590741),
-    (0.545196, 32.590601),
-    (0.54479, 32.591077),
-    (0.544532, 32.591221),
-    (0.544332, 32.591223),
-    (0.54422, 32.591454),
-    (0.543855, 32.59116),
-    (0.543857, 32.591492),
-    (0.543428, 32.591973),
-    (0.542925, 32.591661),
-    (0.542902, 32.591228),
-    (0.542433, 32.590995),
-    (0.54519, 32.588851)
-]
+def insert_solar_data_from_json(json_file_path):
+    with open(json_file_path, 'r') as file:
+        data = json.load(file)
 
-# Convertir les coordonnées (latitude, longitude) en coordonnées projetées (x, y)
-transformer = Transformer.from_crs("epsg:4326", "epsg:3857", always_xy=True)
-projected_coords = [transformer.transform(lon, lat) for lat, lon in coordinates]
+    latitude = data['meta']['lat']
+    longitude = data['meta']['lng']
+    
+    for hour in data['hours']:
+        timestamp = datetime.fromisoformat(hour['time'].replace('Z', '+00:00'))
+        uv_index = hour['uvIndex']['noaa']  # Vous pouvez utiliser 'sg' si nécessaire
+        downward_short_wave_radiation_flux = hour['downwardShortWaveRadiationFlux']['noaa']  # Vous pouvez utiliser 'sg' si nécessaire
+        
+        create_solar(
+            latitude=latitude,
+            longitude=longitude,
+            timestamp=timestamp,
+            uv_index=uv_index,
+            downward_short_wave_radiation_flux=downward_short_wave_radiation_flux
+        )
+insert_solar_data_from_json(f'C:\\Users\\Backira Babazhelia\\Documents\\nomenaProjetBrian\\farm_management\\solar_data.json')
 
-# Créer un polygone avec les coordonnées projetées
-projected_polygon = Polygon(projected_coords)
 
-# Calculer l'aire en mètres carrés
-area = projected_polygon.area
-print(f"L'aire du polygone est de {area:.2f} mètres carrés")
+
+
+
+# import arrow
+# import requests
+# import json
+
+# # Get first hour of today
+# start = arrow.now().floor('day')
+
+# # Get last hour of today
+# end = arrow.now().ceil('day')
+
+# response = requests.get(
+#   'https://api.stormglass.io/v2/solar/point',
+#   params={
+#     'lat':0.542433,
+#     'lng': 32.590995,
+#     'params': ','.join(['uvIndex', 'downwardShortWaveRadiationFlux']),
+#     # 'start': start.to('UTC').timestamp(),  # Convert to UTC timestamp
+#     # 'end': end.to('UTC').timestamp()  # Convert to UTC timestamp
+#   },
+#   headers={
+#     'Authorization': 'a6b685ea-5014-11ef-8a8f-0242ac130004-a6b68676-5014-11ef-8a8f-0242ac130004'
+#   }
+# )
+
+# # Get JSON data from the response
+# json_data = response.json()
+
+# # Define the file path
+# file_path = 'solar_data.json'
+
+# # Write JSON data to a file
+# with open(file_path, 'w') as file:
+#     json.dump(json_data, file, indent=4)  # Pretty-print with indentation
