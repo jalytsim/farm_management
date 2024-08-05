@@ -1,6 +1,6 @@
+import json
 from app.models import Solar
 from datetime import datetime
-from flask_login import current_user
 from app import db
 
 def create_solar(latitude, longitude, timestamp, uv_index=None, downward_short_wave_radiation_flux=None,
@@ -37,3 +37,30 @@ def delete_solar(id):
 
 def get_all_solar_data():
     return Solar.query.all()
+
+def insert_solar_data_from_json(json_file_path):
+    with open(json_file_path, 'r') as file:
+        data = json.load(file)
+
+    latitude = data['meta']['lat']
+    longitude = data['meta']['lng']
+    
+    for hour in data['hours']:
+        print(f"Processing hour data: {hour}")  # Affiche les données pour le débogage
+        
+        timestamp = datetime.fromisoformat(hour['time'].replace('Z', '+00:00'))
+        
+        # Vérifiez la présence des clés et imprimez les valeurs si elles existent
+        uv_index = hour.get('uvIndex', {}).get('noaa', None)
+        downward_short_wave_radiation_flux = hour.get('downwardShortWaveRadiationFlux', {}).get('noaa', None)
+
+        # Impression des valeurs pour vérifier ce qui est extrait
+        print(f"UV Index: {uv_index}, Downward Short Wave Radiation Flux: {downward_short_wave_radiation_flux}")
+        
+        create_solar(
+            latitude=latitude,
+            longitude=longitude,
+            timestamp=timestamp,
+            uv_index=uv_index,
+            downward_short_wave_radiation_flux=downward_short_wave_radiation_flux
+        )

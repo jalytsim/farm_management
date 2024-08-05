@@ -269,8 +269,8 @@
         "cost": 1,
         "dailyQuota": 10,
         "end": "2024-08-04 20:59",
-        "lat": 58.7984,
-        "lng": 17.8081,
+        "lat": 0.292225, 
+        "lng": 32.576809,
         "params": [
             "uvIndex",
             "downwardShortWaveRadiationFlux"

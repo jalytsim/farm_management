@@ -1,7 +1,5 @@
 import json
 from datetime import datetime
-from app import db
-from app.models import Solar
 from app.utils.solar_utils import create_solar
 
 def insert_solar_data_from_json(json_file_path):
@@ -23,7 +21,9 @@ def insert_solar_data_from_json(json_file_path):
             uv_index=uv_index,
             downward_short_wave_radiation_flux=downward_short_wave_radiation_flux
         )
-insert_solar_data_from_json(f'C:\\Users\\Backira Babazhelia\\Documents\\nomenaProjetBrian\\farm_management\\solar_data.json')
+
+# Exécution du script
+insert_solar_data_from_json('C:\\Users\\Backira Babazhelia\\Documents\\nomenaProjetBrian\\farm_management\\solar_data.json')
 
 
 
@@ -42,8 +42,8 @@ insert_solar_data_from_json(f'C:\\Users\\Backira Babazhelia\\Documents\\nomenaPr
 # response = requests.get(
 #   'https://api.stormglass.io/v2/solar/point',
 #   params={
-#     'lat':0.542433,
-#     'lng': 32.590995,
+#     'lat':0.292225,
+#     'lng': 32.576809,
 #     'params': ','.join(['uvIndex', 'downwardShortWaveRadiationFlux']),
 #     # 'start': start.to('UTC').timestamp(),  # Convert to UTC timestamp
 #     # 'end': end.to('UTC').timestamp()  # Convert to UTC timestamp
