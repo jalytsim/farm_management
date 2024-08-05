@@ -2,6 +2,7 @@ from app.models import Forest
 from datetime import datetime
 from flask_login import current_user
 import numpy as np
+from app import db
 
 def calculate_penman_et0(T, RH, Rs, u2, P):
     # Saturation vapor pressure (es) in kPa

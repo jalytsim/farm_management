@@ -158,7 +158,7 @@ def get_farm_geojson(farmer_id):
     # Create GeoJSON data from points
     geojson_data = create_geojson(points, farm)
     # Create the Mapbox HTML using the GeoJSON data
-    mapbox_html = create_mapbox_html_static_token(geojson_data)
+    mapbox_html = create_mapbox_html_static(geojson_data)
     # Render the HTML directly in the response
     return render_template('index.html', choropleth_map=mapbox_html)
 
@@ -189,7 +189,7 @@ def get_all_forests_geojson():
         flash("error: No points found for any forest"), 404
         return redirect(url_for('forest.index'))
     feature_collection = FeatureCollection(features)
-    mapbox_html = create_mapbox_html_static_token(feature_collection)
+    mapbox_html = create_mapbox_html_static(feature_collection)
     return render_template('index.html', choropleth_map=mapbox_html)
 
 @bp.route('/farm/all/geojson', methods=['GET'])
