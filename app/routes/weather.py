@@ -43,16 +43,19 @@ def uploadWeather():
 @bp.route('/weather', methods=['GET'])
 def weather():
     # Get the region ID from the query parameters
-    region_id = request.args.get('region_id')
+    # region_id = request.args.get('region_id')
+    
     # region_id = 'Butambal'
-    if region_id not in data:
-        return jsonify({"status": "error", "message": "Invalid region ID"}), 400
+    # if region_id not in data:
+    #     return jsonify({"status": "error", "message": "Invalid region ID"}), 400
+    latitude = request.args.get('latitude')
+    longitude = request.args.get('longitude')
+    time = request.args.get('timestamp')
+    print(time , longitude , latitude ,)
 
-    region_data = data[region_id]
-
-    latitude = '0.292225'
-    longitude = '32.5768'
-    time = '2024-08-14T13:00:00+00:00'
+    # latitude = '0.292225'
+    # longitude = '32.5768'
+    # time = '2024-08-14T13:00:00+00:00'
     # Convertir la chaîne ISO 8601 en un objet datetime
     timestamp = datetime.fromisoformat(time.replace('Z', '+00:00'))
     # Convertir l'objet datetime en une chaîne de caractères au format souhaité
