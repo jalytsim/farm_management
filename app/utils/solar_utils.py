@@ -1,5 +1,6 @@
 import json
 from app.models import Solar
+from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 from app import db
 
@@ -64,3 +65,35 @@ def insert_solar_data_from_json(json_file_path):
             uv_index=uv_index,
             downward_short_wave_radiation_flux=downward_short_wave_radiation_flux
         )
+
+def get_solar_data(latitude, longitude, timestamp):
+    # Créer une session
+    session = sessionmaker(bind=db.engine)()
+
+    # Impression pour le débogage
+    print(f"Querying with latitude: {latitude}, longitude: {longitude}, timestamp: {timestamp}")
+
+    # Effectuer la requête
+    result = session.query(
+        Solar.downward_short_wave_radiation_flux,
+        Solar.latitude,
+        Solar.longitude
+    ).filter(
+        Solar.latitude == latitude,
+        Solar.longitude == longitude,
+
+        Solar.timestamp == timestamp
+    ).first()
+
+    # Fermer la session
+    session.close()
+
+    # Impression pour le débogage
+    if result:
+        print(f"Found result: {result}")
+        return {
+            'downward_short_wave_radiation_flux': result.downward_short_wave_radiation_flux
+        }
+    else:
+        print("No result found")
+        return None

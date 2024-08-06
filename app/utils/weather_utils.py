@@ -1,10 +1,12 @@
 from app.models import Forest, Weather
+from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 from flask_login import current_user
 import numpy as np
-from app import db
 from flask import current_app as app
-from datetime import datetime
+import json
+from app.models import Weather
+from app import db
 
 
 def calculate_penman_et0(T, RH, Rs, u2, P):
@@ -61,138 +63,138 @@ def calculate_blaney_criddle_etc(T_moy, Kc):
 # print(f"ETc : {et_c:.2f} mm/jour")
 
 # Create a new weather record
-def create_weather(data):
+
+def create_weather(latitude, longitude, timestamp, **kwargs):
     new_weather = Weather(
-        latitude=data['latitude'],
-        longitude=data['longitude'],
-        air_temperature=data.get('air_temperature'),
-        air_temperature_80m=data.get('air_temperature_80m'),
-        air_temperature_100m=data.get('air_temperature_100m'),
-        air_temperature_1000hpa=data.get('air_temperature_1000hpa'),
-        air_temperature_800hpa=data.get('air_temperature_800hpa'),
-        air_temperature_500hpa=data.get('air_temperature_500hpa'),
-        air_temperature_200hpa=data.get('air_temperature_200hpa'),
-        pressure=data.get('pressure'),
-        cloud_cover=data.get('cloud_cover'),
-        current_direction=data.get('current_direction'),
-        current_speed=data.get('current_speed'),
-        gust=data.get('gust'),
-        humidity=data.get('humidity'),
-        ice_cover=data.get('ice_cover'),
-        precipitation=data.get('precipitation'),
-        snow_depth=data.get('snow_depth'),
-        sea_level=data.get('sea_level'),
-        swell_direction=data.get('swell_direction'),
-        swell_height=data.get('swell_height'),
-        swell_period=data.get('swell_period'),
-        secondary_swell_period=data.get('secondary_swell_period'),
-        secondary_swell_direction=data.get('secondary_swell_direction'),
-        secondary_swell_height=data.get('secondary_swell_height'),
-        visibility=data.get('visibility'),
-        water_temperature=data.get('water_temperature'),
-        wave_direction=data.get('wave_direction'),
-        wave_height=data.get('wave_height'),
-        wave_period=data.get('wave_period'),
-        wind_wave_direction=data.get('wind_wave_direction'),
-        wind_wave_height=data.get('wind_wave_height'),
-        wind_wave_period=data.get('wind_wave_period'),
-        wind_direction=data.get('wind_direction'),
-        wind_direction_20m=data.get('wind_direction_20m'),
-        wind_direction_30m=data.get('wind_direction_30m'),
-        wind_direction_40m=data.get('wind_direction_40m'),
-        wind_direction_50m=data.get('wind_direction_50m'),
-        wind_direction_80m=data.get('wind_direction_80m'),
-        wind_direction_100m=data.get('wind_direction_100m'),
-        wind_direction_1000hpa=data.get('wind_direction_1000hpa'),
-        wind_direction_800hpa=data.get('wind_direction_800hpa'),
-        wind_direction_500hpa=data.get('wind_direction_500hpa'),
-        wind_direction_200hpa=data.get('wind_direction_200hpa'),
-        wind_speed=data.get('wind_speed'),
-        wind_speed_20m=data.get('wind_speed_20m'),
-        wind_speed_30m=data.get('wind_speed_30m'),
-        wind_speed_40m=data.get('wind_speed_40m'),
-        wind_speed_50m=data.get('wind_speed_50m'),
-        wind_speed_80m=data.get('wind_speed_80m'),
-        wind_speed_100m=data.get('wind_speed_100m'),
-        wind_speed_1000hpa=data.get('wind_speed_1000hpa'),
-        wind_speed_800hpa=data.get('wind_speed_800hpa'),
-        wind_speed_500hpa=data.get('wind_speed_500hpa'),
-        wind_speed_200hpa=data.get('wind_speed_200hpa'),
+        latitude=latitude,
+        longitude=longitude,
+        timestamp = timestamp,
         date_created=datetime.utcnow(),
         date_updated=datetime.utcnow(),
+        **kwargs
     )
     db.session.add(new_weather)
     db.session.commit()
 
-# Update an existing weather record
-def update_weather(id, data):
-    weather = db.session.query(Weather).get(id)
+def update_weather(id, **kwargs):
+    weather = Weather.query.get(id)
     if weather:
-        weather.latitude = data.get('latitude', weather.latitude)
-        weather.longitude = data.get('longitude', weather.longitude)
-        weather.air_temperature = data.get('air_temperature', weather.air_temperature)
-        weather.air_temperature_80m = data.get('air_temperature_80m', weather.air_temperature_80m)
-        weather.air_temperature_100m = data.get('air_temperature_100m', weather.air_temperature_100m)
-        weather.air_temperature_1000hpa = data.get('air_temperature_1000hpa', weather.air_temperature_1000hpa)
-        weather.air_temperature_800hpa = data.get('air_temperature_800hpa', weather.air_temperature_800hpa)
-        weather.air_temperature_500hpa = data.get('air_temperature_500hpa', weather.air_temperature_500hpa)
-        weather.air_temperature_200hpa = data.get('air_temperature_200hpa', weather.air_temperature_200hpa)
-        weather.pressure = data.get('pressure', weather.pressure)
-        weather.cloud_cover = data.get('cloud_cover', weather.cloud_cover)
-        weather.current_direction = data.get('current_direction', weather.current_direction)
-        weather.current_speed = data.get('current_speed', weather.current_speed)
-        weather.gust = data.get('gust', weather.gust)
-        weather.humidity = data.get('humidity', weather.humidity)
-        weather.ice_cover = data.get('ice_cover', weather.ice_cover)
-        weather.precipitation = data.get('precipitation', weather.precipitation)
-        weather.snow_depth = data.get('snow_depth', weather.snow_depth)
-        weather.sea_level = data.get('sea_level', weather.sea_level)
-        weather.swell_direction = data.get('swell_direction', weather.swell_direction)
-        weather.swell_height = data.get('swell_height', weather.swell_height)
-        weather.swell_period = data.get('swell_period', weather.swell_period)
-        weather.secondary_swell_period = data.get('secondary_swell_period', weather.secondary_swell_period)
-        weather.secondary_swell_direction = data.get('secondary_swell_direction', weather.secondary_swell_direction)
-        weather.secondary_swell_height = data.get('secondary_swell_height', weather.secondary_swell_height)
-        weather.visibility = data.get('visibility', weather.visibility)
-        weather.water_temperature = data.get('water_temperature', weather.water_temperature)
-        weather.wave_direction = data.get('wave_direction', weather.wave_direction)
-        weather.wave_height = data.get('wave_height', weather.wave_height)
-        weather.wave_period = data.get('wave_period', weather.wave_period)
-        weather.wind_wave_direction = data.get('wind_wave_direction', weather.wind_wave_direction)
-        weather.wind_wave_height = data.get('wind_wave_height', weather.wind_wave_height)
-        weather.wind_wave_period = data.get('wind_wave_period', weather.wind_wave_period)
-        weather.wind_direction = data.get('wind_direction', weather.wind_direction)
-        weather.wind_direction_20m = data.get('wind_direction_20m', weather.wind_direction_20m)
-        weather.wind_direction_30m = data.get('wind_direction_30m', weather.wind_direction_30m)
-        weather.wind_direction_40m = data.get('wind_direction_40m', weather.wind_direction_40m)
-        weather.wind_direction_50m = data.get('wind_direction_50m', weather.wind_direction_50m)
-        weather.wind_direction_80m = data.get('wind_direction_80m', weather.wind_direction_80m)
-        weather.wind_direction_100m = data.get('wind_direction_100m', weather.wind_direction_100m)
-        weather.wind_direction_1000hpa = data.get('wind_direction_1000hpa', weather.wind_direction_1000hpa)
-        weather.wind_direction_800hpa = data.get('wind_direction_800hpa', weather.wind_direction_800hpa)
-        weather.wind_direction_500hpa = data.get('wind_direction_500hpa', weather.wind_direction_500hpa)
-        weather.wind_direction_200hpa = data.get('wind_direction_200hpa', weather.wind_direction_200hpa)
-        weather.wind_speed = data.get('wind_speed', weather.wind_speed)
-        weather.wind_speed_20m = data.get('wind_speed_20m', weather.wind_speed_20m)
-        weather.wind_speed_30m = data.get('wind_speed_30m', weather.wind_speed_30m)
-        weather.wind_speed_40m = data.get('wind_speed_40m', weather.wind_speed_40m)
-        weather.wind_speed_50m = data.get('wind_speed_50m', weather.wind_speed_50m)
-        weather.wind_speed_80m = data.get('wind_speed_80m', weather.wind_speed_80m)
-        weather.wind_speed_100m = data.get('wind_speed_100m', weather.wind_speed_100m)
-        weather.wind_speed_1000hpa = data.get('wind_speed_1000hpa', weather.wind_speed_1000hpa)
-        weather.wind_speed_800hpa = data.get('wind_speed_800hpa', weather.wind_speed_800hpa)
-        weather.wind_speed_500hpa = data.get('wind_speed_500hpa', weather.wind_speed_500hpa)
-        weather.wind_speed_200hpa = data.get('wind_speed_200hpa', weather.wind_speed_200hpa)
+        for key, value in kwargs.items():
+            if hasattr(weather, key):
+                setattr(weather, key, value)
         weather.date_updated = datetime.utcnow()
         db.session.commit()
 
-# Delete a weather record
 def delete_weather(id):
-    weather = db.session.query(Weather).get(id)
+    weather = Weather.query.get(id)
     if weather:
         db.session.delete(weather)
         db.session.commit()
 
-# Get all weather records
-def get_all_weathers():
-    return db.session.query(Weather).all()
+def get_all_weather_data():
+    return Weather.query.all()
+
+
+def insert_weather_data_from_json(json_file_path):
+    with open(json_file_path, 'r') as file:
+        data = json.load(file)
+
+    latitude = data.get('meta', {}).get('lat')
+    longitude = data.get('meta', {}).get('lng')
+    
+    for hour in data.get('hours', []):
+        print(f"Processing hour data: {hour}")  # For debugging
+
+        timestamp = datetime.fromisoformat(hour['time'].replace('Z', '+00:00'))
+
+        weather_data = {
+            'air_temperature': hour.get('airTemperature', {}).get('noaa'),
+            'air_temperature_80m': hour.get('airTemperature80m', {}).get('noaa'),
+            'air_temperature_100m': hour.get('airTemperature100m', {}).get('noaa'),
+            'air_temperature_1000hpa': hour.get('airTemperature1000hpa', {}).get('noaa'),
+            'air_temperature_800hpa': hour.get('airTemperature800hpa', {}).get('noaa'),
+            'air_temperature_500hpa': hour.get('airTemperature500hpa', {}).get('noaa'),
+            'air_temperature_200hpa': hour.get('airTemperature200hpa', {}).get('noaa'),
+            'pressure': hour.get('pressure', {}).get('noaa'),
+            'cloud_cover': hour.get('cloudCover', {}).get('noaa'),
+            'current_direction': hour.get('currentDirection', {}).get('noaa'),
+            'current_speed': hour.get('currentSpeed', {}).get('noaa'),
+            'gust': hour.get('gust', {}).get('noaa'),
+            'humidity': hour.get('humidity', {}).get('noaa'),
+            'ice_cover': hour.get('iceCover', {}).get('noaa'),
+            'precipitation': hour.get('precipitation', {}).get('noaa'),
+            'snow_depth': hour.get('snowDepth', {}).get('noaa'),
+            'sea_level': hour.get('seaLevel', {}).get('noaa'),
+            'swell_direction': hour.get('swellDirection', {}).get('noaa'),
+            'swell_height': hour.get('swellHeight', {}).get('noaa'),
+            'swell_period': hour.get('swellPeriod', {}).get('noaa'),
+            'secondary_swell_direction': hour.get('secondarySwellDirection', {}).get('noaa'),
+            'secondary_swell_height': hour.get('secondarySwellHeight', {}).get('noaa'),
+            'secondary_swell_period': hour.get('secondarySwellPeriod', {}).get('noaa'),
+            'visibility': hour.get('visibility', {}).get('noaa'),
+            'water_temperature': hour.get('waterTemperature', {}).get('noaa'),
+            'wave_direction': hour.get('waveDirection', {}).get('noaa'),
+            'wave_height': hour.get('waveHeight', {}).get('noaa'),
+            'wave_period': hour.get('wavePeriod', {}).get('noaa'),
+            'wind_wave_direction': hour.get('windWaveDirection', {}).get('noaa'),
+            'wind_wave_height': hour.get('windWaveHeight', {}).get('noaa'),
+            'wind_wave_period': hour.get('windWavePeriod', {}).get('noaa'),
+            'wind_direction': hour.get('windDirection', {}).get('noaa'),
+            'wind_direction_20m': hour.get('windDirection20m', {}).get('noaa'),
+            'wind_direction_30m': hour.get('windDirection30m', {}).get('noaa'),
+            'wind_direction_40m': hour.get('windDirection40m', {}).get('noaa'),
+            'wind_direction_50m': hour.get('windDirection50m', {}).get('noaa'),
+            'wind_direction_80m': hour.get('windDirection80m', {}).get('noaa'),
+            'wind_direction_100m': hour.get('windDirection100m', {}).get('noaa'),
+            'wind_direction_1000hpa': hour.get('windDirection1000hpa', {}).get('noaa'),
+            'wind_direction_800hpa': hour.get('windDirection800hpa', {}).get('noaa'),
+            'wind_direction_500hpa': hour.get('windDirection500hpa', {}).get('noaa'),
+            'wind_direction_200hpa': hour.get('windDirection200hpa', {}).get('noaa'),
+            'wind_speed': hour.get('windSpeed', {}).get('noaa'),
+            'wind_speed_20m': hour.get('windSpeed20m', {}).get('noaa'),
+            'wind_speed_30m': hour.get('windSpeed30m', {}).get('noaa'),
+            'wind_speed_40m': hour.get('windSpeed40m', {}).get('noaa'),
+            'wind_speed_50m': hour.get('windSpeed50m', {}).get('noaa'),
+            'wind_speed_80m': hour.get('windSpeed80m', {}).get('noaa'),
+            'wind_speed_100m': hour.get('windSpeed100m', {}).get('noaa'),
+            'wind_speed_1000hpa': hour.get('windSpeed1000hpa', {}).get('noaa'),
+            'wind_speed_800hpa': hour.get('windSpeed800hpa', {}).get('noaa'),
+            'wind_speed_500hpa': hour.get('windSpeed500hpa', {}).get('noaa'),
+            'wind_speed_200hpa': hour.get('windSpeed200hpa', {}).get('noaa'),
+        }
+        
+        print(f"Weather Data: {weather_data}")  # For debugging
+        
+        create_weather(
+            latitude=latitude,
+            longitude=longitude,
+            timestamp=timestamp,
+            **weather_data
+        )
+
+
+def get_weather_data(latitude, longitude, timestamp):
+    session = sessionmaker(bind=db.engine)()
+
+    result = session.query(
+        Weather.air_temperature,
+        Weather.pressure,
+        Weather.wind_speed,
+        Weather.humidity
+    ).filter(
+        Weather.latitude == latitude,
+        Weather.longitude == longitude,
+        Weather.timestamp == timestamp
+    ).first()
+
+    session.close()
+
+    if result:
+        return {
+            'air_temperature': result.air_temperature,
+            'pressure': result.pressure,
+            'wind_speed': result.wind_speed,
+            'humidity': result.humidity
+        }
+    else:
+        return None       

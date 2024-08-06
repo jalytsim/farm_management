@@ -184,6 +184,7 @@ class Weather(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     latitude = db.Column(db.Float, nullable=False)
     longitude = db.Column(db.Float, nullable=False)
+    timestamp = db.Column(db.DateTime, nullable=False)
     air_temperature = db.Column(db.Float, nullable=True)
     air_temperature_80m = db.Column(db.Float, nullable=True)
     air_temperature_100m = db.Column(db.Float, nullable=True)
@@ -204,7 +205,6 @@ class Weather(db.Model):
     swell_direction = db.Column(db.Float, nullable=True)
     swell_height = db.Column(db.Float, nullable=True)
     swell_period = db.Column(db.Float, nullable=True)
-    secondary_swell_period = db.Column(db.Float, nullable=True)
     secondary_swell_direction = db.Column(db.Float, nullable=True)
     secondary_swell_height = db.Column(db.Float, nullable=True)
     secondary_swell_period = db.Column(db.Float, nullable=True)
@@ -249,8 +249,8 @@ class Weather(db.Model):
 
 class Solar(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    latitude = db.Column(db.Float, nullable=False)
-    longitude = db.Column(db.Float, nullable=False)
+    latitude = db.Column(db.String(20), nullable=False)
+    longitude = db.Column(db.String(20), nullable=False)
     timestamp = db.Column(db.DateTime, nullable=False)  # Timestamp in UTC
     uv_index = db.Column(db.Float, nullable=True)  # Ultraviolet radiation (W/m²)
     downward_short_wave_radiation_flux = db.Column(db.Float, nullable=True)  # Downward short-wave radiation flux (W/m²)

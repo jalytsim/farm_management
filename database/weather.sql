@@ -2,6 +2,7 @@ CREATE TABLE Weather (
     id INT AUTO_INCREMENT PRIMARY KEY,
     latitude FLOAT NOT NULL,
     longitude FLOAT NOT NULL,
+    timestamp DATETIME NOT NULL,
     air_temperature FLOAT,
     air_temperature_80m FLOAT,
     air_temperature_100m FLOAT,
@@ -73,3 +74,15 @@ CREATE TABLE Solar (
     date_created DATETIME DEFAULT CURRENT_TIMESTAMP,
     date_updated DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
+
+
+ALTER TABLE weather
+ADD COLUMN secondary_swell_period FLOAT;
+
+ALTER TABLE Solar
+MODIFY latitude VARCHAR(20),
+MODIFY longitude VARCHAR(20);
+
+ALTER TABLE weather
+MODIFY latitude VARCHAR(20),
+MODIFY longitude VARCHAR(20);
