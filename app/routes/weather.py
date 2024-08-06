@@ -1,6 +1,6 @@
 from datetime import datetime
 import json
-from flask import Blueprint, app, jsonify
+from flask import Blueprint, app, jsonify, request
 from flask_cors import cross_origin
 from app.utils.solar_utils import get_solar_data
 from app.utils.weather_utils import calculate_blaney_criddle_etc, calculate_penman_et0, create_weather, get_weather_data, insert_weather_data_from_json

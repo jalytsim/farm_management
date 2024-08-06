@@ -66,6 +66,24 @@ def insert_solar_data_from_json(json_file_path):
             downward_short_wave_radiation_flux=downward_short_wave_radiation_flux
         )
 
+
+def insert_solar_data(data):
+    latitude = data.get('meta', {}).get('lat')
+    longitude = data.get('meta', {}).get('lng')
+
+    for hour in data.get('hours', []):
+        timestamp = datetime.fromisoformat(hour['time'].replace('Z', '+00:00'))
+        
+        uv_index = hour.get('uvIndex', {}).get('noaa')
+        downward_short_wave_radiation_flux = hour.get('downwardShortWaveRadiationFlux', {}).get('noaa')
+
+        create_solar(
+            latitude=latitude,
+            longitude=longitude,
+            timestamp=timestamp,
+            uv_index=uv_index,
+            downward_short_wave_radiation_flux=downward_short_wave_radiation_flux
+        )
 def get_solar_data(latitude, longitude, timestamp):
     # Créer une session
     session = sessionmaker(bind=db.engine)()
