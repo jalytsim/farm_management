@@ -52,6 +52,8 @@ def weather():
     longitude = request.args.get('longitude')
     time = request.args.get('timestamp')
     print(time , longitude , latitude ,)
+    imageUrl = "http://example.com/images/logo.png"
+    farmName = "Farm Name"
 
     # latitude = '0.292225'
     # longitude = '32.5768'
@@ -85,8 +87,8 @@ def weather():
 
     # Prepare the response
     response = {
-        "imageUrl": region_data['imageUrl'],
-        "farmName": region_data['farmName'],
+        "imageUrl": imageUrl,
+        "farmName": farmName,
         "latitude": latitude,
         "longitude": longitude,
         "timestamp": formatted_timestamp,
