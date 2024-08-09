@@ -40,6 +40,8 @@ def create_app():
     from app.routes import weather
     from app.routes import stgl
     from app.routes import solar
+    from app.routes import graph
+    app.register_blueprint(graph.bp)
     app.register_blueprint(solar.bp)
     app.register_blueprint(stgl.bp)
     app.register_blueprint(weather.bp)

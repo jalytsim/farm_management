@@ -41,29 +41,28 @@ def uploadWeather():
 
 
 @bp.route('/weather', methods=['GET'])
-def weather():
-    # Get the region ID from the query parameters
-    # region_id = request.args.get('region_id')
-    
-    # region_id = 'Butambal'
-    # if region_id not in data:
-    #     return jsonify({"status": "error", "message": "Invalid region ID"}), 400
-    latitude = request.args.get('latitude')
-    longitude = request.args.get('longitude')
-    time = request.args.get('timestamp')
-    print(time , longitude , latitude ,)
+@cross_origin()
+def get_weather():
+    region_id = request.args.get('region_id')
+    crop_id = request.args.get('crop_id')
+    latitude = request.args.get('latitude', default=None)
+    longitude = request.args.get('longitude', default=None)
+    time = request.args.get('time', default=None)
     imageUrl = "http://example.com/images/logo.png"
     farmName = "Farm Name"
-
-    # latitude = '0.292225'
-    # longitude = '32.5768'
-    # time = '2024-08-14T13:00:00+00:00'
-    # Convertir la chaîne ISO 8601 en un objet datetime
-    timestamp = datetime.fromisoformat(time.replace('Z', '+00:00'))
-    # Convertir l'objet datetime en une chaîne de caractères au format souhaité
-    formatted_timestamp = timestamp.strftime('%Y-%m-%d %H:%M:%S')
-    print (formatted_timestamp)
-
+    print(f"Received parameters: region_id={region_id}, crop_id={crop_id}, latitude={latitude}, longitude={longitude}, time={time}")
+    # Check if 'time' is not empty
+    if time:
+        try:
+            # Convertir la chaîne ISO 8601 en un objet datetime
+            timestamp = datetime.fromisoformat(time.replace('Z', '+00:00'))
+            # Convertir l'objet datetime en une chaîne de caractères au format souhaité
+            formatted_timestamp = timestamp.strftime('%Y-%m-%d %H:%M:%S')
+        except ValueError as e:
+            return jsonify({"status": "error", "message": f"Invalid time format: {str(e)}"}), 400
+    else:
+        return jsonify({"status": "error", "message": "Time parameter is missing or empty"}), 400
+    
     # Retrieve weather and solar data
     weather_result = get_weather_data(latitude, longitude, formatted_timestamp)
     solar_result = get_solar_data(latitude, longitude, formatted_timestamp)

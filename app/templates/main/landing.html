@@ -7,29 +7,31 @@
     <link href="{{ url_for('static', filename='css/output.css') }}" rel="stylesheet">
 </head>
 <body class="bg-gray-100 text-gray-900">
-    <header class="bg-green-600 text-white py-6 shadow-md">
+    <header class="bg-gradient-to-r from-green-400 via-green-500 to-green-600 text-white py-6 shadow-lg">
         <div class="container mx-auto px-4 text-center">
-            <h1 class="text-3xl font-bold">Welcome to the Agriyields Traceability Portal</h1>
-            <p class="mt-2">Your solution for efficient farm management.</p>
+            <h1 class="text-4xl font-extrabold">Welcome to the Agriyields Traceability Portal</h1>
+            <p class="mt-2 text-lg">Your solution for efficient farm  management.</p>
         </div>
     </header>
     
     <main class="container mx-auto px-4 py-8">
         <section class="mb-8">
-            <h2 class="text-2xl font-bold mb-4">Introduction</h2>
-            <p class="text-lg">This app helps you manage your farm data efficiently. Track your crops, monitor yields, and generate QR codes for your produce.</p>
+            <h2 class="text-3xl font-semibold mb-4 border-b-4 border-green-500 pb-2">Introduction</h2>
+            <div class="bg-white shadow-lg rounded-lg p-6">
+                <p class="text-lg">This app helps you manage your farm data efficiently. Track your crops, monitor yields, and generate QR codes for your produce.</p>
+            </div>
         </section>
         
         <section>
-            <h2 class="text-2xl font-bold mb-4">Get Started</h2>
+            <h2 class="text-3xl font-semibold mb-4 border-b-4 border-green-500 pb-2">Get Started</h2>
             <div class="flex space-x-4">
-                <a href="{{ url_for('auth.login') }}" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Login</a>
-                <a href="#" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700">Contact us to Register</a>
+                <a href="{{ url_for('auth.login') }}" class="bg-blue-600 text-white px-6 py-3 rounded-lg shadow-md hover:bg-blue-700 transition duration-300">Login</a>
+                <a href="#" class="bg-gray-600 text-white px-6 py-3 rounded-lg shadow-md hover:bg-gray-700 transition duration-300">Contact us to Register</a>
             </div>
         </section>
     </main>
     
-    <footer class="bg-gray-800 text-white py-4">
+    <footer class="bg-gray-800 text-white py-4 mt-8">
         <div class="container mx-auto px-4 text-center">
             <p>&copy; 2024 Farm Management App. All rights reserved.</p>
         </div>

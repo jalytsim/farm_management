@@ -209,7 +209,7 @@ def get_all_farm_geojson():
         flash("error: No points found for any farm"), 404
         return redirect(url_for('farm.index'))
     feature_collection = FeatureCollection(features)
-    mapbox_html = create_mapbox_html_static_token(feature_collection)
+    mapbox_html = create_mapbox_html_static(feature_collection)
     return render_template('index.html', choropleth_map=mapbox_html)
 
 def create_mapbox_html_static(geojson_data):
