@@ -1,6 +1,7 @@
+from sqlalchemy import func
 from app.models import Forest, Weather
 from sqlalchemy.orm import sessionmaker
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask_login import current_user
 import numpy as np
 from flask import current_app as app
@@ -267,4 +268,29 @@ def get_weather_data(latitude, longitude, timestamp):
             'humidity': result.humidity
         }
     else:
-        return None       
+        return None    
+
+
+def get_daily_average_temperature(datetime_str, latitude, longitude):
+    session = sessionmaker(bind=db.engine)()
+
+    # Convertir le datetime string en objet datetime
+    datetime_obj = datetime.strptime(datetime_str, '%Y-%m-%d %H:%M:%S')
+    
+    # Extraire la date pour les bornes de la journée
+    start_of_day = datetime(datetime_obj.year, datetime_obj.month, datetime_obj.day)
+    end_of_day = start_of_day + timedelta(days=1)  # La fin du jour est le début du jour suivant
+
+    # Requête pour calculer la température moyenne pour la journée spécifique
+    result = session.query(
+        func.avg(Weather.air_temperature).label('average_temperature')
+    ).filter(
+        Weather.latitude == latitude,
+        Weather.longitude == longitude,
+        Weather.timestamp >= start_of_day,
+        Weather.timestamp < end_of_day
+    ).scalar()  # Utiliser scalar() pour obtenir une seule valeur
+
+    session.close()
+
+    return result

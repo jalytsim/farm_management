@@ -3,7 +3,7 @@ import json
 from flask import Blueprint, app, jsonify, request
 from flask_cors import cross_origin
 from app.utils.solar_utils import get_solar_data
-from app.utils.weather_utils import calculate_blaney_criddle_etc, calculate_penman_et0, create_weather, get_weather_data, insert_weather_data_from_json
+from app.utils.weather_utils import calculate_blaney_criddle_etc, calculate_penman_et0, create_weather, get_daily_average_temperature, get_weather_data, insert_weather_data_from_json
 
 bp = Blueprint('weather', __name__)
 
@@ -65,24 +65,27 @@ def get_weather():
     
     # Retrieve weather and solar data
     weather_result = get_weather_data(latitude, longitude, formatted_timestamp)
+    print(weather_result)
     solar_result = get_solar_data(latitude, longitude, formatted_timestamp)
+    print(solar_result)
 
     if not weather_result or not solar_result:
         return jsonify({"status": "error", "message": "Data not found"}), 404
 
     # Calculate ET₀ and ETc
-    T = weather_result['air_temperature']
+
+
     RH = weather_result['humidity']
     Rs = solar_result['downward_short_wave_radiation_flux']
     u2 = weather_result['wind_speed']
     P = weather_result['pressure'] / 1000  # Convert Pa to kPa
 
-    ET0 = calculate_penman_et0(T, RH, Rs, u2, P)
 
     # Example Kc value (you might want to get this from somewhere or adjust as needed)
     Kc = 1.2
-    T_moy = T  # Assuming average temperature is used for ETc calculation
+    T_moy = get_daily_average_temperature(formatted_timestamp, latitude, longitude)  # Assuming average temperature is used for ETc calculation
     ETc = calculate_blaney_criddle_etc(T_moy, Kc)
+    ET0 = calculate_penman_et0(T_moy, RH, Rs, u2, P)
 
     # Prepare the response
     response = {
@@ -91,7 +94,7 @@ def get_weather():
         "latitude": latitude,
         "longitude": longitude,
         "timestamp": formatted_timestamp,
-        "temperature": T,
+        "temperature": T_moy,
         "humidity": RH,
         "solarRadiation": Rs,
         "windSpeed": u2,
