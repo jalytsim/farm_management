@@ -245,8 +245,6 @@ class Weather(db.Model):
         return f'<Weather {self.id}>'
 
 
-
-
 class Solar(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     latitude = db.Column(db.String(20), nullable=False)
@@ -262,25 +260,3 @@ class Solar(db.Model):
 
     def __repr__(self):
         return f'<Solar {self.id}>'
-
-from flask_sqlalchemy import SQLAlchemy
-
-db = SQLAlchemy()
-
-class Farm(db.Model):
-    __tablename__ = 'farm'
-    farm_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    name = db.Column(db.String(100), nullable=False)
-    farmdata = db.relationship('FarmData', back_populates='farm')
-
-    def __repr__(self):
-        return f'<Farm {self.name}>'
-
-class FarmData(db.Model):
-    __tablename__ = 'farmdata'
-    farm_id = db.Column(db.Integer, db.ForeignKey('farm.farm_id'), primary_key=True)
-    quantity = db.Column(db.Float, nullable=False)
-    farm = db.relationship('Farm', back_populates='farmdata')
-
-    def __repr__(self):
-        return f'<FarmData {self.quantity}>'

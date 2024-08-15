@@ -84,3 +84,87 @@ def delete_user(user_id):
     db.session.delete(user)
     db.session.commit()
     return jsonify(success=True)
+
+
+####################################INTEGRATION AVEC REACT #################################
+@admin_bp.route('/api/admin/users', methods=['GET'])
+@admin_required
+def get_users():
+    page = request.args.get('page', 1, type=int)
+    users = User.query.paginate(page=page, per_page=6)
+    users_data = [{
+        'id': user.id,
+        'username': user.username,
+        'email': user.email,
+        'phonenumber': user.phonenumber,
+        'user_type': user.user_type,
+        'is_admin': user.is_admin,
+        'id_start': user.id_start
+    } for user in users.items]
+    
+    return jsonify(users=users_data, total_pages=users.pages, current_page=users.page)
+
+@admin_bp.route('/api/admin/create_user', methods=['POST'])
+@admin_required
+def create_user_api():
+    data = request.json
+    email = data.get('email')
+    
+    user = User.query.filter_by(email=email).first()
+    if user:
+        return jsonify({'error': 'Email address already exists'}), 400
+    
+    new_user = User(
+        username=data.get('username'),
+        email=email,
+        password=generate_password_hash(data.get('password'), method='pbkdf2:sha256'),
+        phonenumber=data.get('phonenumber'),
+        user_type=data.get('user_type'),
+        is_admin=data.get('is_admin'),
+        id_start=data.get('id_start')
+    )
+    
+    db.session.add(new_user)
+    db.session.commit()
+    
+    return jsonify({'message': 'User created successfully.'}), 201
+
+@admin_bp.route('/api/admin/user/<int:user_id>', methods=['GET'])
+@admin_required
+def get_user_api(user_id):
+    user = User.query.get_or_404(user_id)
+    return jsonify({
+        'id': user.id,
+        'username': user.username,
+        'email': user.email,
+        'phonenumber': user.phonenumber,
+        'user_type': user.user_type,
+        'is_admin': user.is_admin,
+        'id_start': user.id_start
+    })
+
+@admin_bp.route('/api/admin/user/<int:user_id>', methods=['PUT'])
+@admin_required
+def update_user_api(user_id):
+    user = User.query.get_or_404(user_id)
+    data = request.json
+    
+    user.username = data.get('username')
+    user.email = data.get('email')
+    user.phonenumber = data.get('phonenumber')
+    user.user_type = data.get('user_type')
+    user.is_admin = data.get('is_admin')
+    user.id_start = data.get('id_start')
+    
+    db.session.commit()
+    
+    return jsonify({'message': 'User updated successfully.'}), 200
+
+@admin_bp.route('/api/admin/user/<int:user_id>', methods=['DELETE'])
+@admin_required
+def delete_user_api(user_id):
+    user = User.query.get_or_404(user_id)
+    db.session.delete(user)
+    db.session.commit()
+    
+    return jsonify({'message': 'User deleted successfully.'}), 200

@@ -5,11 +5,13 @@ from flask_login import LoginManager
 from flask_migrate import Migrate
 from flask_cors import CORS
 from config import Config
+from flask_jwt_extended import JWTManager
 
 db = SQLAlchemy()
 mysql = MySQL()
 login_manager = LoginManager()
 migrate = Migrate()
+jwt = JWTManager()  # Initialize the JWTManager
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -19,32 +21,21 @@ def load_user(user_id):
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
-
+    
     db.init_app(app)
     mysql.init_app(app)
     login_manager.init_app(app)
-    login_manager.login_view = 'auth.login'
-    login_manager.login_message_category = 'info'
     migrate.init_app(app, db)
-
     CORS(app)
+    jwt.init_app(app)  # Initialize JWTManager with the app
 
+    # Import your models
     with app.app_context():
         from app.models import User
-
+    
+    # Register your blueprints
     from app.routes import auth, farm, qr, map, main, forest, point, admin, farmdata, tree
-    from app.routes import crop
-    from app.routes import farmergroup
-    from app.routes import producecategory
-    from app.routes import district
-    from app.routes import weather
-    from app.routes import stgl
-    from app.routes import solar
-    from app.routes import graph
-    app.register_blueprint(graph.bp)
-    app.register_blueprint(solar.bp)
-    app.register_blueprint(stgl.bp)
-    app.register_blueprint(weather.bp)
+    from app.routes import crop, farmergroup, producecategory, district, weather, stgl, solar, graph
     app.register_blueprint(auth.bp)
     app.register_blueprint(farm.bp)
     app.register_blueprint(qr.bp)
@@ -59,10 +50,14 @@ def create_app():
     app.register_blueprint(producecategory.bp)
     app.register_blueprint(district.bp)
     app.register_blueprint(tree.bp)
+    app.register_blueprint(graph.bp)
+    app.register_blueprint(solar.bp)
+    app.register_blueprint(stgl.bp)
+    app.register_blueprint(weather.bp)
     
     from app.routes.testDb import test
     app.register_blueprint(test)
-
+    
     @app.template_filter('remove_gfw')
     def remove_gfw(text):
         if text:
@@ -72,3 +67,4 @@ def create_app():
     app.jinja_env.filters['remove_gfw'] = remove_gfw
 
     return app
+
