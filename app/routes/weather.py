@@ -76,6 +76,7 @@ def get_weather():
 
 
     RH = weather_result['humidity']
+    precipitation = weather_result['precipitation']
     Rs = solar_result['downward_short_wave_radiation_flux']
     u2 = weather_result['wind_speed']
     P = weather_result['pressure'] / 1000  # Convert Pa to kPa
@@ -100,7 +101,8 @@ def get_weather():
         "windSpeed": u2,
         "pressure": P * 1000,  # Convert kPa back to Pa
         "ET0": ET0,
-        "ETc": ETc
+        "ETc": ETc,
+        "precipitation": precipitation, 
     }
 
     return jsonify({"status": "success", "data": response}), 200

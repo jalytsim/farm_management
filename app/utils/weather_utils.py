@@ -251,7 +251,8 @@ def get_weather_data(latitude, longitude, timestamp):
         Weather.air_temperature,
         Weather.pressure,
         Weather.wind_speed,
-        Weather.humidity
+        Weather.humidity,
+        Weather.precipitation
     ).filter(
         Weather.latitude == latitude,
         Weather.longitude == longitude,
@@ -265,7 +266,8 @@ def get_weather_data(latitude, longitude, timestamp):
             'air_temperature': result.air_temperature,
             'pressure': result.pressure,
             'wind_speed': result.wind_speed,
-            'humidity': result.humidity
+            'humidity': result.humidity,
+            'precipitation': result.precipitation
         }
     else:
         return None    
