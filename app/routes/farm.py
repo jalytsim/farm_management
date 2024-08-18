@@ -79,24 +79,6 @@ def update_farm_route(farm_id):
     )
     return jsonify(success=True)
 
-
-# @bp.route('/farm/<int:farm_id>/edit', methods=['GET', 'POST'])
-# @farmer_or_admin_required
-# def edit_farm(farm_id):
-#     farm = Farm.query.get_or_404(farm_id)
-#     if request.method == 'POST':
-#         farm_id2 = request.form['farm_id']
-#         name = request.form['name']
-#         subcounty = request.form['subcounty']
-#         farmergroup_id = request.form['farmergroup_id']
-#         district_id = request.form['district_id']
-#         geolocation = request.form['geolocation']
-#         farm_utils.update_farm(farm, farm_id2, name, subcounty, farmergroup_id, district_id, geolocation)
-#         return redirect(url_for('farm.index'))
-#     districts = District.query.all()
-#     farmergroups = FarmerGroup.query.all()
-#     return render_template('farm/edit.html', farm=farm, districts=districts, farmergroups=farmergroups)
-
 @bp.route('/farm/<int:farm_id>/delete', methods=['POST'])
 @login_required
 @farmer_or_admin_required
@@ -105,13 +87,14 @@ def delete_farm(farm_id):
     print(farm.id)
     farm_utils.delete_farm(farm.id)
     return redirect(url_for('farm.index'))
+
+
 @bp.route('/farm')
 @login_required
 @farmer_or_admin_required
 def dashboard():
     # Handle farm dashboard logic
     return render_template('home.html')
-
 
 @bp.route('/boundaries/<region_name>/<farm_id>')
 @login_required
