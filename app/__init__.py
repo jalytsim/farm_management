@@ -25,7 +25,7 @@ def init_extensions(app):
     login_manager.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
-    CORS(app)
+    CORS(app, resources={r"/*": {"origins": "*"}})
 
 def register_blueprints(app):
     """Register Flask blueprints."""
