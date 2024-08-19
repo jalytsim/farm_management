@@ -53,3 +53,4 @@ def delete_district_route(district_id):
     delete_district(district_id)
     flash('District deleted successfully.', 'success')
     return redirect(url_for('districts.list_districts'))
+

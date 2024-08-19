@@ -11,60 +11,67 @@ db = SQLAlchemy()
 mysql = MySQL()
 login_manager = LoginManager()
 migrate = Migrate()
-jwt = JWTManager()  # Initialize the JWTManager
+jwt = JWTManager()
 
 @login_manager.user_loader
 def load_user(user_id):
     from app.models import User
     return User.query.get(int(user_id))
 
-def create_app():
-    app = Flask(__name__)
-    app.config.from_object(Config)
-    
+def init_extensions(app):
+    """Initialize Flask extensions."""
     db.init_app(app)
     mysql.init_app(app)
     login_manager.init_app(app)
     migrate.init_app(app, db)
+    jwt.init_app(app)
     CORS(app)
-    jwt.init_app(app)  # Initialize JWTManager with the app
 
-    # Import your models
-    with app.app_context():
-        from app.models import User
+def register_blueprints(app):
+    """Register Flask blueprints."""
+    from app.routes import (
+        auth, farm, qr, map, main, forest, point, admin, 
+        farmdata, tree, crop, farmergroup, producecategory, 
+        district, weather, stgl, solar, graph, api_crop ,
+          api_farm, api_farm_data,api_producecategory,api_district,
+          api_farmer_group, 
+    )
     
-    # Register your blueprints
-    from app.routes import auth, farm, qr, map, main, forest, point, admin, farmdata, tree
-    from app.routes import crop, farmergroup, producecategory, district, weather, stgl, solar, graph
-    app.register_blueprint(auth.bp)
-    app.register_blueprint(farm.bp)
-    app.register_blueprint(qr.bp)
-    app.register_blueprint(map.bp)
-    app.register_blueprint(main.bp)
-    app.register_blueprint(forest.bp)
-    app.register_blueprint(point.bp)
-    app.register_blueprint(admin.admin_bp)
-    app.register_blueprint(farmdata.bp)
-    app.register_blueprint(crop.crop_bp)
-    app.register_blueprint(farmergroup.bp)
-    app.register_blueprint(producecategory.bp)
-    app.register_blueprint(district.bp)
-    app.register_blueprint(tree.bp)
-    app.register_blueprint(graph.bp)
-    app.register_blueprint(solar.bp)
-    app.register_blueprint(stgl.bp)
-    app.register_blueprint(weather.bp)
+    blueprints = [
+        auth.bp, farm.bp, qr.bp, map.bp, main.bp, forest.bp, 
+        point.bp, admin.admin_bp, farmdata.bp, crop.crop_bp, 
+        api_crop.api_crop_bp, farmergroup.bp, producecategory.bp, 
+        district.bp, tree.bp, graph.bp, solar.bp, stgl.bp, weather.bp, 
+        api_farm.bp, api_farm_data.bp,api_producecategory.bp,api_district.bp,
+        api_farmer_group.bp
+    ]
     
+    for blueprint in blueprints:
+        app.register_blueprint(blueprint)
+
     from app.routes.testDb import test
     app.register_blueprint(test)
-    
+
+def register_filters(app):
+    """Register custom Jinja filters."""
     @app.template_filter('remove_gfw')
     def remove_gfw(text):
         if text:
             return text.replace('gfw', '').replace('umd', '')
         return text
-
+    
     app.jinja_env.filters['remove_gfw'] = remove_gfw
 
+def create_app():
+    app = Flask(__name__)
+    app.config.from_object(Config)
+    
+    init_extensions(app)
+    register_blueprints(app)
+    register_filters(app)
+    
+    # Import models
+    with app.app_context():
+        from app.models import User
+    
     return app
-
