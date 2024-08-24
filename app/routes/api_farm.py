@@ -24,7 +24,7 @@ def index():
         "subcounty": farm.subcounty,
         "district_id": farm.district_id,
         "farmergroup_id": farm.farmergroup_id,
-        "geolocation": farm.geolocation,
+        
         "phonenumber1": farm.phonenumber,
         "phonenumber2": farm.phonenumber2,
     } for farm in farms.items]
@@ -35,21 +35,30 @@ def index():
 @jwt_required()
 def create_farm():
     user_id = get_jwt_identity()
+    print(user_id)
+    user = User.query.get(user_id)
+    
+    if not user or not user.id_start:
+        return jsonify({"msg": "User id_start is not defined"}), 400
+    
     data = request.json
     logging.info("Form data received: %s", data)
     
-    farm_utils.create_farm(
-        farm_id=data['farm_id'],
-        name=data['name'],
-        subcounty=data['subcounty'],
-        farmergroup_id=data['farmergroup_id'],
-        district_id=data['district_id'],
-        geolocation=f"{data['latitude']},{data['longitude']}",
-        phonenumber1=data.get('phonenumber1'),
-        phonenumber2=data.get('phonenumber2')
-    )
-    
-    return jsonify(success=True)
+    try:
+        new_farm = farm_utils.create_farm(
+            user=user,
+            name=data['name'],
+            subcounty=data['subcounty'],
+            farmergroup_id=data['farmergroup_id'],
+            district_id=data['district_id'],
+            geolocation=f"{data['latitude']},{data['longitude']}",
+            phonenumber1=data.get('phonenumber1'),
+            phonenumber2=data.get('phonenumber2')
+        )
+        return jsonify(success=True, farm_id=new_farm.farm_id)
+    except Exception as e:
+        logging.error(f"Error creating farm: {e}")
+        return jsonify({"msg": "Error creating farm"}), 500
 
 @bp.route('/<int:farm_id>/update', methods=['POST'])
 @jwt_required()

@@ -3,7 +3,7 @@ from flask_login import current_user
 from app import db
 from app.models import Point, Forest, Farm, District, Tree
 
-def create_point(longitude, latitude, owner_type, district_id, forest_id=None, farmer_id=None, tree_id=None, ):
+def create_point(longitude, latitude, owner_type, district_id, forest_id=None, farmer_id=None, tree_id=None,user=None  ):
     if owner_type == 'forest' and forest_id:
         forest = db.session.query(Forest).filter_by(id=forest_id).first()
         if not forest:
@@ -16,7 +16,12 @@ def create_point(longitude, latitude, owner_type, district_id, forest_id=None, f
         tree = db.session.query(Tree).filter_by(id=tree_id).first()
         if not tree:
             raise ValueError(f'Tree ID {tree_id} does not exist.')
-
+        
+    
+    if user:
+        user_id = user.id
+    else:
+        user_id = current_user.id
     point = Point(
         longitude=longitude,
         latitude=latitude,
@@ -25,8 +30,8 @@ def create_point(longitude, latitude, owner_type, district_id, forest_id=None, f
         farmer_id=farmer_id,
         tree_id=tree_id,
         district_id=district_id,
-        created_by=current_user.id,
-        modified_by=current_user.id,
+        created_by=user_id,
+        modified_by=user_id,
         date_created=datetime.utcnow(),
         date_updated=datetime.utcnow()
     )
