@@ -1,3 +1,4 @@
+from datetime import timedelta
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import login_required, login_user, logout_user, current_user as login_current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -7,6 +8,7 @@ from app import db
 
 bp = Blueprint('auth', __name__)
 
+
 @bp.route('/api/login', methods=['POST'])
 def api_login():
     email = request.json.get('email')
@@ -14,7 +16,8 @@ def api_login():
     user = User.query.filter_by(email=email).first()
 
     if user and check_password_hash(user.password, password):
-        access_token = create_access_token(identity=user.id)
+        # Extend the token lifetime (e.g., 7 days)
+        access_token = create_access_token(identity=user.id, expires_delta=timedelta(days=7))
         return jsonify(token=access_token), 200
     else:
         return jsonify({"msg": "Login Unsuccessful. Please check email and password"}), 401

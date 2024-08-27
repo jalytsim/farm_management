@@ -24,12 +24,15 @@ def index():
         "subcounty": farm.subcounty,
         "district_id": farm.district_id,
         "farmergroup_id": farm.farmergroup_id,
-        
         "phonenumber1": farm.phonenumber,
         "phonenumber2": farm.phonenumber2,
     } for farm in farms.items]
-    print(farms_list)
-    return jsonify(farms=farms_list)
+    
+    return jsonify(
+        farms=farms_list,
+        total_pages=farms.pages,  # Return the total number of pages
+        current_page=farms.page,  # Return the current page
+    )
 
 @bp.route('/create', methods=['POST'])
 @jwt_required()
@@ -83,14 +86,3 @@ def delete_farm(farm_id):
     farm_utils.delete_farm(farm.id)
     return jsonify(success=True)
 
-@bp.route('/boundaries/<region_name>/<farm_id>')
-@jwt_required()
-def generate_polygon_map_specific_region(region_name, farm_id):
-    choropleth_map = generate_choropleth_map(region_name, farm_id)
-    return jsonify(choropleth_map=choropleth_map)
-
-@bp.route('/map/all_points')
-@jwt_required()
-def display_all_points():
-    choropleth_map = generate_choropleth_map()
-    return jsonify(choropleth_map=choropleth_map)
