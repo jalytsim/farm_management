@@ -1,5 +1,6 @@
 from datetime import timedelta
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
+from flask_cors import cross_origin
 from flask_login import login_required, login_user, logout_user, current_user as login_current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, current_user as jwt_current_user
@@ -10,6 +11,7 @@ bp = Blueprint('auth', __name__)
 
 
 @bp.route('/api/login', methods=['POST'])
+@cross_origin()
 def api_login():
     email = request.json.get('email')
     password = request.json.get('password')
