@@ -1,4 +1,5 @@
 from flask import Blueprint, jsonify, request
+from flask_cors import cross_origin
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.models import District, Farm, FarmerGroup, ProduceCategory, User
 from app.utils import farm_utils
@@ -8,6 +9,7 @@ bp = Blueprint('api_farm', __name__, url_prefix='/api/farm')
 
 @bp.route('/')
 @jwt_required()
+@cross_origin()
 def index():
     user_id = get_jwt_identity()  # Retrieve the user ID from the JWT token
     page = request.args.get('page', 1, type=int)
@@ -37,6 +39,7 @@ def index():
 
 @bp.route('/create', methods=['POST'])
 @jwt_required()
+@cross_origin()
 def create_farm():
     user_id = get_jwt_identity()
     print(user_id)
