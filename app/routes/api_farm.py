@@ -24,6 +24,7 @@ def index():
         "subcounty": farm.subcounty,
         "district_id": farm.district_id,
         "farmergroup_id": farm.farmergroup_id,
+        'geolocation': farm.geolocation,
         "phonenumber1": farm.phonenumber,
         "phonenumber2": farm.phonenumber2,
     } for farm in farms.items]
@@ -63,7 +64,7 @@ def create_farm():
         logging.error(f"Error creating farm: {e}")
         return jsonify({"msg": "Error creating farm"}), 500
 
-@bp.route('/<int:farm_id>/update', methods=['POST'])
+@bp.route('/<farm_id>/update', methods=['POST'])
 @jwt_required()
 def update_farm_route(farm_id):
     data = request.json
@@ -79,10 +80,14 @@ def update_farm_route(farm_id):
     )
     return jsonify(success=True)
 
-@bp.route('/<int:farm_id>/delete', methods=['POST'])
+@bp.route('/<farm_id>/delete', methods=['POST'])
 @jwt_required()
 def delete_farm(farm_id):
-    farm = Farm.query.get_or_404(farm_id)
+    farmId = farm_utils.getId(farm_id)
+    print(farmId)
+    print(farm_id)
+    farm = Farm.query.get_or_404(farmId)
+    print(farm.id)
     farm_utils.delete_farm(farm.id)
     return jsonify(success=True)
 

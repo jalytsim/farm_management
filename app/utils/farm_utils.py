@@ -43,6 +43,14 @@ def get_farm_id(farm_id):
     except Exception as e:
         print(f"Error fetching farm properties: {e}")
         return None
+    
+def getId(farm_id):
+    try:
+        data = db.session.query(Farm.id).filter(Farm.farm_id == farm_id).all()
+        return data[0]
+    except Exception as e:
+        print(f"Error fetching farm properties: {e}")
+        return None
 
 
 def get_all_farms():
