@@ -9,7 +9,6 @@ bp = Blueprint('api_farm', __name__, url_prefix='/api/farm')
 
 @bp.route('/')
 @jwt_required()
-@cross_origin()
 def index():
     user_id = get_jwt_identity()  # Retrieve the user ID from the JWT token
     page = request.args.get('page', 1, type=int)

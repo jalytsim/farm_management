@@ -11,7 +11,6 @@ bp = Blueprint('auth', __name__)
 
 
 @bp.route('/api/login', methods=['POST'])
-@cross_origin()
 def api_login():
     email = request.json.get('email')
     password = request.json.get('password')
@@ -25,7 +24,6 @@ def api_login():
         return jsonify({"msg": "Login Unsuccessful. Please check email and password"}), 401
 
 @bp.route('/api/signup', methods=['POST'])
-@cross_origin()
 def api_signup():
     username = request.json.get('username')
     email = request.json.get('email')
@@ -51,7 +49,6 @@ def api_signup():
     return jsonify(token=access_token), 201
 
 @bp.route('/api/dashboard')
-@cross_origin()
 @jwt_required()
 def api_dashboard():
     user_id = get_jwt_identity()
@@ -65,7 +62,6 @@ def api_dashboard():
         return jsonify({"msg": "Invalid user type"}), 403
 
 @bp.route('/login', methods=['GET', 'POST'])
-@cross_origin()
 def login():
     if login_current_user.is_authenticated:
         return redirect(url_for('main.home'))
