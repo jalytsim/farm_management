@@ -1,4 +1,4 @@
-from flask import request, send_file, render_template
+from flask import jsonify, request, send_file, render_template
 import segno
 import hashlib
 from io import BytesIO
@@ -200,3 +200,64 @@ def create_qr_codes(data, pdf_filename):
         # Save the QR code image to a temporary file
         qr_file = f'{pdf_file_name}.png'
         qr.save(qr_file, scale=5)
+
+import hashlib
+from flask import jsonify
+
+def generate_farm_data_json(farm_id):
+    data = get_farm_properties(farm_id)
+
+    if not data:
+        return {"error": "No data found for the farm."}, 404
+
+    farm_data_list = []
+
+    for row in data:
+        (farm_id, farmergroup_id, geolocation, district_id, crop_id, tilled_land_size, season, 
+        quality, produce_weight, harvest_date, timestamp, channel_partner, destination_country, 
+        customer_name, district_name, district_region) = row
+
+        farm = Farm.query.filter_by(farm_id=farm_id).first()
+        farmer_name = farm.name if farm else 'N/A'
+
+        farmergroup = FarmerGroup.query.get(farmergroup_id)
+        farmerg_name = farmergroup.name if farmergroup else 'N/A'
+
+        crop = Crop.query.get(crop_id)
+        crop_name = crop.name if crop else 'N/A'
+        grade = crop.category_id if crop else 'N/A'
+        weight = crop.weight if crop else 0
+
+        bags_per_yield = weight
+        batch_number = int(produce_weight / bags_per_yield)
+
+        for i in range(batch_number):
+            serial_data = f"{farmer_name}_{crop_name}_{i+1}"
+            serial_number = hashlib.md5(serial_data.encode('utf-8')).hexdigest()
+
+            farm_data = {
+                "Country": "Uganda",
+                "Farm ID": farmer_name,
+                "Group ID": farmerg_name,
+                "Geolocation": geolocation,
+                "Land Boundaries URL": f"http://164.92.211.54:5000/boundaries/{district_name}/{farm_id}",
+                "District": district_name,
+                "Crop": crop_name,
+                "Grade": grade,
+                "Tilled Land Size": f"{tilled_land_size} ACRES",
+                "Season": season,
+                "Quality": quality,
+                "Produce Weight": f"{produce_weight} KG",
+                "Harvest Date": harvest_date,
+                "Timestamp": timestamp,
+                "District Region": district_region,
+                "Batch Number": i+1,
+                "Channel Partner": channel_partner,
+                "Destination Country": destination_country,
+                "Customer Name": customer_name,
+                "Serial Number": serial_number
+            }
+
+            farm_data_list.append(farm_data)
+
+    return farm_data_list, 200

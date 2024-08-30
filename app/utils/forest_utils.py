@@ -1,27 +1,38 @@
 from app.models import Forest
-from ..models import db, FarmData, Farm, District, SoilData
+from ..models import db
 from datetime import datetime
 from flask_login import current_user
 
-def create_forest(name, tree_type):
+def create_forest( name, tree_type, user=None):
+    print(user.id)
+    if user:
+        user_id = user.id
+    else:
+        user_id = current_user.id
+
     new_forest = Forest(
         name=name,
         tree_type=tree_type,
         date_created=datetime.utcnow(),
         date_updated=datetime.utcnow(),
-        created_by=current_user.id,
-        modified_by=current_user.id
+        created_by=user_id,
+        modified_by=user_id
     )
     db.session.add(new_forest)
     db.session.commit()
 
-def update_forest(id, name, tree_type):
+def update_forest(id, name, tree_type, user=None):
     forest = db.session.query(Forest).get(id)
+    if user:
+        user_id = user.id
+    else:
+        # Assuming that 'current_user' is a global or context-based object that provides the current user's ID
+        user_id = current_user.id
     if forest:
         forest.name = name
         forest.tree_type = tree_type
         forest.date_updated = datetime.utcnow()
-        forest.modified_by = current_user.id
+        forest.modified_by = user_id
         db.session.commit()
 
 def delete_forest(id):
