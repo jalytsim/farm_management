@@ -93,3 +93,20 @@ def delete_farm(farm_id):
     farm_utils.delete_farm(farm.id)
     return jsonify(success=True)
 
+@bp.route('/<farm_id>', methods=['GET'])
+@jwt_required()
+def get_farm_by_id(farm_id):
+    farm = Farm.query.filter_by(farm_id=farm_id).first_or_404()
+
+    farm_data = {
+        "id": farm.farm_id,
+        "name": farm.name,
+        "subcounty": farm.subcounty,
+        "district_id": farm.district_id,
+        "farmergroup_id": farm.farmergroup_id,
+        "geolocation": farm.geolocation,
+        "phonenumber1": farm.phonenumber,
+        "phonenumber2": farm.phonenumber2,
+    }
+
+    return jsonify(farm=farm_data)
