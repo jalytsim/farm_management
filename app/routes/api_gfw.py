@@ -63,7 +63,7 @@ def farmerReport(farm_id):
     data, status_code = gfw(owner_type='farmer', owner_id=farm_id)
     if status_code != 200:
         return jsonify(data), status_code
-            
+    
     return jsonify({
         "farm_info": farm_info,
         "report": data['dataset_results']

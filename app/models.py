@@ -137,29 +137,22 @@ class Forest(db.Model):
     modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
 
+
 class Point(db.Model):
     __tablename__ = 'point'
     id = db.Column(db.Integer, primary_key=True)
     longitude = db.Column(db.Float, nullable=False)
     latitude = db.Column(db.Float, nullable=False)
     owner_type = db.Column(db.Enum('forest', 'farmer', 'tree'), nullable=False)
-    forest_id = db.Column(db.Integer, db.ForeignKey('forest.id'), nullable=True)
-    farmer_id = db.Column(db.String(50), db.ForeignKey('farm.farm_id'), nullable=True)
-    tree_id = db.Column(db.Integer, db.ForeignKey('tree.id'), nullable=True)
-    district_id = db.Column(db.Integer, db.ForeignKey('district.id'), nullable=False)
-    __table_args__ = (
-        db.CheckConstraint(
-            "(owner_type = 'forest' AND forest_id IS NOT NULL AND farmer_id IS NULL AND tree_id IS NULL) OR "
-            "(owner_type = 'farmer' AND farmer_id IS NOT NULL AND forest_id IS NULL AND tree_id IS NULL) OR "
-            "(owner_type = 'tree' AND tree_id IS NOT NULL AND forest_id IS NULL AND farmer_id IS NULL)",
-            name='check_owner_type'
-        ),
-    )
+    owner_id = db.Column(db.String, nullable=True)
+    district_id = db.Column(db.Integer, db.ForeignKey('district.id'), nullable=True)
     date_created = db.Column(db.DateTime, default=datetime.utcnow)
     date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
 
+    def __repr__(self):
+        return f"<Point(id={self.id}, longitude={self.longitude}, latitude={self.latitude}, owner_type={self.owner_type}, owner_id={self.owner_id})>"
 
 
 
