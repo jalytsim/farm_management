@@ -36,6 +36,60 @@ def get_farm_properties(farm_id):
         return None
 
 
+from app.models import db, Farm, FarmData, District, FarmerGroup, Crop  # Adjust the import based on your project structure
+
+def get_all_farm_properties(farm_id):
+    """
+    Retrieve all properties of a farm, including associated farm data, district, farmer group, and crop information.
+    
+    Args:
+        farm_id (str): The farm ID to filter the records.
+    
+    Returns:
+        list: A list of tuples containing farm properties, or None in case of an error.
+    """
+    try:
+        # Query to get farm properties along with related farm data, district, farmer group, and crop information
+        data = db.session.query(
+            Farm.farm_id,
+            Farm.name.label('farm_name'),
+            Farm.subcounty,
+            Farm.geolocation,
+            FarmerGroup.name.label('farmergroup_name'),
+            District.name.label('district_name'),
+            District.region.label('district_region'),
+            Crop.name.label('crop_name'),
+            FarmData.tilled_land_size,
+            FarmData.land_type,
+            FarmData.planting_date,
+            FarmData.season,
+            FarmData.quality,
+            FarmData.quantity.label('produce_weight'),
+            FarmData.harvest_date,
+            FarmData.expected_yield,
+            FarmData.actual_yield,
+            FarmData.timestamp,
+            FarmData.channel_partner,
+            FarmData.destination_country,
+            FarmData.customer_name
+        ).join(FarmData, Farm.farm_id == FarmData.farm_id) \
+         .join(District, Farm.district_id == District.id) \
+         .join(FarmerGroup, Farm.farmergroup_id == FarmerGroup.id) \
+         .join(Crop, FarmData.crop_id == Crop.id) \
+         .filter(Farm.farm_id == farm_id).all()
+
+        # Print the fetched data for debugging
+        print(data)
+
+        # Return the fetched data
+        return data
+
+    except Exception as e:
+        # Print the error message for debugging
+        print(f"Error fetching farm properties: {e}")
+        return None
+
+
 def get_farm_id(farm_id):
     try:
         data = db.session.query(Farm.farm_id).filter(Farm.id == farm_id).all()

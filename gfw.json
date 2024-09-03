@@ -13,7 +13,7 @@ CREATE TABLE point (
     CONSTRAINT fk_modified_by FOREIGN KEY (modified_by) REFERENCES user(id),
     CONSTRAINT fk_created_by FOREIGN KEY (created_by) REFERENCES user(id),
     INDEX ix_point_longitude_latitude (longitude, latitude)
-) ENGINE=InnoDB;
+);
 
 ALTER TABLE point
 MODIFY owner_id VARCHAR(255);
