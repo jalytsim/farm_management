@@ -244,9 +244,9 @@ def insert_weather_data(data):
             **weather_data
         )
 
-def get_weather_data(latitude, longitude, timestamp):
+def get_weather_data(latitude, longitude, timestamp = None):
     session = sessionmaker(bind=db.engine)()
-
+    print(latitude, longitude,timestamp)
     result = session.query(
         Weather.air_temperature,
         Weather.pressure,
@@ -296,3 +296,41 @@ def get_daily_average_temperature(datetime_str, latitude, longitude):
     session.close()
 
     return result
+
+
+def get_daily_weather_data(datetime_str, latitude, longitude):
+    session = sessionmaker(bind=db.engine)()
+
+    # Convertir le datetime string en objet datetime
+    datetime_obj = datetime.strptime(datetime_str, '%Y-%m-%d %H:%M:%S')
+    
+    # Extraire la date pour les bornes de la journée
+    start_of_day = datetime(datetime_obj.year, datetime_obj.month, datetime_obj.day)
+    end_of_day = start_of_day + timedelta(days=1)  # La fin du jour est le début du jour suivant
+
+    # Requête pour calculer la température moyenne pour la journée spécifique
+    result = session.query(
+        Weather.air_temperature,
+        Weather.pressure,
+        Weather.wind_speed,
+        Weather.humidity,
+        Weather.precipitation
+    ).filter(
+        Weather.latitude == latitude,
+        Weather.longitude == longitude,
+        Weather.timestamp >= start_of_day,
+        Weather.timestamp < end_of_day
+    ).all()
+
+    session.close()
+
+    if result:
+        return {
+            'air_temperature': result.air_temperature,
+            'pressure': result.pressure,
+            'wind_speed': result.wind_speed,
+            'humidity': result.humidity,
+            'precipitation': result.precipitation
+        }
+    else:
+        return None
