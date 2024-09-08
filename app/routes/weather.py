@@ -226,8 +226,8 @@ def get_daily_weather():
 
     # Prepare the response
     response = {
-        "imageUrl": imageUrl,
-        "farmName": farmName,
+        # "imageUrl": imageUrl,
+        # "farmName": farmName,
         "latitude": latitude,
         "longitude": longitude,
         "timestamp": formatted_timestamp,
