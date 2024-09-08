@@ -135,9 +135,75 @@ def get_weather():
     
     # Retrieve weather and solar data
     weather_result = get_weather_data(latitude, longitude, formatted_timestamp)
-    print(weather_result)
+    print("weather data = ",weather_result)
+
     solar_result = get_solar_data(latitude, longitude, formatted_timestamp)
-    print(solar_result)
+    print("solar data =",solar_result)
+
+    if not weather_result or not solar_result:
+        return jsonify({"status": "error", "message": "Data not found"}), 404
+
+    # Calculate ET₀ and ETc
+
+
+    RH = weather_result['humidity']
+    precipitation = weather_result['precipitation']
+    Rs = solar_result['downward_short_wave_radiation_flux']
+    u2 = weather_result['wind_speed']
+    P = weather_result['pressure'] / 1000  # Convert Pa to kPa
+
+
+    # Example Kc value (you might want to get this from somewhere or adjust as needed)
+    Kc = 1.2
+    T_moy = get_daily_average_temperature(formatted_timestamp, latitude, longitude)  # Assuming average temperature is used for ETc calculation
+    ETc = calculate_blaney_criddle_etc(T_moy, Kc)
+    ET0 = calculate_penman_et0(T_moy, RH, Rs, u2, P)
+
+    # Prepare the response
+    response = {
+        "imageUrl": imageUrl,
+        "farmName": farmName,
+        "latitude": latitude,
+        "longitude": longitude,
+        "timestamp": formatted_timestamp,
+        "temperature": T_moy,
+        "humidity": RH,
+        "solarRadiation": Rs,
+        "windSpeed": u2,
+        "pressure": P * 1000,  # Convert kPa back to Pa
+        "ET0": ET0,
+        "ETc": ETc,
+        "precipitation": precipitation, 
+    }
+
+    return jsonify({"status": "success", "data": response}), 200
+
+
+@bp.route('/dailyweather', methods=['GET'])
+@cross_origin()
+def get_daily_weather():
+    latitude = request.args.get('latitude', default=None)
+    longitude = request.args.get('longitude', default=None)
+    time = request.args.get('time', default=None)
+    print(f"Received parameters:latitude={latitude}, longitude={longitude}, time={time}")
+    # Check if 'time' is not empty
+    if time:
+        try:
+            # Convertir la chaîne ISO 8601 en un objet datetime
+            timestamp = datetime.fromisoformat(time.replace('Z', '+00:00'))
+            # Convertir l'objet datetime en une chaîne de caractères au format souhaité
+            formatted_timestamp = timestamp.strftime('%Y-%m-%d %H:%M:%S')
+        except ValueError as e:
+            return jsonify({"status": "error", "message": f"Invalid time format: {str(e)}"}), 400
+    else:
+        return jsonify({"status": "error", "message": "Time parameter is missing or empty"}), 400
+    
+    # Retrieve weather and solar data
+    weather_result = get_weather_data(latitude, longitude, formatted_timestamp)
+    print("weather data = ",weather_result)
+
+    solar_result = get_solar_data(latitude, longitude, formatted_timestamp)
+    print("solar data =",solar_result)
 
     if not weather_result or not solar_result:
         return jsonify({"status": "error", "message": "Data not found"}), 404

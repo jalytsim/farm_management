@@ -258,9 +258,9 @@ def insert_weather_data(data):
             **weather_data
         )
 
-def get_weather_data(latitude, longitude, timestamp):
+def get_weather_data(latitude, longitude, timestamp = None):
     session = sessionmaker(bind=db.engine)()
-
+    print(latitude, longitude,timestamp)
     result = session.query(
         Weather.air_temperature,
         Weather.pressure,
