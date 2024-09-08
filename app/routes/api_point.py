@@ -144,10 +144,12 @@ def update_point_route(point_id):
 @jwt_required()
 def get_all_points_owner_type(owner_type):
     user_id = get_jwt_identity()  # Retrieve the user ID from the JWT token
-
+    user = User.query.get(user_id)
+    if user.is_admin:
+        points = db.session.query(Point).filter_by(owner_type=owner_type).all()
+    else:
+        points = Point.query.filter_by(created_by=current_user.id, owner_type=owner_type).all()
     # Fetch all points for the given owner_type
-    points = db.session.query(Point).filter_by(owner_type=owner_type).all()
-
     # Group points by owner_id
     grouped_polygons = {}
     for point in points:
