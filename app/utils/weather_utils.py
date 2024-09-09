@@ -1,4 +1,4 @@
-from sqlalchemy import func
+from sqlalchemy import and_, func
 from app.models import Forest, Weather
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime, timedelta
@@ -66,16 +66,30 @@ def calculate_blaney_criddle_etc(T_moy, Kc):
 # Create a new weather record
 
 def create_weather(latitude, longitude, timestamp, **kwargs):
-    new_weather = Weather(
-        latitude=latitude,
-        longitude=longitude,
-        timestamp = timestamp,
-        date_created=datetime.utcnow(),
-        date_updated=datetime.utcnow(),
-        **kwargs
-    )
-    db.session.add(new_weather)
-    db.session.commit()
+    # Check if a weather entry with the same latitude, longitude, and timestamp already exists
+    existing_weather = Weather.query.filter(
+        and_(
+            Weather.latitude == latitude,
+            Weather.longitude == longitude,
+            Weather.timestamp == timestamp
+        )
+    ).first()
+    
+    # If no duplicate is found, create a new weather entry
+    if not existing_weather:
+        new_weather = Weather(
+            latitude=latitude,
+            longitude=longitude,
+            timestamp=timestamp,
+            date_created=datetime.utcnow(),
+            date_updated=datetime.utcnow(),
+            **kwargs
+        )
+        db.session.add(new_weather)
+        db.session.commit()
+        return new_weather
+    else:
+        return None 
 
 def update_weather(id, **kwargs):
     weather = Weather.query.get(id)
@@ -298,39 +312,84 @@ def get_daily_average_temperature(datetime_str, latitude, longitude):
     return result
 
 
-def get_daily_weather_data(datetime_str, latitude, longitude):
+def get_hourly_weather_data(datetime_str, latitude, longitude):
+    # Create a session
     session = sessionmaker(bind=db.engine)()
 
-    # Convertir le datetime string en objet datetime
+    # Convert the datetime string to a datetime object
     datetime_obj = datetime.strptime(datetime_str, '%Y-%m-%d %H:%M:%S')
-    
-    # Extraire la date pour les bornes de la journée
-    start_of_day = datetime(datetime_obj.year, datetime_obj.month, datetime_obj.day)
-    end_of_day = start_of_day + timedelta(days=1)  # La fin du jour est le début du jour suivant
 
-    # Requête pour calculer la température moyenne pour la journée spécifique
-    result = session.query(
+    # Extract the date to define the day bounds
+    start_of_day = datetime(datetime_obj.year, datetime_obj.month, datetime_obj.day)
+    end_of_day = start_of_day + timedelta(days=1)
+
+    # Define the columns to query dynamically (can be expanded)
+    columns = [
+        Weather.timestamp,
         Weather.air_temperature,
         Weather.pressure,
         Weather.wind_speed,
         Weather.humidity,
         Weather.precipitation
-    ).filter(
-        Weather.latitude == latitude,
-        Weather.longitude == longitude,
-        Weather.timestamp >= start_of_day,
-        Weather.timestamp < end_of_day
-    ).all()
+    ]
+
+    # Query to fetch hourly weather data (temperature, pressure, wind speed, etc.)
+    hourly_weather_data = session.query(*columns).filter(
+        and_(
+            Weather.latitude == latitude,
+            Weather.longitude == longitude,
+            Weather.timestamp >= start_of_day,
+            Weather.timestamp < end_of_day
+        )
+    ).order_by(Weather.timestamp).all()  # Order by timestamp to get data in sequence
 
     session.close()
 
-    if result:
-        return {
-            'air_temperature': result.air_temperature,
-            'pressure': result.pressure,
-            'wind_speed': result.wind_speed,
-            'humidity': result.humidity,
-            'precipitation': result.precipitation
+    # Return both the data and the columns to dynamically construct the response
+    return hourly_weather_data, [col.name for col in columns]
+
+
+def get_weekly_weather_data(datetime_str, latitude, longitude):
+    # Create a session
+    session = sessionmaker(bind=db.engine)()
+
+    # Convert the datetime string to a datetime object
+    datetime_obj = datetime.strptime(datetime_str, '%Y-%m-%d %H:%M:%S')
+
+    # Define the start of the week (Monday) and end of the week (Sunday)
+    start_of_week = datetime_obj - timedelta(days=datetime_obj.weekday())  # Monday of the current week
+    end_of_week = start_of_week + timedelta(days=7)  # Next Monday (exclusive)
+
+    # Query to fetch weekly weather data (temperature, pressure, wind speed, etc.)
+    data = session.query(
+        func.date(Weather.timestamp).label('date'),
+        func.avg(Weather.air_temperature).label('avg_temperature'),
+        func.avg(Weather.pressure).label('avg_pressure'),
+        func.avg(Weather.wind_speed).label('avg_wind_speed'),
+        func.avg(Weather.humidity).label('avg_humidity'),
+        func.avg(Weather.precipitation).label('avg_precipitation')
+    ).filter(
+        and_(
+            Weather.latitude == latitude,
+            Weather.longitude == longitude,
+            Weather.timestamp >= start_of_week,
+            Weather.timestamp < end_of_week
+        )
+    ).group_by(func.date(Weather.timestamp)).order_by(func.date(Weather.timestamp)).all()
+
+    session.close()
+
+    # Convert the query result into a list of dictionaries
+    weekly_data = [
+        {
+            "date": str(record.date),  # Date in YYYY-MM-DD format
+            "average_temperature": record.avg_temperature,
+            "average_pressure": record.avg_pressure,
+            "average_wind_speed": record.avg_wind_speed,
+            "average_humidity": record.avg_humidity,
+            "average_precipitation": record.avg_precipitation
         }
-    else:
-        return None
+        for record in data
+    ]
+
+    return weekly_data

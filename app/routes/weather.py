@@ -3,7 +3,7 @@ import json
 from flask import Blueprint, app, jsonify, request
 from flask_cors import cross_origin
 from app.utils.solar_utils import get_solar_data
-from app.utils.weather_utils import calculate_blaney_criddle_etc, calculate_penman_et0, create_weather, get_daily_average_temperature, get_weather_data, insert_weather_data_from_json
+from app.utils.weather_utils import calculate_blaney_criddle_etc, calculate_penman_et0, create_weather, get_daily_average_temperature, get_hourly_weather_data, get_weather_data, get_weekly_weather_data, insert_weather_data_from_json
 
 bp = Blueprint('weather', __name__)
 
@@ -33,11 +33,81 @@ data = {
 }
 
 
+
 @bp.route('/WeatherInsert', methods=['GET'])
-@cross_origin()  # Permet à toutes les origines de faire des requêtes à cette route
+@cross_origin()  # Allow all origins to make requests to this route
 def uploadWeather():
-    insert_weather_data_from_json(f'C:\\Users\\Backira Babazhelia\\Documents\\nomenaProjetBrian\\farm_management\\Weather_data.json')
-    return jsonify({"status": "success"}), 200
+    lat = request.args.get('lat', default='0.292225', type=str)
+    lon = request.args.get('lon', default='32.576809', type=str)
+    time = request.args.get('datestring', default='2024-08-06T10:00:43.649Z', type=str)
+
+    # Time processing
+    if time:
+        try:
+            # Convert ISO 8601 string to a datetime object
+            timestamp = datetime.fromisoformat(time.replace('Z', '+00:00'))
+            # Convert datetime object to a string in the desired format
+            formatted_timestamp = timestamp.strftime('%Y-%m-%d %H:%M:%S')
+        except ValueError as e:
+            return jsonify({"status": "error", "message": f"Invalid time format: {str(e)}"}), 400
+    else:
+        return jsonify({"status": "error", "message": "Time parameter is missing or empty"}), 400
+
+    # Pass the formatted timestamp to your function and handle exceptions
+    try:
+        hourly_data, columns = get_hourly_weather_data(formatted_timestamp, lat, lon)
+        
+        # Create a dynamic dictionary based on the column names and corresponding data
+        data = [
+            {columns[i]: str(record[i]) if isinstance(record[i], datetime) else record[i]
+             for i in range(len(record))}
+            for record in hourly_data
+        ]
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Failed to fetch data: {str(e)}"}), 500
+
+    return jsonify({"status": "success", "data": data}), 200
+
+@bp.route('/WeatherWeekly', methods=['GET'])
+@cross_origin()  # Allow all origins to make requests to this route
+def getWeeklyWeather():
+    lat = request.args.get('lat', default='0.536279', type=str)
+    lon = request.args.get('lon', default='32.589248', type=str)
+    time = request.args.get('datestring', default='2024-08-06T10:00:43.649Z', type=str)
+
+    # Time processing
+    if time:
+        try:
+            # Convert ISO 8601 string to a datetime object
+            timestamp = datetime.fromisoformat(time.replace('Z', '+00:00'))
+            # Convert datetime object to a string in the desired format
+            formatted_timestamp = timestamp.strftime('%Y-%m-%d %H:%M:%S')
+        except ValueError as e:
+            return jsonify({"status": "error", "message": f"Invalid time format: {str(e)}"}), 400
+    else:
+        return jsonify({"status": "error", "message": "Time parameter is missing or empty"}), 400
+
+    # Fetch weekly data based on the timestamp
+    try:
+        weekly_data = get_weekly_weather_data(formatted_timestamp, lat, lon)
+        
+        # No need to process columns since get_weekly_weather_data returns data in dictionary form
+        data = [
+            {
+                "date": record["date"],  # Assuming "date" is the key for the date in the dictionary
+                "average_temperature": record["average_temperature"],
+                "average_pressure": record["average_pressure"],
+                "average_wind_speed": record["average_wind_speed"],
+                "average_humidity": record["average_humidity"],
+                "average_precipitation": record["average_precipitation"]
+            }
+            for record in weekly_data
+        ]
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Failed to fetch data: {str(e)}"}), 500
+
+    return jsonify({"status": "success", "data": data}), 200
+
 
 
 @bp.route('/weather', methods=['GET'])
@@ -156,8 +226,8 @@ def get_daily_weather():
 
     # Prepare the response
     response = {
-        "imageUrl": imageUrl,
-        "farmName": farmName,
+        # "imageUrl": imageUrl,
+        # "farmName": farmName,
         "latitude": latitude,
         "longitude": longitude,
         "timestamp": formatted_timestamp,

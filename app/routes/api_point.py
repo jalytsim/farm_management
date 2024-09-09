@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
 from flask_login import current_user
+from sqlalchemy import func
 from app.models import Point, User
 from app.utils.point_utils import create_point, delete_point, update_point, get_point_by_id
 from app import db
@@ -143,37 +144,38 @@ def update_point_route(point_id):
 @jwt_required()
 def get_all_points_owner_type(owner_type):
     user_id = get_jwt_identity()  # Retrieve the user ID from the JWT token
-
-    # Grouping points by the owner_type, which could be forest_id, farmer_id, or tree_id
-    points = Point.query.filter_by(owner_type=owner_type).group_by(Point.owner_id).all()
-
-    # Organizing the points into polygons by the specified owner_type
+    user = User.query.get(user_id)
+    if user.is_admin:
+        points = db.session.query(Point).filter_by(owner_type=owner_type).all()
+    else:
+        points = Point.query.filter_by(created_by=current_user.id, owner_type=owner_type).all()
+    # Fetch all points for the given owner_type
+    # Group points by owner_id
     grouped_polygons = {}
     for point in points:
-        group_id = getattr(point, f"{owner_type}_id")
+        group_id = point.owner_id
         if group_id not in grouped_polygons:
             grouped_polygons[group_id] = {
+                'owner_id': group_id,
                 'owner_type': owner_type,
                 'points': []
             }
         grouped_polygons[group_id]['points'].append({
-            'id': point.id,
             'longitude': point.longitude,
             'latitude': point.latitude,
-            'owner_id': point.owner_id,
+            'id': point.id,
             'district_id': point.district_id,
             'created_by': point.created_by,
             'date_created': point.date_created,
             'date_updated': point.date_updated
         })
 
-    # Transforming grouped_polygons into a list of polygons
-    polygons_list = [{'owner_type': owner_type, 'points': points['points']} for _, points in grouped_polygons.items()]
+    # Transform grouped_polygons into a list of polygons
+    polygons_list = [{'owner_id': points['owner_id'], 'owner_type': points['owner_type'], 'points': points['points']} for _, points in grouped_polygons.items()]
 
     return jsonify({
         'polygons': polygons_list,
     })
-
 @bp.route('/getbyownerid/<owner_type>/<owner_id>', methods=['GET'])
 @jwt_required()
 def get_points_owner_id(owner_type, owner_id):
