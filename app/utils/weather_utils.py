@@ -34,36 +34,32 @@ def calculate_penman_et0(T, RH, Rs, u2, P):
     
     return ET0
 
-# Exemple de données pour Wakiso, Kyenjojo, Butambala, Mukono
-# T = 25.0    # Température en °C
-# RH = 60.0   # Humidité relative en %
-# Rs = 200.0  # Radiation solaire en W/m² (Downward Short-Wave Radiation Flux)
-# u2 = 2.0    # Vitesse du vent en m/s
-# P = 101300  # Pression atmosphérique en Pa
-
-# et0 = calculate_penman_et0(T, RH, Rs, u2, P)
-# print(f"ET₀ : {et0:.2f} mm/jour")
-
 
 
 # Calcul pour ETc
-def calculate_blaney_criddle_etc(T_moy, Kc):
-    # Calcul du facteur de température (P)
-    P = 0.46 * T_moy + 8.13
+def calculate_penman_etc(T, RH, Rs, u2, P, crop_name):
+    """
+    Calcul de l'ETc en utilisant l'ET₀ de Penman et le Kc de la culture.
+    
+    :param T: Température moyenne (°C)
+    :param RH: Humidité relative (%)
+    :param Rs: Radiation solaire (W/m²)
+    :param u2: Vitesse du vent à 2 m (m/s)
+    :param P: Pression atmosphérique (Pa)
+    :param crop_name: Nom de la culture (par exemple 'Maïs')
+    :return: ETc en mm/jour
+    """
+    # Calcul de l'ET₀ avec la méthode Penman
+    ET0 = calculate_penman_et0(T, RH, Rs, u2, P)
+    
+    # Récupération du coefficient cultural (Kc) depuis la base de données
+    # Kc = get_kc_for_crop(crop_name)
     
     # Calcul de l'ETc
-    ETc = P * Kc
+    ETc = ET0 * Kc
     
     return ETc
 
-# Exemple de données
-# T_moy = 25.0  # Température moyenne en °C
-# Kc = 1.2      # Coefficient de culture
-
-# et_c = calculate_blaney_criddle_etc(T_moy, Kc)
-# print(f"ETc : {et_c:.2f} mm/jour")
-
-# Create a new weather record
 
 def create_weather(latitude, longitude, timestamp, **kwargs):
     # Check if a weather entry with the same latitude, longitude, and timestamp already exists
