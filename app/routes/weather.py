@@ -3,7 +3,7 @@ import json
 from flask import Blueprint, app, jsonify, request
 from flask_cors import cross_origin
 from app.utils.solar_utils import get_solar_data
-from app.utils.weather_utils import calculate_blaney_criddle_etc, calculate_penman_et0, create_weather, get_daily_average_temperature, get_hourly_weather_data, get_weather_data, get_weekly_weather_data, insert_weather_data_from_json
+from app.utils.weather_utils import calculate_penman_etc, calculate_penman_et0, create_weather, get_daily_average_temperature, get_hourly_weather_data, get_weather_data, get_weekly_weather_data, insert_weather_data_from_json
 
 bp = Blueprint('weather', __name__)
 
@@ -155,8 +155,9 @@ def get_weather():
 
     # Example Kc value (you might want to get this from somewhere or adjust as needed)
     Kc = 1.2
+    crop_name = 'maize'
     T_moy = get_daily_average_temperature(formatted_timestamp, latitude, longitude)  # Assuming average temperature is used for ETc calculation
-    ETc = calculate_blaney_criddle_etc(T_moy, Kc)
+    ETc = calculate_penman_etc(T, RH, Rs, u2, P, crop_name)
     ET0 = calculate_penman_et0(T_moy, RH, Rs, u2, P)
 
     # Prepare the response
