@@ -42,16 +42,6 @@ class FarmerGroup(db.Model):
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
 
     
-class ProduceCategory(db.Model):
-    __tablename__ = 'producecategory'
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(255), nullable=False)
-    grade = db.Column(db.Integer, nullable=False)
-    crops = db.relationship('Crop', backref='category', lazy=True)
-    date_created = db.Column(db.DateTime, default=datetime.utcnow)
-    date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
-    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
 
 class SoilData(db.Model):
     __tablename__ = 'soildata'
@@ -74,16 +64,6 @@ class SoilData(db.Model):
     modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
 
-class Crop(db.Model):
-    __tablename__ = 'crop'
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(255), nullable=False)
-    weight = db.Column(db.Float, nullable=False)
-    category_id = db.Column(db.Integer, db.ForeignKey('producecategory.id'), nullable=False)
-    date_created = db.Column(db.DateTime, default=datetime.utcnow)
-    date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
-    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
 
 class Farm(db.Model):
     __tablename__ = 'farm'
@@ -100,9 +80,10 @@ class Farm(db.Model):
     date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
-    farmer_group = db.relationship('FarmerGroup', backref='farms')
-    district = db.relationship('District', backref='farms')
     farm_data = db.relationship('FarmData', backref='farm', lazy=True)
+
+    def __repr__(self):
+        return f"<Farm(id={self.id}, farm_id={self.farm_id})>"
 
 class FarmData(db.Model):
     __tablename__ = 'farmdata'
@@ -136,7 +117,6 @@ class Forest(db.Model):
     date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
-
 
 class Point(db.Model):
     __tablename__ = 'point'
@@ -253,3 +233,74 @@ class Solar(db.Model):
 
     def __repr__(self):
         return f'<Solar {self.id}>'
+
+class ProduceCategory(db.Model):
+    __tablename__ = 'producecategory'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    crops = db.relationship('Crop', backref='category', lazy=True)
+    date_created = db.Column(db.DateTime, default=datetime.utcnow)
+    date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+
+class Crop(db.Model):
+    __tablename__ = 'crop'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    weight = db.Column(db.Float, nullable=False)
+    category_id = db.Column(db.Integer, db.ForeignKey('producecategory.id'), nullable=False)
+    grades = db.relationship('Grade', backref='crop', lazy=True)  # Relation avec les grades
+    kc_values = db.relationship('CropCoefficient', backref='crop', lazy=True)  # Relation avec Kc
+    date_created = db.Column(db.DateTime, default=datetime.utcnow)
+    date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+
+    def __repr__(self):
+        return f"<Crop(id={self.id}, name={self.name})>"
+    
+class Grade(db.Model):
+    __tablename__ = 'grade'
+    id = db.Column(db.Integer, primary_key=True)
+    crop_id = db.Column(db.Integer, db.ForeignKey('crop.id'), nullable=False)
+    grade_value = db.Column(db.String(50), nullable=False)  # Grade, ex : A, B, C
+    description = db.Column(db.Text, nullable=True)  # Description facultative
+    date_created = db.Column(db.DateTime, default=datetime.utcnow)
+    date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+
+    def __repr__(self):
+        return f"<Grade(crop_id={self.crop_id}, grade_value={self.grade_value})>"
+
+
+# Modèle pour les coefficients Kc des cultures
+class CropCoefficient(db.Model):
+    __tablename__ = 'cropcoefficient'
+    id = db.Column(db.Integer, primary_key=True)
+    crop_id = db.Column(db.Integer, db.ForeignKey('crop.id'), nullable=False)
+    stage = db.Column(db.String(50), nullable=False)  # Stage de croissance ex : initial, mid-season, late-season
+    kc_value = db.Column(db.Float, nullable=False)  # Valeur Kc pour ce stage
+    date_created = db.Column(db.DateTime, default=datetime.utcnow)
+    date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+
+    def __repr__(self):
+        return f"<CropCoefficient(stage={self.stage}, kc_value={self.kc_value})>"
+
+
+# Modèle pour les données d'irrigation
+class Irrigation(db.Model):
+    __tablename__ = 'irrigation'
+    id = db.Column(db.Integer, primary_key=True)
+    crop_id = db.Column(db.Integer, db.ForeignKey('crop.id'), nullable=False)
+    farm_id = db.Column(db.Integer, db.ForeignKey('farm.id'), nullable=False)
+    irrigation_date = db.Column(db.Date, nullable=False)
+    water_applied = db.Column(db.Float, nullable=False)  # Quantité d'eau en mm
+    method = db.Column(db.String(100), nullable=False)  # Méthode d'irrigation ex: drip, sprinkler
+    date_created = db.Column(db.DateTime, default=datetime.utcnow)
+    date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)

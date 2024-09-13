@@ -3,7 +3,7 @@ from flask_jwt_extended import get_jwt_identity, jwt_required
 from flask_login import current_user
 from sqlalchemy import func
 from app.models import Point, User
-from app.utils.point_utils import create_point, delete_point, update_point, get_point_by_id
+from app.utils.point_utils import create_point, delete_point, delete_point_by_owner, update_point, get_point_by_id
 from app import db
 
 bp = Blueprint('api_points', __name__, url_prefix='/api/points')
@@ -100,6 +100,15 @@ def delete_point_route(point_id):
     try:
         delete_point(point_id)
         return jsonify({'message': 'Point deleted successfully.'}), 204
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+    
+@bp.route('/owner/<string:owner_id>', methods=['DELETE'])
+@jwt_required()
+def delete_point_by_owner_route(owner_id):
+    try:
+        message = delete_point_by_owner(owner_id)  # Call the function to delete points by owner_id
+        return jsonify({'message': message}), 204 if "Deleted" in message else 404  # Return 204 if deleted, 404 if no points found
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 

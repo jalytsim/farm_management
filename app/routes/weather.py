@@ -73,7 +73,7 @@ def uploadWeather():
 def getWeeklyWeather():
     lat = request.args.get('lat', default='0.536279', type=str)
     lon = request.args.get('lon', default='32.589248', type=str)
-    time = request.args.get('datestring', default='2024-08-06T10:00:43.649Z', type=str)
+    time = request.args.get('datestring', default='2024-08-07T10:00:43.649Z', type=str)
 
     # Time processing
     if time:

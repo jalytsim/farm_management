@@ -359,7 +359,7 @@ def get_weekly_weather_data(datetime_str, latitude, longitude):
     # Define the start of the week (Monday) and end of the week (Sunday)
     start_of_week = datetime_obj - timedelta(days=datetime_obj.weekday())  # Monday of the current week
     end_of_week = start_of_week + timedelta(days=7)  # Next Monday (exclusive)
-
+    print('========>data' ,start_of_week, end_of_week,latitude,longitude ) #
     # Query to fetch weekly weather data (temperature, pressure, wind speed, etc.)
     data = session.query(
         func.date(Weather.timestamp).label('date'),
@@ -367,7 +367,7 @@ def get_weekly_weather_data(datetime_str, latitude, longitude):
         func.avg(Weather.pressure).label('avg_pressure'),
         func.avg(Weather.wind_speed).label('avg_wind_speed'),
         func.avg(Weather.humidity).label('avg_humidity'),
-        func.avg(Weather.precipitation).label('avg_precipitation')
+        func.sum(Weather.precipitation).label('avg_precipitation')
     ).filter(
         and_(
             Weather.latitude == latitude,
@@ -391,5 +391,6 @@ def get_weekly_weather_data(datetime_str, latitude, longitude):
         }
         for record in data
     ]
+    print("weather data",weekly_data)
 
     return weekly_data

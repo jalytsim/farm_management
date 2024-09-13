@@ -67,6 +67,17 @@ def delete_point(point_id):
         db.session.delete(point)
         db.session.commit()
 
+def delete_point_by_owner(owner_id):
+    points = Point.query.filter_by(owner_id=owner_id).all()  # Fetch all points with the given owner_id
+    if points:
+        for point in points:
+            db.session.delete(point)
+        db.session.commit()
+        return f"Deleted {len(points)} point(s) with owner_id {owner_id}"
+    else:
+        return f"No points found for owner_id {owner_id}"
+
+
 def get_all_points():
     return Point.query.all()
 
