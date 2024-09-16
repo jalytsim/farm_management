@@ -155,9 +155,10 @@ def get_weather():
 
     # Example Kc value (you might want to get this from somewhere or adjust as needed)
     Kc = 1.2
+    T = 35
     crop_name = 'maize'
     T_moy = get_daily_average_temperature(formatted_timestamp, latitude, longitude)  # Assuming average temperature is used for ETc calculation
-    ETc = calculate_penman_etc(T, RH, Rs, u2, P, crop_name)
+    ETc = calculate_penman_etc(T_moy, RH, Rs, u2, P, crop_name)
     ET0 = calculate_penman_et0(T_moy, RH, Rs, u2, P)
 
     # Prepare the response

@@ -54,7 +54,7 @@ def calculate_penman_etc(T, RH, Rs, u2, P, crop_name):
     
     # Récupération du coefficient cultural (Kc) depuis la base de données
     # Kc = get_kc_for_crop(crop_name)
-    
+    Kc = 1.2
     # Calcul de l'ETc
     ETc = ET0 * Kc
     

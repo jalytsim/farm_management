@@ -304,3 +304,16 @@ class Irrigation(db.Model):
     date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+
+class Pays(db.Model):
+    __tablename__ = 'pays'
+    
+    id = db.Column(db.SmallInteger, primary_key=True)
+    code = db.Column(db.Integer, nullable=False, unique=True)
+    alpha2 = db.Column(db.String(2), nullable=False, unique=True)
+    alpha3 = db.Column(db.String(3), nullable=False, unique=True)
+    nom_en_gb = db.Column(db.String(45), nullable=False)
+    nom_fr_fr = db.Column(db.String(45), nullable=False)
+
+    def __repr__(self):
+        return f"<Pays(id={self.id}, code={self.code}, alpha2={self.alpha2}, alpha3={self.alpha3})>"

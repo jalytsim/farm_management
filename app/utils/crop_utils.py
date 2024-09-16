@@ -10,8 +10,8 @@ def create_crop(name, weight, category_id):
         name=name,
         weight=weight,
         category_id=category_id,
-        created_by=current_user.id,
-        modified_by=current_user.id,
+        created_by=current_user.id,  # Set creator
+        modified_by=current_user.id,  # Set modifier
         date_created=datetime.utcnow(),
         date_updated=datetime.utcnow()
     )
@@ -28,7 +28,7 @@ def update_crop(crop_id, name, weight, category_id):
     crop.name = name
     crop.weight = weight
     crop.category_id = category_id
-    crop.modified_by = current_user.id
+    crop.modified_by = current_user.id  # Set modifier
     crop.date_updated = datetime.utcnow()
     db.session.commit()
     return crop
