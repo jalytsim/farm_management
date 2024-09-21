@@ -91,15 +91,23 @@ def getWeeklyWeather():
     try:
         weekly_data = get_weekly_weather_data(formatted_timestamp, lat, lon)
         
-        # No need to process columns since get_weekly_weather_data returns data in dictionary form
+        # Process the weekly_data to include min, max, and average values
         data = [
             {
                 "date": record["date"],  # Assuming "date" is the key for the date in the dictionary
+                "min_temperature": record["min_temperature"],
+                "max_temperature": record["max_temperature"],
                 "average_temperature": record["average_temperature"],
+                "min_pressure": record["min_pressure"],
+                "max_pressure": record["max_pressure"],
                 "average_pressure": record["average_pressure"],
+                "min_wind_speed": record["min_wind_speed"],
+                "max_wind_speed": record["max_wind_speed"],
                 "average_wind_speed": record["average_wind_speed"],
+                "min_humidity": record["min_humidity"],
+                "max_humidity": record["max_humidity"],
                 "average_humidity": record["average_humidity"],
-                "average_precipitation": record["average_precipitation"]
+                "total_precipitation": record["total_precipitation"]  # Total precipitation for the day
             }
             for record in weekly_data
         ]
@@ -121,12 +129,13 @@ def get_weather():
     imageUrl = "http://example.com/images/logo.png"
     farmName = "Farm Name"
     print(f"Received parameters: region_id={region_id}, crop_id={crop_id}, latitude={latitude}, longitude={longitude}, time={time}")
+
     # Check if 'time' is not empty
     if time:
         try:
-            # Convertir la chaîne ISO 8601 en un objet datetime
+            # Convert the ISO 8601 string to a datetime object
             timestamp = datetime.fromisoformat(time.replace('Z', '+00:00'))
-            # Convertir l'objet datetime en une chaîne de caractères au format souhaité
+            # Convert the datetime object to a string in the desired format
             formatted_timestamp = timestamp.strftime('%Y-%m-%d %H:%M:%S')
         except ValueError as e:
             return jsonify({"status": "error", "message": f"Invalid time format: {str(e)}"}), 400
@@ -135,30 +144,39 @@ def get_weather():
     
     # Retrieve weather and solar data
     weather_result = get_weather_data(latitude, longitude, formatted_timestamp)
-    print("weather data = ",weather_result)
+    print("weather data = ", weather_result)
 
     solar_result = get_solar_data(latitude, longitude, formatted_timestamp)
-    print("solar data =",solar_result)
+    print("solar data =", solar_result)
 
     if not weather_result or not solar_result:
         return jsonify({"status": "error", "message": "Data not found"}), 404
 
     # Calculate ET₀ and ETc
-
-
     RH = weather_result['humidity']
+    min_humidity = weather_result['min_humidity']
+    max_humidity = weather_result['max_humidity']
+
     precipitation = weather_result['precipitation']
+    min_precipitation = weather_result['min_precipitation']
+    max_precipitation = weather_result['max_precipitation']
+
     Rs = solar_result['downward_short_wave_radiation_flux']
     u2 = weather_result['wind_speed']
-    P = weather_result['pressure'] / 1000  # Convert Pa to kPa
+    min_wind_speed = weather_result['min_wind_speed']
+    max_wind_speed = weather_result['max_wind_speed']
 
+    P = weather_result['pressure'] / 1000  # Convert Pa to kPa
+    min_pressure = weather_result['min_pressure'] / 1000
+    max_pressure = weather_result['max_pressure'] / 1000
 
     # Example Kc value (you might want to get this from somewhere or adjust as needed)
     Kc = 1.2
-    T = 35
-    crop_name = 'maize'
     T_moy = get_daily_average_temperature(formatted_timestamp, latitude, longitude)  # Assuming average temperature is used for ETc calculation
-    ETc = calculate_penman_etc(T_moy, RH, Rs, u2, P, crop_name)
+    min_temperature = weather_result['min_temperature']
+    max_temperature = weather_result['max_temperature']
+
+    ETc = calculate_penman_etc(T_moy, RH, Rs, u2, P, 'maize')
     ET0 = calculate_penman_et0(T_moy, RH, Rs, u2, P)
 
     # Prepare the response
@@ -168,17 +186,28 @@ def get_weather():
         "latitude": latitude,
         "longitude": longitude,
         "timestamp": formatted_timestamp,
-        "temperature": T_moy,
+        "average_temperature": T_moy,
+        "min_temperature": min_temperature,
+        "max_temperature": max_temperature,
         "humidity": RH,
+        "min_humidity": min_humidity,
+        "max_humidity": max_humidity,
         "solarRadiation": Rs,
         "windSpeed": u2,
+        "min_wind_speed": min_wind_speed,
+        "max_wind_speed": max_wind_speed,
         "pressure": P * 1000,  # Convert kPa back to Pa
+        "min_pressure": min_pressure * 1000,  # Convert kPa to Pa
+        "max_pressure": max_pressure * 1000,  # Convert kPa to Pa
         "ET0": ET0,
         "ETc": ETc,
-        "precipitation": precipitation, 
+        "precipitation": precipitation,
+        "min_precipitation": min_precipitation,
+        "max_precipitation": max_precipitation
     }
 
     return jsonify({"status": "success", "data": response}), 200
+
 
 
 @bp.route('/dailyweather', methods=['GET'])

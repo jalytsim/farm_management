@@ -283,29 +283,36 @@ def get_weather_data(latitude, longitude, timestamp = None):
         return None    
 
 
-def get_daily_average_temperature(datetime_str, latitude, longitude):
+def get_daily_temperature_stats(datetime_str, latitude, longitude):
     session = sessionmaker(bind=db.engine)()
 
-    # Convertir le datetime string en objet datetime
+    # Convert the datetime string into a datetime object
     datetime_obj = datetime.strptime(datetime_str, '%Y-%m-%d %H:%M:%S')
     
-    # Extraire la date pour les bornes de la journée
+    # Extract the start and end of the day
     start_of_day = datetime(datetime_obj.year, datetime_obj.month, datetime_obj.day)
-    end_of_day = start_of_day + timedelta(days=1)  # La fin du jour est le début du jour suivant
+    end_of_day = start_of_day + timedelta(days=1)  # End of the day is the start of the next day
 
-    # Requête pour calculer la température moyenne pour la journée spécifique
+    # Query to calculate the min, max, and average temperatures for the specific day
     result = session.query(
+        func.min(Weather.air_temperature).label('min_temperature'),
+        func.max(Weather.air_temperature).label('max_temperature'),
         func.avg(Weather.air_temperature).label('average_temperature')
     ).filter(
         Weather.latitude == latitude,
         Weather.longitude == longitude,
         Weather.timestamp >= start_of_day,
         Weather.timestamp < end_of_day
-    ).scalar()  # Utiliser scalar() pour obtenir une seule valeur
+    ).one()  # Use one() to get a tuple with the results
 
     session.close()
 
-    return result
+    # Return the min, max, and average temperatures
+    return {
+        'min_temperature': result.min_temperature,
+        'max_temperature': result.max_temperature,
+        'average_temperature': result.average_temperature
+    }
 
 
 def get_hourly_weather_data(datetime_str, latitude, longitude):
@@ -345,6 +352,7 @@ def get_hourly_weather_data(datetime_str, latitude, longitude):
     return hourly_weather_data, [col.name for col in columns]
 
 
+
 def get_weekly_weather_data(datetime_str, latitude, longitude):
     # Create a session
     session = sessionmaker(bind=db.engine)()
@@ -355,15 +363,25 @@ def get_weekly_weather_data(datetime_str, latitude, longitude):
     # Define the start of the week (Monday) and end of the week (Sunday)
     start_of_week = datetime_obj - timedelta(days=datetime_obj.weekday())  # Monday of the current week
     end_of_week = start_of_week + timedelta(days=7)  # Next Monday (exclusive)
-    print('========>data' ,start_of_week, end_of_week,latitude,longitude ) #
+
+    print('========>data', start_of_week, end_of_week, latitude, longitude)
+
     # Query to fetch weekly weather data (temperature, pressure, wind speed, etc.)
     data = session.query(
         func.date(Weather.timestamp).label('date'),
+        func.min(Weather.air_temperature).label('min_temperature'),
+        func.max(Weather.air_temperature).label('max_temperature'),
         func.avg(Weather.air_temperature).label('avg_temperature'),
+        func.min(Weather.pressure).label('min_pressure'),
+        func.max(Weather.pressure).label('max_pressure'),
         func.avg(Weather.pressure).label('avg_pressure'),
+        func.min(Weather.wind_speed).label('min_wind_speed'),
+        func.max(Weather.wind_speed).label('max_wind_speed'),
         func.avg(Weather.wind_speed).label('avg_wind_speed'),
+        func.min(Weather.humidity).label('min_humidity'),
+        func.max(Weather.humidity).label('max_humidity'),
         func.avg(Weather.humidity).label('avg_humidity'),
-        func.sum(Weather.precipitation).label('avg_precipitation')
+        func.sum(Weather.precipitation).label('total_precipitation')  # Sum for precipitation
     ).filter(
         and_(
             Weather.latitude == latitude,
@@ -379,14 +397,23 @@ def get_weekly_weather_data(datetime_str, latitude, longitude):
     weekly_data = [
         {
             "date": str(record.date),  # Date in YYYY-MM-DD format
+            "min_temperature": record.min_temperature,
+            "max_temperature": record.max_temperature,
             "average_temperature": record.avg_temperature,
+            "min_pressure": record.min_pressure,
+            "max_pressure": record.max_pressure,
             "average_pressure": record.avg_pressure,
+            "min_wind_speed": record.min_wind_speed,
+            "max_wind_speed": record.max_wind_speed,
             "average_wind_speed": record.avg_wind_speed,
+            "min_humidity": record.min_humidity,
+            "max_humidity": record.max_humidity,
             "average_humidity": record.avg_humidity,
-            "average_precipitation": record.avg_precipitation
+            "total_precipitation": record.total_precipitation  # Total precipitation for the day
         }
         for record in data
     ]
-    print("weather data",weekly_data)
+
+    print("weather data", weekly_data)
 
     return weekly_data
