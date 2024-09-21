@@ -55,6 +55,7 @@ def get_all_farm_properties(farm_id):
             Farm.name.label('farm_name'),
             Farm.subcounty,
             Farm.geolocation,
+            Farm.phonenumber,
             FarmerGroup.name.label('farmergroup_name'),
             District.name.label('district_name'),
             District.region.label('district_region'),
