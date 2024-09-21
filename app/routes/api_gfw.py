@@ -11,14 +11,23 @@ bp = Blueprint('api_gfw', __name__, url_prefix='/api/gfw')
 
 @bp.route('/forests/<int:forest_id>/report', methods=['GET'])
 def forestReport(forest_id):
-    data, status_code = gfw(owner_type='forest', owner_id=str(forest_id))
-    if status_code != 200:
-        return jsonify(data), status_code
     forest = Forest.query.filter_by(id=forest_id).first()
     if forest is None:
         return jsonify({"error": "Forest not found"}), 404
+
+    forest_info = {
+        'name': forest.name,
+        'tree_type': forest.tree_type,
+        'date_created': forest.date_created.strftime('%Y-%m-%d %H:%M:%S'),
+        'date_updated': forest.date_updated.strftime('%Y-%m-%d %H:%M:%S'),
+    }
+
+    data, status_code = gfw(owner_type='forest', owner_id=str(forest_id))
+    if status_code != 200:
+        return jsonify(data), status_code
+
     return jsonify({
-        "forest_name": forest.name,
+        "forest_info": forest_info,
         "report": data['dataset_results']
     }), 200
 
@@ -33,8 +42,8 @@ def farmerReport(farm_id):
         'farm_id': farm.farm_id,
         'name': farm.name,
         'subcounty': farm.subcounty,
-        'district_name': farm.district.name if farm.district else 'N/A',
-        'district_region': farm.district.region if farm.district else 'N/A',
+        'district_name': 'N/A',
+        'district_region': 'N/A',
         'geolocation': farm.geolocation,
         'phonenumber': farm.phonenumber,
         'phonenumber2': farm.phonenumber2,

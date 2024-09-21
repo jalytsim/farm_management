@@ -283,7 +283,7 @@ def gfw(owner_type, owner_id):
         # Get coordinates from the database
         coordinates = get_coordinates(owner_type, owner_id)
         if not coordinates:
-            return {"error": "No points found for the specified owner"}, 404
+            return {"error": "No points found for the specified owner"}
         geometry = {
             "type": "Polygon",
             "coordinates": [coordinates]
