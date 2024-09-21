@@ -3,7 +3,7 @@ import json
 from flask import Blueprint, app, jsonify, request
 from flask_cors import cross_origin
 from app.utils.solar_utils import get_solar_data
-from app.utils.weather_utils import calculate_penman_etc, calculate_penman_et0, create_weather, get_daily_average_temperature, get_hourly_weather_data, get_weather_data, get_weekly_weather_data, insert_weather_data_from_json
+from app.utils.weather_utils import calculate_penman_et0, calculate_penman_etc, get_daily_temperature_stats, get_hourly_weather_data, get_weather_data, get_weekly_weather_data
 
 bp = Blueprint('weather', __name__)
 
@@ -172,11 +172,11 @@ def get_weather():
 
     # Example Kc value (you might want to get this from somewhere or adjust as needed)
     Kc = 1.2
-    T_moy = get_daily_average_temperature(formatted_timestamp, latitude, longitude)  # Assuming average temperature is used for ETc calculation
+    T_moy = get_daily_temperature_stats(formatted_timestamp, latitude, longitude)  # Assuming average temperature is used for ETc calculation
     min_temperature = weather_result['min_temperature']
     max_temperature = weather_result['max_temperature']
 
-    ETc = calculate_penman_etc(T_moy, RH, Rs, u2, P, 'maize')
+    ETC = calculate_penman_etc(T_moy, RH, Rs, u2, P, 'maize')
     ET0 = calculate_penman_et0(T_moy, RH, Rs, u2, P)
 
     # Prepare the response
@@ -200,7 +200,7 @@ def get_weather():
         "min_pressure": min_pressure * 1000,  # Convert kPa to Pa
         "max_pressure": max_pressure * 1000,  # Convert kPa to Pa
         "ET0": ET0,
-        "ETc": ETc,
+        "ETc": ETC,
         "precipitation": precipitation,
         "min_precipitation": min_precipitation,
         "max_precipitation": max_precipitation
@@ -251,8 +251,8 @@ def get_daily_weather():
 
     # Example Kc value (you might want to get this from somewhere or adjust as needed)
     Kc = 1.2
-    T_moy = get_daily_average_temperature(formatted_timestamp, latitude, longitude)  # Assuming average temperature is used for ETc calculation
-    ETc = calculate_blaney_criddle_etc(T_moy, Kc)
+    T_moy = get_daily_temperature_stats(formatted_timestamp, latitude, longitude)  # Assuming average temperature is used for ETc calculation
+    ETc = calculate_penman_etc(T_moy, Kc)
     ET0 = calculate_penman_et0(T_moy, RH, Rs, u2, P)
 
     # Prepare the response
