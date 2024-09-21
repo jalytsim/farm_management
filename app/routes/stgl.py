@@ -21,8 +21,8 @@ def stgl():
 @bp.route('/getWeather', methods=['GET'])
 @cross_origin()  # Permet à toutes les origines de faire des requêtes à cette route
 def get_weather():
-    lat = request.args.get('lat', default='0.536279', type=str)
-    lon = request.args.get('lon', default='32.589248', type=str)
+    lat = request.args.get('lat', default='0.535737', type=str)
+    lon = request.args.get('lon', default='32.589640', type=str)
     # Get first hour of today
     start = arrow.now().floor('day')
     # Get last hour of today
@@ -66,8 +66,8 @@ def get_weather():
 @bp.route('/getSolar', methods=['GET'])
 @cross_origin()  # Permet à toutes les origines de faire des requêtes à cette route
 def get_solar():    
-    lat = request.args.get('lat', default='0.536279', type=str)
-    lon = request.args.get('lon', default='32.589248', type=str)
+    lat = request.args.get('lat', default='0.535737', type=str)
+    lon = request.args.get('lon', default='32.589640', type=str)
     # Get first hour of today
     start = arrow.now().floor('day')
 

@@ -54,7 +54,7 @@ def calculate_penman_etc(T, RH, Rs, u2, P, crop_name):
     
     # Récupération du coefficient cultural (Kc) depuis la base de données
     # Kc = get_kc_for_crop(crop_name)
-    
+    Kc= 1.2
     # Calcul de l'ETc
     ETc = ET0 * Kc
     
@@ -342,7 +342,7 @@ def get_hourly_weather_data(datetime_str, latitude, longitude):
     session.close()
 
     # Return both the data and the columns to dynamically construct the response
-    return hourly_weather_data, [col.name for col in columns]
+    return hourly_weather_data,[col.name for col in columns]
 
 
 def get_weekly_weather_data(datetime_str, latitude, longitude):
@@ -351,11 +351,12 @@ def get_weekly_weather_data(datetime_str, latitude, longitude):
 
     # Convert the datetime string to a datetime object
     datetime_obj = datetime.strptime(datetime_str, '%Y-%m-%d %H:%M:%S')
-
+    print("======= ireto ny data ======",datetime_str,datetime_obj,  latitude, longitude)
+    print("================================zay ihany =====================")
     # Define the start of the week (Monday) and end of the week (Sunday)
-    start_of_week = datetime_obj - timedelta(days=datetime_obj.weekday())  # Monday of the current week
-    end_of_week = start_of_week + timedelta(days=7)  # Next Monday (exclusive)
-    print('========>data' ,start_of_week, end_of_week,latitude,longitude ) #
+    start_of_week = datetime_obj #- timedelta(days=datetime_obj.weekday())  # Monday of the current week
+    end_of_week = start_of_week + timedelta(days=10)  # Next Monday (exclusive)
+    print('======= data=========' ,start_of_week, end_of_week,latitude,longitude ) #
     # Query to fetch weekly weather data (temperature, pressure, wind speed, etc.)
     data = session.query(
         func.date(Weather.timestamp).label('date'),

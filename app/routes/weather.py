@@ -69,11 +69,10 @@ def uploadWeather():
     return jsonify({"status": "success", "data": data}), 200
 
 @bp.route('/WeatherWeekly', methods=['GET'])
-@cross_origin()  # Allow all origins to make requests to this route
 def getWeeklyWeather():
     lat = request.args.get('lat', default='0.536279', type=str)
     lon = request.args.get('lon', default='32.589248', type=str)
-    time = request.args.get('datestring', default='2024-08-07T10:00:43.649Z', type=str)
+    time = request.args.get('datestring', default='2024-09-18T18:00:00.000Z', type=str)
 
     # Time processing
     if time:
@@ -90,7 +89,7 @@ def getWeeklyWeather():
     # Fetch weekly data based on the timestamp
     try:
         weekly_data = get_weekly_weather_data(formatted_timestamp, lat, lon)
-        
+        print("=====================================================================aty ny maso =======================================================")
         # No need to process columns since get_weekly_weather_data returns data in dictionary form
         data = [
             {
@@ -103,6 +102,7 @@ def getWeeklyWeather():
             }
             for record in weekly_data
         ]
+        print(data)
     except Exception as e:
         return jsonify({"status": "error", "message": f"Failed to fetch data: {str(e)}"}), 500
 
@@ -157,7 +157,7 @@ def get_weather():
     Kc = 1.2
     crop_name = 'maize'
     T_moy = get_daily_average_temperature(formatted_timestamp, latitude, longitude)  # Assuming average temperature is used for ETc calculation
-    ETc = calculate_penman_etc(T, RH, Rs, u2, P, crop_name)
+    ETc = calculate_penman_etc(T_moy, RH, Rs, u2, P, crop_name)
     ET0 = calculate_penman_et0(T_moy, RH, Rs, u2, P)
 
     # Prepare the response
