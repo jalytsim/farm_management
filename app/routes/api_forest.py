@@ -20,7 +20,8 @@ def allowed_file(filename):
 @bp.route('/')
 @jwt_required()
 def index():
-    user_id = get_jwt_identity()  # Retrieve the user ID from the JWT token
+    identity = get_jwt_identity()  # Returns {'id': user.id, 'user_type': user.user_type}
+    user_id = identity['id']     
     page = request.args.get('page', 1, type=int)
     
     user = User.query.get(user_id)
@@ -45,7 +46,9 @@ def index():
 @bp.route('/create', methods=['POST'])
 @jwt_required()
 def create_forest():
-    user_id = get_jwt_identity()
+    identity = get_jwt_identity()  # Returns {'id': user.id, 'user_type': user.user_type}
+    user_id = identity['id'] 
+
     user = User.query.get(user_id)
     print(user_id)
     

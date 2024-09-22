@@ -21,8 +21,13 @@ def stgl():
 @bp.route('/getWeather', methods=['GET'])
 @cross_origin()  # Permet à toutes les origines de faire des requêtes à cette route
 def get_weather():
-    lat = request.args.get('lat', default='0.535737', type=str)
-    lon = request.args.get('lon', default='32.589640', type=str)
+    lat = request.args.get('lat', default='0.358261', type=str)
+    lon = request.args.get('lon', default='32.654738', type=str)
+
+    # specify date
+    # specified_date = arrow.get(2024, 9, 20)
+    # start = specified_date.floor('day')
+
     # Get first hour of today
     start = arrow.now().floor('day')
     # Get last hour of today
@@ -45,7 +50,7 @@ def get_weather():
             'lat': lat,
             'lng': lon,
             'params': ','.join(params_list),
-            # 'start': start.to('UTC').timestamp(),  # Convert to UTC timestamp
+            'start': start.to('UTC').timestamp(),  # Convert to UTC timestamp
             # 'end': end.to('UTC').timestamp()  # Convert to UTC timestamp
         },
         headers={
@@ -66,8 +71,10 @@ def get_weather():
 @bp.route('/getSolar', methods=['GET'])
 @cross_origin()  # Permet à toutes les origines de faire des requêtes à cette route
 def get_solar():    
-    lat = request.args.get('lat', default='0.535737', type=str)
-    lon = request.args.get('lon', default='32.589640', type=str)
+    lat = request.args.get('lat', default='0.358261', type=str)
+    lon = request.args.get('lon', default='32.654738', type=str)
+    # specified_date = arrow.get(2024, 9, 20)
+    # start = specified_date.floor('day')
     # Get first hour of today
     start = arrow.now().floor('day')
 
@@ -85,7 +92,7 @@ def get_solar():
             'lat': lat,
             'lng': lon,
             'params': ','.join(params_list),
-            # 'start': start.to('UTC').timestamp(),  # Convert to UTC timestamp
+            'start': start.to('UTC').timestamp(),  # Convert to UTC timestamp
             # 'end': end.to('UTC').timestamp()  # Convert to UTC timestamp
         },
         headers={

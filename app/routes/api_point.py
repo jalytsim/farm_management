@@ -11,7 +11,9 @@ bp = Blueprint('api_points', __name__, url_prefix='/api/points')
 @bp.route('/', methods=['GET'])
 @jwt_required()
 def list_points():
-    user_id = get_jwt_identity()  # Retrieve the user ID from the JWT token
+    identity = get_jwt_identity()  # Returns {'id': user.id, 'user_type': user.user_type}
+    user_id = identity['id'] 
+      # Retrieve the user ID from the JWT token
     page = request.args.get('page', 1, type=int)
     
     user = User.query.get(user_id)
@@ -76,7 +78,8 @@ def create_new_point():
     else:
         return jsonify({'error': f'Invalid owner type: {owner_type}'}), 400
 
-    user_id = get_jwt_identity()  # Retrieve the user ID from the JWT token
+    identity = get_jwt_identity()  # Returns {'id': user.id, 'user_type': user.user_type}
+    user_id = identity['id']   # Retrieve the user ID from the JWT token
     user = User.query.get(user_id)
 
     try:
@@ -115,7 +118,8 @@ def delete_point_by_owner_route(owner_id):
 @bp.route('/<int:point_id>', methods=['PUT'])
 @jwt_required()
 def update_point_route(point_id):
-    user_id = get_jwt_identity()  # Retrieve the user ID from the JWT token
+    identity = get_jwt_identity()  # Returns {'id': user.id, 'user_type': user.user_type}
+    user_id = identity['id']   # Retrieve the user ID from the JWT token
     user = User.query.get(user_id)
     data = request.json
     longitude = data.get('longitude')
@@ -152,7 +156,8 @@ def update_point_route(point_id):
 @bp.route('/getallbyownertype/<owner_type>', methods=['GET'])
 @jwt_required()
 def get_all_points_owner_type(owner_type):
-    user_id = get_jwt_identity()  # Retrieve the user ID from the JWT token
+    identity = get_jwt_identity()  # Returns {'id': user.id, 'user_type': user.user_type}
+    user_id = identity['id']   # Retrieve the user ID from the JWT token
     user = User.query.get(user_id)
     if user.is_admin:
         points = db.session.query(Point).filter_by(owner_type=owner_type).all()
@@ -188,7 +193,8 @@ def get_all_points_owner_type(owner_type):
 @bp.route('/getbyownerid/<owner_type>/<owner_id>', methods=['GET'])
 @jwt_required()
 def get_points_owner_id(owner_type, owner_id):
-    user_id = get_jwt_identity()  # Retrieve the user ID from the JWT token
+    identity = get_jwt_identity()  # Returns {'id': user.id, 'user_type': user.user_type}
+    user_id = identity['id']   # Retrieve the user ID from the JWT token
 
     points = Point.query.filter_by(owner_type=owner_type, owner_id=owner_id).all()
     points_json = [

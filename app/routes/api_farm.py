@@ -10,15 +10,23 @@ bp = Blueprint('api_farm', __name__, url_prefix='/api/farm')
 @bp.route('/')
 @jwt_required()
 def index():
-    user_id = get_jwt_identity()  # Retrieve the user ID from the JWT token
+    # Retrieve the user identity (which is a dictionary)
+    identity = get_jwt_identity()  # Returns {'id': user.id, 'user_type': user.user_type}
+    user_id = identity['id']  # Extract the 'id' from the identity dictionary
+
+    # Pagination
     page = request.args.get('page', 1, type=int)
     
+    # Query the user from the database
     user = User.query.get(user_id)
+
+    # Check if user is an admin or not
     if user.is_admin:
         farms = Farm.query.paginate(page=page, per_page=6)
     else:
         farms = Farm.query.filter_by(created_by=user_id).paginate(page=page, per_page=6)
 
+    # Format the farm data
     farms_list = [{
         "id": farm.farm_id,
         "name": farm.name,
@@ -30,6 +38,7 @@ def index():
         "phonenumber2": farm.phonenumber2,
     } for farm in farms.items]
     
+    # Return the response as JSON
     return jsonify(
         farms=farms_list,
         total_pages=farms.pages,  # Return the total number of pages
@@ -40,7 +49,8 @@ def index():
 @jwt_required()
 @cross_origin()
 def create_farm():
-    user_id = get_jwt_identity()
+    identity = get_jwt_identity()  # Returns {'id': user.id, 'user_type': user.user_type}
+    user_id = identity['id'] 
     print(user_id)
     user = User.query.get(user_id)
     

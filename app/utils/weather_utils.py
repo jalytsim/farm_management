@@ -12,6 +12,7 @@ from app import db
 
 def calculate_penman_et0(T, RH, Rs, u2, P):
     # Saturation vapor pressure (es) in kPa
+    print(type(T),"===================================================")
     es = 0.6108 * np.exp((17.27 * T) / (T + 237.3))
     
     # Actual vapor pressure (ea) in kPa

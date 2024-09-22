@@ -17,8 +17,8 @@ def api_login():
     user = User.query.filter_by(email=email).first()
 
     if user and check_password_hash(user.password, password):
-        # Extend the token lifetime (e.g., 7 days)
-        access_token = create_access_token(identity=user.id, expires_delta=timedelta(days=7))
+        # Inclure user_type dans le token JWT
+        access_token = create_access_token(identity={'id': user.id, 'user_type': user.user_type}, expires_delta=timedelta(days=7))
         return jsonify(token=access_token), 200
     else:
         return jsonify({"msg": "Login Unsuccessful. Please check email and password"}), 401

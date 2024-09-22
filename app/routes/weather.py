@@ -70,9 +70,10 @@ def uploadWeather():
 
 @bp.route('/WeatherWeekly', methods=['GET'])
 def getWeeklyWeather():
-    lat = request.args.get('lat', default='0.536279', type=str)
-    lon = request.args.get('lon', default='32.589248', type=str)
-    time = request.args.get('datestring', default='2024-09-18T18:00:00.000Z', type=str)
+    lat = request.args.get('lat', default='0.358261', type=str)
+    lon = request.args.get('lon', default='32.654738', type=str)
+    time = request.args.get('datestring', default='2024-09-22T00:00:00.000Z', type=str)
+    base_temp = float(request.args.get('base_temp', default='18', type=str))
 
     # Time processing
     if time:
@@ -106,7 +107,10 @@ def getWeeklyWeather():
                 "min_humidity": record["min_humidity"],
                 "max_humidity": record["max_humidity"],
                 "average_humidity": record["average_humidity"],
-                "total_precipitation": record["total_precipitation"]  # Total precipitation for the day
+                "total_precipitation": record["total_precipitation"],  # Total precipitation for the day
+                "hdd": base_temp - record["average_temperature"], # gdd
+                "cdd" : record["average_temperature"] - base_temp, #cdd
+                "gdd" : ((record["max_temperature"] + record["min_temperature"])/2) - base_temp,
             }
             for record in weekly_data
         ]
@@ -154,28 +158,29 @@ def get_weather():
 
     # Calculate ET₀ and ETc
     RH = weather_result['humidity']
-    min_humidity = weather_result['min_humidity']
-    max_humidity = weather_result['max_humidity']
+    # min_humidity = weather_result['min_humidity']
+    # max_humidity = weather_result['max_humidity']
 
     precipitation = weather_result['precipitation']
-    min_precipitation = weather_result['min_precipitation']
-    max_precipitation = weather_result['max_precipitation']
+    # min_precipitation = weather_result['min_precipitation']
+    # max_precipitation = weather_result['max_precipitation']
 
     Rs = solar_result['downward_short_wave_radiation_flux']
     u2 = weather_result['wind_speed']
-    min_wind_speed = weather_result['min_wind_speed']
-    max_wind_speed = weather_result['max_wind_speed']
+    # min_wind_speed = weather_result['min_wind_speed']
+    # max_wind_speed = weather_result['max_wind_speed']
 
     P = weather_result['pressure'] / 1000  # Convert Pa to kPa
-    min_pressure = weather_result['min_pressure'] / 1000
-    max_pressure = weather_result['max_pressure'] / 1000
+    # min_pressure = weather_result['min_pressure'] / 1000
+    # max_pressure = weather_result['max_pressure'] / 1000
 
     # Example Kc value (you might want to get this from somewhere or adjust as needed)
     Kc = 1.2
-    T_moy = get_daily_temperature_stats(formatted_timestamp, latitude, longitude)  # Assuming average temperature is used for ETc calculation
-    min_temperature = weather_result['min_temperature']
-    max_temperature = weather_result['max_temperature']
-
+    T_stat = get_daily_temperature_stats(formatted_timestamp, latitude, longitude)  # Assuming average temperature is used for ETc calculation
+    # min_temperature = weather_result['min_temperature']
+    # max_temperature = weather_result['max_temperature']
+    print(T_stat["average_temperature"], "=========================S")
+    T_moy = T_stat["average_temperature"]
     ETC = calculate_penman_etc(T_moy, RH, Rs, u2, P, 'maize')
     ET0 = calculate_penman_et0(T_moy, RH, Rs, u2, P)
 
@@ -187,23 +192,23 @@ def get_weather():
         "longitude": longitude,
         "timestamp": formatted_timestamp,
         "average_temperature": T_moy,
-        "min_temperature": min_temperature,
-        "max_temperature": max_temperature,
+        # "min_temperature": min_temperature,
+        # "max_temperature": max_temperature,
         "humidity": RH,
-        "min_humidity": min_humidity,
-        "max_humidity": max_humidity,
+        # "min_humidity": min_humidity,
+        # "max_humidity": max_humidity,
         "solarRadiation": Rs,
         "windSpeed": u2,
-        "min_wind_speed": min_wind_speed,
-        "max_wind_speed": max_wind_speed,
+        # "min_wind_speed": min_wind_speed,
+        # "max_wind_speed": max_wind_speed,
         "pressure": P * 1000,  # Convert kPa back to Pa
-        "min_pressure": min_pressure * 1000,  # Convert kPa to Pa
-        "max_pressure": max_pressure * 1000,  # Convert kPa to Pa
+        # "min_pressure": min_pressure * 1000,  # Convert kPa to Pa
+        # "max_pressure": max_pressure * 1000,  # Convert kPa to Pa
         "ET0": ET0,
         "ETc": ETC,
         "precipitation": precipitation,
-        "min_precipitation": min_precipitation,
-        "max_precipitation": max_precipitation
+        # "min_precipitation": min_precipitation,
+        # "max_precipitation": max_precipitation
     }
 
     return jsonify({"status": "success", "data": response}), 200
