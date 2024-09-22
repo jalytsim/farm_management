@@ -19,6 +19,7 @@ def index():
     
     # Query the user from the database
     user = User.query.get(user_id)
+    print( "+++++++++===========+++++++++",user_id,)
 
     # Check if user is an admin or not
     if user.is_admin:
@@ -47,11 +48,10 @@ def index():
 
 @bp.route('/create', methods=['POST'])
 @jwt_required()
-@cross_origin()
 def create_farm():
     identity = get_jwt_identity()  # Returns {'id': user.id, 'user_type': user.user_type}
-    user_id = identity['id'] 
-    print(user_id)
+    user_id = identity['id']
+    
     user = User.query.get(user_id)
     
     if not user or not user.id_start:
@@ -59,22 +59,32 @@ def create_farm():
     
     data = request.json
     logging.info("Form data received: %s", data)
+    print("============================++++++++++++++++++==============",data)
     
     try:
+        # Ensure geolocation is handled properly
+        geolocation = data['geolocation']
+        if not geolocation:
+            return jsonify({"msg": "Geolocation is required"}), 400
+        
+        # Call utility to create farm
         new_farm = farm_utils.create_farm(
             user=user,
             name=data['name'],
             subcounty=data['subcounty'],
             farmergroup_id=data['farmergroup_id'],
             district_id=data['district_id'],
-            geolocation=f"{data['latitude']},{data['longitude']}",
+            geolocation=geolocation,  # Expecting 'latitude,longitude' as a string
             phonenumber1=data.get('phonenumber1'),
-            phonenumber2=data.get('phonenumber2')
+            phonenumber2=data.get('phonenumber2', '')  # Optional field
         )
-        return jsonify(success=True, farm_id=new_farm.farm_id)
+
+        return jsonify({"success": True, "farm_id": new_farm.farm_id}), 201
+
     except Exception as e:
         logging.error(f"Error creating farm: {e}")
-        return jsonify({"msg": "Error creating farm"}), 500
+        return jsonify({"msg": "Error creating farm", "error": str(e)}), 500
+
 
 @bp.route('/<farm_id>/update', methods=['POST'])
 @jwt_required()
