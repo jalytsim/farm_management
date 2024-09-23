@@ -276,29 +276,45 @@ def gfw(owner_type, owner_id):
         'gfw_forest_flux_belowground_carbon_stock_in_emissions_year',
         'gfw_forest_flux_deadwood_carbon_stock_in_emissions_year',
     ]
+    
     dataset_results = []
+    
     for dataset in datasets:
         # Get the dataset from the URL parameters or use a default value
         datasetss = request.args.get('dataset', dataset)
+        
+        # Remove 'gfw_' and 'umd_' prefixes
+        clean_dataset_name = datasetss.replace('gfw_', '').replace('umd_', '')
+        
+        # Replace 'radd' with 'Radar for Detecting Deforestation'
+        clean_dataset_name = clean_dataset_name.replace('radd', 'Radar for Detecting Deforestation')
+        clean_dataset_name = clean_dataset_name.replace('_', ' ')
+        
         # Get coordinates from the database
         coordinates = get_coordinates(owner_type, owner_id)
         if not coordinates:
             return {"error": "No points found for the specified owner"}
+        
         geometry = {
             "type": "Polygon",
             "coordinates": [coordinates]
         }
+        
         # Query data from the dataset
         sql_query = "SELECT SUM(area__ha) FROM results"
         dataset_data = query_forest_watch(datasetss, geometry, sql_query)
+        
         # Extract fields dynamically, ensuring to handle cases where 'data' key might be missing
         data_fields = dataset_data.get("data", [{}])[0] if dataset_data else {}
+        
         dataset_results.append({
-            'dataset': datasetss,
+            'dataset': clean_dataset_name,  # Use cleaned name with replacements
             'data_fields': data_fields,
             'coordinates': geometry["coordinates"]
         })
+    
     return {"dataset_results": dataset_results}, 200
+
 
 
 

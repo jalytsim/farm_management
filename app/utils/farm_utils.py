@@ -174,8 +174,22 @@ def create_farm(user=None, name=None, subcounty=None, farmergroup_id=None, distr
     db.session.commit()
     return farm
 
-def update_farm(farm_id, name, subcounty, farmergroup_id, district_id, geolocation, phonenumber1, phonenumber2=None):
-    farm = db.session.query(Farm).get(farm_id)
+def update_farm(farm_id, name, subcounty, farmergroup_id, district_id, geolocation, phonenumber1, phonenumber2=None, user=None):
+    
+    if user:
+        user_id = user.id
+    else:
+        # Assuming that 'current_user' is a global or context-based object that provides the current user's ID
+        from flask_jwt_extended import get_jwt_identity
+        from app.models import User
+
+        user_id = get_jwt_identity()
+        user = User.query.get(user_id)
+        if not user:
+            raise ValueError("User not found.")
+        
+    faId = getId(farm_id)
+    farm = db.session.query(Farm).get(faId)
     if farm:
         farm.name = name
         farm.subcounty = subcounty
@@ -184,7 +198,7 @@ def update_farm(farm_id, name, subcounty, farmergroup_id, district_id, geolocati
         farm.geolocation = geolocation
         farm.phonenumber = phonenumber1
         farm.phonenumber2 = phonenumber2 if phonenumber2 else None
-        farm.modified_by = current_user.id
+        farm.modified_by = user_id
         farm.date_updated = datetime.utcnow()
         db.session.commit()
     else:
@@ -193,7 +207,7 @@ def update_farm(farm_id, name, subcounty, farmergroup_id, district_id, geolocati
 
 def delete_farm(farm_id):
     farm = db.session.query(Farm).get(farm_id)
-    print(farm)
+    print(farm, farm_id)
     if farm:
         db.session.delete(farm)
         db.session.commit()

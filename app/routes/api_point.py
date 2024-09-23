@@ -162,7 +162,7 @@ def get_all_points_owner_type(owner_type):
     if user.is_admin:
         points = db.session.query(Point).filter_by(owner_type=owner_type).all()
     else:
-        points = Point.query.filter_by(created_by=current_user.id, owner_type=owner_type).all()
+        points = Point.query.filter_by(created_by=user.id, owner_type=owner_type).all()
     # Fetch all points for the given owner_type
     # Group points by owner_id
     grouped_polygons = {}

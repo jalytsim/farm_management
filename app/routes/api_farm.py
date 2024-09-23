@@ -89,6 +89,10 @@ def create_farm():
 @bp.route('/<farm_id>/update', methods=['POST'])
 @jwt_required()
 def update_farm_route(farm_id):
+    identity = get_jwt_identity()  # Returns {'id': user.id, 'user_type': user.user_type}
+    user_id = identity['id']
+    
+    user = User.query.get(user_id)
     data = request.json
     farm_utils.update_farm(
         farm_id=farm_id,
@@ -98,7 +102,8 @@ def update_farm_route(farm_id):
         district_id=data['district_id'],
         geolocation=data['geolocation'],
         phonenumber1=data['phonenumber'],
-        phonenumber2=data.get('phonenumber2')
+        phonenumber2=data.get('phonenumber2'),
+        user=user
     )
     return jsonify(success=True)
 
@@ -117,19 +122,27 @@ def delete_farm(farm_id):
 @jwt_required()
 def get_farm_by_id(farm_id):
     farm = Farm.query.filter_by(farm_id=farm_id).first_or_404()
-
-    farm_data = {
-        "id": farm.farm_id,
-        "name": farm.name,
-        "subcounty": farm.subcounty,
-        "district_id": farm.district_id,
-        "farmergroup_id": farm.farmergroup_id,
-        "geolocation": farm.geolocation,
-        "phonenumber1": farm.phonenumber,
-        "phonenumber2": farm.phonenumber2,
-    }
-
-    return jsonify(farm=farm_data)
+    if farm :
+        farm_data = {
+            "id": farm.farm_id,
+            "name": farm.name,
+            "subcounty": farm.subcounty,
+            "district_id": farm.district_id,
+            "farmergroup_id": farm.farmergroup_id,
+            "geolocation": farm.geolocation,
+            "phonenumber1": farm.phonenumber,
+            "phonenumber2": farm.phonenumber2,
+        }
+        return jsonify({
+            'status': 'success',
+            'data': farm_data
+            })
+    else:
+        # Return an error message if no data is found
+        return jsonify({
+            'status': 'error',
+            'message': 'No data found for the provided farm ID'
+        }), 404
 
 @bp.route('/<farm_id>/allprop', methods=['GET'])
 def get_farm_props(farm_id):
