@@ -13,7 +13,6 @@ bp = Blueprint('stgl', __name__)
 @bp.route('/stgl', methods=['GET'])
 @cross_origin()  # Permet à toutes les origines de faire des requêtes à cette route
 def stgl():
-
     
     return jsonify({'status': 'success'}) 
 
@@ -29,9 +28,12 @@ def get_weather():
     # start = specified_date.floor('day')
 
     # Get first hour of today
-    start = arrow.now().floor('day')
-    # Get last hour of today
-    end = arrow.now().ceil('day')
+    start_param = request.args.get('start', type=str)
+    end_param = request.args.get('end', type=str)
+
+    # specified_date = arrow.get(2024, 9, 20)
+    # start = specified_date.floor('day')
+    # Get first hour of today
     # List of all parameters
     params_list = [
         'airTemperature', 'airTemperature80m', 'airTemperature100m', 'airTemperature1000hpa', 'airTemperature800hpa', 
@@ -44,15 +46,19 @@ def get_weather():
         'windDirection200hpa', 'windSpeed', 'windSpeed20m', 'windSpeed30m', 'windSpeed40m', 'windSpeed50m', 'windSpeed80m', 
         'windSpeed100m', 'windSpeed1000hpa', 'windSpeed800hpa', 'windSpeed500hpa', 'windSpeed200hpa'
     ]
-    response = requests.get(
-        'https://api.stormglass.io/v2/weather/point',
-        params={
+    params={
             'lat': lat,
             'lng': lon,
             'params': ','.join(params_list),
-            'start': start.to('UTC').timestamp(),  # Convert to UTC timestamp
-            # 'end': end.to('UTC').timestamp()  # Convert to UTC timestamp
-        },
+        }
+    if start_param:
+        params['start'] = arrow.get(start_param).to('UTC').timestamp()
+    if end_param:
+        params['end'] = arrow.get(end_param).to('UTC').timestamp()
+    
+    response = requests.get(
+        'https://api.stormglass.io/v2/weather/point',
+        params=params,
         headers={
             'Authorization': 'a6b685ea-5014-11ef-8a8f-0242ac130004-a6b68676-5014-11ef-8a8f-0242ac130004'
         }
@@ -69,44 +75,37 @@ def get_weather():
 
 
 @bp.route('/getSolar', methods=['GET'])
-@cross_origin()  # Permet à toutes les origines de faire des requêtes à cette route
+@cross_origin()
 def get_solar():    
     lat = request.args.get('lat', default='0.358261', type=str)
     lon = request.args.get('lon', default='32.654738', type=str)
-    # specified_date = arrow.get(2024, 9, 20)
-    # start = specified_date.floor('day')
-    # Get first hour of today
-    start = arrow.now().floor('day')
+    
+    start_param = request.args.get('start', type=str)
+    end_param = request.args.get('end', type=str)
 
-    # Get last hour of today
-    end = arrow.now().ceil('day')
+    # Prepare request parameters
+    params = {
+        'lat': lat,
+        'lng': lon,
+        'params': ','.join(['uvIndex', 'downwardShortWaveRadiationFlux'])
+    }
 
-    # List of all parameters
-    params_list = [
-        'uvIndex', 'downwardShortWaveRadiationFlux'
-    ]
+    # Add start and end only if provided
+    if start_param:
+        params['start'] = arrow.get(start_param).to('UTC').timestamp()
+    if end_param:
+        params['end'] = arrow.get(end_param).to('UTC').timestamp()
 
     response = requests.get(
         'https://api.stormglass.io/v2/solar/point',
-        params={
-            'lat': lat,
-            'lng': lon,
-            'params': ','.join(params_list),
-            'start': start.to('UTC').timestamp(),  # Convert to UTC timestamp
-            # 'end': end.to('UTC').timestamp()  # Convert to UTC timestamp
-        },
+        params=params,
         headers={
             'Authorization': '6c63097c-fd08-11ee-a75c-0242ac130002-6c630a3a-fd08-11ee-a75c-0242ac130002'
         }
     )
 
-    # Get JSON data from the response
     json_data = response.json()
     print(json_data)
-
-    # Insert data into the database
     insert_solar_data(json_data)
 
     return jsonify({'status': 'success', 'response': json_data})
-
-# url = url_for('weather.get_solar', lat='0.292225', lon='32.576809')

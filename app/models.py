@@ -107,6 +107,7 @@ class FarmData(db.Model):
     date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    number_of_tree = db.Column(db.Integer, nullable=True)
 
 class Forest(db.Model):
     __tablename__ = 'forest'

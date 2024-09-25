@@ -4,11 +4,17 @@ from app import db
 from app.models import FarmData
 
 
-def create_farmdata(data):
+def create_farmdata(data, user=None):
+    if user:
+        user_id = user.id
+    else:
+        # Assuming that 'current_user' is a global or context-based object that provides the current user's ID
+        user_id = current_user.id
+        
     farmdata = FarmData(
         **data,
-        created_by=current_user.id,
-        modified_by=current_user.id,
+        created_by=user_id,
+        modified_by=user_id,
         date_created=datetime.utcnow(),
         date_updated=datetime.utcnow()
     )

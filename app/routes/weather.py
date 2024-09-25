@@ -1,7 +1,10 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 from flask import Blueprint, app, jsonify, request
+
+from flask import url_for
 from flask_cors import cross_origin
+import requests
 from app.utils.solar_utils import get_solar_data
 from app.utils.weather_utils import calculate_penman_et0, calculate_penman_etc, get_daily_temperature_stats, get_hourly_weather_data, get_weather_data, get_weekly_weather_data
 
@@ -68,6 +71,7 @@ def uploadWeather():
 
     return jsonify({"status": "success", "data": data}), 200
 
+
 @bp.route('/WeatherWeekly', methods=['GET'])
 def getWeeklyWeather():
     lat = request.args.get('lat', default='0.358261', type=str)
@@ -78,23 +82,49 @@ def getWeeklyWeather():
     # Time processing
     if time:
         try:
-            # Convert ISO 8601 string to a datetime object
             timestamp = datetime.fromisoformat(time.replace('Z', '+00:00'))
-            # Convert datetime object to a string in the desired format
             formatted_timestamp = timestamp.strftime('%Y-%m-%d %H:%M:%S')
         except ValueError as e:
             return jsonify({"status": "error", "message": f"Invalid time format: {str(e)}"}), 400
     else:
         return jsonify({"status": "error", "message": "Time parameter is missing or empty"}), 400
 
-    # Fetch weekly data based on the timestamp
-    try:
+    # Check if data exists in the database
+    weekly_data = get_weekly_weather_data(formatted_timestamp, lat, lon)
+
+    if not weekly_data:
+        # Calculate start and end timestamps for the weather request
+        start_time = timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_time = start_time + timedelta(days=7)
+
+        # Format the timestamps to UTC
+        start_param = start_time.strftime('%Y-%m-%dT%H:%M:%S%z')
+        end_param = end_time.strftime('%Y-%m-%dT%H:%M:%S%z')
+
+        # Use url_for to generate the full URLs for the endpoints
+        weather_url = url_for('stgl.get_weather', lat=lat, lon=lon, start=start_param, end=end_param, _external=True)
+        solar_url = url_for('stgl.get_solar', lat=lat, lon=lon, start=start_param, end=end_param, _external=True)
+
+        # Attempt to fetch weather data
+        weather_response = requests.get(weather_url)
+        if weather_response.status_code != 200:
+            return jsonify({"status": "error", "message": "Failed to fetch weather data. Try again tomorrow."}), 500
+
+        # Attempt to fetch solar data
+        solar_response = requests.get(solar_url)
+        if solar_response.status_code != 200:
+            return jsonify({"status": "error", "message": "Failed to fetch solar data. Try again tomorrow."}), 500
+        
+        # Retry fetching the weekly data after external calls
         weekly_data = get_weekly_weather_data(formatted_timestamp, lat, lon)
-        print("=====================================================================aty ny maso =======================================================")
-        # No need to process columns since get_weekly_weather_data returns data in dictionary form
+        if not weekly_data:
+            return jsonify({"status": "error", "message": "No data available after attempting to fetch from external sources. Try again tomorrow."}), 500
+
+    # Process the fetched data
+    try:
         data = [
             {
-                "date": record["date"],  # Assuming "date" is the key for the date in the dictionary
+                "date": record["date"],
                 "min_temperature": record["min_temperature"],
                 "max_temperature": record["max_temperature"],
                 "average_temperature": record["average_temperature"],
@@ -107,20 +137,17 @@ def getWeeklyWeather():
                 "min_humidity": record["min_humidity"],
                 "max_humidity": record["max_humidity"],
                 "average_humidity": record["average_humidity"],
-                "total_precipitation": record["total_precipitation"],  # Total precipitation for the day
-                "hdd": base_temp - record["average_temperature"], # gdd
-                "cdd" : record["average_temperature"] - base_temp, #cdd
-                "gdd" : ((record["max_temperature"] + record["min_temperature"])/2) - base_temp,
+                "total_precipitation": record["total_precipitation"],
+                "hdd": base_temp - record["average_temperature"],
+                "cdd": record["average_temperature"] - base_temp,
+                "gdd": ((record["max_temperature"] + record["min_temperature"]) / 2) - base_temp,
             }
             for record in weekly_data
         ]
-        print(data)
     except Exception as e:
-        return jsonify({"status": "error", "message": f"Failed to fetch data: {str(e)}"}), 500
+        return jsonify({"status": "error", "message": f"Failed to process data: {str(e)}"}), 500
 
     return jsonify({"status": "success", "data": data}), 200
-
-
 
 @bp.route('/weather', methods=['GET'])
 @cross_origin()

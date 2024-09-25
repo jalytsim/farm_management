@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request
+from flask_jwt_extended import get_jwt_identity, jwt_required
 from app.utils import farmdata_utils
-from app.models import Farm, Crop, FarmData
+from app.models import Farm, Crop, FarmData, User
 
 bp = Blueprint('api_farmdata', __name__, url_prefix='/api/farmdata')
 
@@ -30,18 +31,25 @@ def index():
             'timestamp': data.timestamp,
             'channel_partner': data.channel_partner,
             'destination_country': data.destination_country,
-            'customer_name': data.customer_name
+            'customer_name': data.customer_name,
+            'number_of_tree': data.number_of_tree
         } for data in farmdata_list
     ]
     
     return jsonify(farmdata_list=farmdata_json)
 
 @bp.route('/create', methods=['POST'])
+@jwt_required()
 def create_farmdata():
+    identity = get_jwt_identity()  # Returns {'id': user.id, 'user_type': user.user_type}
+    user_id = identity['id']
+    user = User.query.get(user_id)
+    print( "+++++++++===========+++++++++",user_id,)
+
     data = request.json
     farm_id = data.get('farm_id')
 
-    farmdata_utils.create_farmdata(data)
+    farmdata_utils.create_farmdata(data, user)
     return jsonify({"msg": "FarmData created successfully."}), 201
 
 @bp.route('/<int:id>/edit', methods=['PUT'])
@@ -71,7 +79,8 @@ def get_farmdata(id):
         'timestamp': farmdata.timestamp,
         'channel_partner': farmdata.channel_partner,
         'destination_country': farmdata.destination_country,
-        'customer_name': farmdata.customer_name
+        'customer_name': farmdata.customer_name,
+        'number_of_tree': farmdata.number_of_tree,
     }
 
     return jsonify(farmdata_json)

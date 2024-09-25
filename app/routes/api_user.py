@@ -1,3 +1,4 @@
+import re
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
 from app.models import User
@@ -53,6 +54,13 @@ def create_user():
     phonenumber = data.get('phonenumber')
     user_type = data.get('user_type')
     is_admin = data.get('is_admin', False)
+    id_start = re.sub(r'[^A-Za-z]', 'A', username)[:4]
+
+# Ensure id_start is in uppercase
+    id_start = id_start.upper()
+
+    # Example result
+    print(id_start)
 
     # Check if the user already exists
     if User.query.filter((User.username == username) | (User.email == email)).first():
@@ -66,7 +74,8 @@ def create_user():
         password=hashed_password,
         phonenumber=phonenumber,
         user_type=user_type,
-        is_admin=is_admin
+        is_admin=is_admin,
+        id_start=id_start
     )
 
     db.session.add(new_user)
