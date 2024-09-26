@@ -76,3 +76,23 @@ def delete_grade(id):
     db.session.delete(grade)
     db.session.commit()
     return jsonify({"msg": "Grade deleted successfully!"})
+
+@bp.route('/<int:crop_id>' methods=['GET'])
+def get_by_crop_id(crop_id):
+    grades = Grade.query.filter_by(crop_id=crop_id).all()
+    grades_list = [
+        {
+            'id': grade.id,
+            'crop_id': grade.crop_id,
+            'grade_value': grade.grade_value,
+            'description': grade.description,
+            'date_created': grade.date_created,
+            'date_updated': grade.date_updated
+
+        } for grade in grades
+    ]
+    return jsonify({
+        'grades': grades_list,
+    })
+
+

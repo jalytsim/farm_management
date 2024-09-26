@@ -60,3 +60,23 @@ def delete_crop(id):
     db.session.delete(crop)
     db.session.commit()
     return jsonify({"msg": "Crop deleted successfully!"})
+
+@api_crop_bp.route('/<int:category_id>' methods=['GET'])
+def get_crop_by_id(category_id):
+    crops = Crop.query.filter_by(category_id=category_id).all()
+    crops_list = [
+        {
+            'id': crop.id,
+            'name': crop.name,
+            'weight': crop.weight,
+            'category_id': crop.category_id
+
+        } for crop in crops
+    ]
+    return jsonify({
+        'crops': crops_list,
+    })
+
+
+
+
