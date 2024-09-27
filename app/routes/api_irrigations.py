@@ -88,9 +88,9 @@ def delete_irrigation(id):
     return jsonify({"msg": "Irrigation record deleted successfully!"})
 
 
-@bp.route('/getbycrop/<int:crop_id>' methods=['GET'])
+@bp.route('/getbycrop/<int:crop_id>', methods=['GET'])
 def get_by_crop_id(crop_id):
-    irrigations = CropCoefficient.query.filter_by(crop_id=crop_id).all()
+    irrigations = Irrigation.query.filter_by(crop_id=crop_id).all()
     irrigation_list = [
         {
             'id': irrigation.id,

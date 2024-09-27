@@ -54,14 +54,14 @@ def get_crop(id):
     }
     return jsonify(crop_data)
 
-@api_crop_bp.route('/<int:id>/delete', methods=['DELETE'])getbycrop
+@api_crop_bp.route('/<int:id>/delete', methods=['DELETE'])
 def delete_crop(id):
     crop = Crop.query.get_or_404(id)
     db.session.delete(crop)
     db.session.commit()
     return jsonify({"msg": "Crop deleted successfully!"})
 
-@api_crop_bp.route('/getbycat/<int:category_id>' methods=['GET'])
+@api_crop_bp.route('/getbycat/<int:category_id>', methods=['GET'])
 def get_crop_by_id(category_id):
     crops = Crop.query.filter_by(category_id=category_id).all()
     crops_list = [

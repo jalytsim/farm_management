@@ -78,7 +78,7 @@ def delete_coefficient(id):
     return jsonify({"msg": "Crop coefficient deleted successfully!"})
 
 
-@bp.route('/getbycrop/<int:crop_id>' methods=['GET'])
+@bp.route('/getbycrop/<int:crop_id>', methods=['GET'])
 def get_by_crop_id(crop_id):
     coefficients = CropCoefficient.query.filter_by(crop_id=crop_id).all()
     coefficients_list = [
