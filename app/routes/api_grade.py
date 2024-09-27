@@ -80,19 +80,29 @@ def delete_grade(id):
 @bp.route('/getbycrop/<int:crop_id>', methods=['GET'])
 def get_by_crop_id(crop_id):
     grades = Grade.query.filter_by(crop_id=crop_id).all()
-    grades_list = [
-        {
-            'id': grade.id,
-            'crop_id': grade.crop_id,
-            'grade_value': grade.grade_value,
-            'description': grade.description,
-            'date_created': grade.date_created,
-            'date_updated': grade.date_updated
+    if grades :
+        grades_list = [
+            {
+                'id': grade.id,
+                'crop_id': grade.crop_id,
+                'grade_value': grade.grade_value,
+                'description': grade.description,
+                'date_created': grade.date_created,
+                'date_updated': grade.date_updated
 
-        } for grade in grades
-    ]
-    return jsonify({
-        'grades': grades_list,
-    })
+            } for grade in grades
+        ]
+        return jsonify({
+            'status': 'success',
+            'grades': grades_list,
+        })
+    else:
+        # Return an error message if no data is found
+        return jsonify({
+            'status': 'error',
+            'message': 'No data found for the provided farm ID'
+        }), 404
+
+        
 
 

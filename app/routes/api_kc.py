@@ -81,18 +81,27 @@ def delete_coefficient(id):
 @bp.route('/getbycrop/<int:crop_id>', methods=['GET'])
 def get_by_crop_id(crop_id):
     coefficients = CropCoefficient.query.filter_by(crop_id=crop_id).all()
-    coefficients_list = [
-        {
-            'id': coefficient.id,
-            'crop_id': coefficient.crop_id,
-            'stage': coefficient.stage,
-            'kc_value': coefficient.kc_value,
-            'date_created': coefficient.date_created,
-            'date_updated': coefficient.date_updated
+    if coefficients:
 
-        } for coefficient in coefficients
-    ]
-    return jsonify({
-        'kc_value': coefficients_list,
-    })
+        coefficients_list = [
+            {
+                'id': coefficient.id,
+                'crop_id': coefficient.crop_id,
+                'stage': coefficient.stage,
+                'kc_value': coefficient.kc_value,
+                'date_created': coefficient.date_created,
+                'date_updated': coefficient.date_updated
+
+            } for coefficient in coefficients
+        ]
+        return jsonify({
+            'status': 'success',
+            'kc_value': coefficients_list,
+        })
+    else:
+        # Return an error message if no data is found
+        return jsonify({
+            'status': 'error',
+            'message': 'No data found for the provided farm ID'
+        }), 404
 

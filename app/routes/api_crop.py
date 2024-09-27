@@ -64,18 +64,26 @@ def delete_crop(id):
 @api_crop_bp.route('/getbycat/<int:category_id>', methods=['GET'])
 def get_crop_by_id(category_id):
     crops = Crop.query.filter_by(category_id=category_id).all()
-    crops_list = [
-        {
-            'id': crop.id,
-            'name': crop.name,
-            'weight': crop.weight,
-            'category_id': crop.category_id
+    if crops :
+        crops_list = [
+            {
+                'id': crop.id,
+                'name': crop.name,
+                'weight': crop.weight,
+                'category_id': crop.category_id
 
-        } for crop in crops
-    ]
-    return jsonify({
-        'crops': crops_list,
-    })
+            } for crop in crops
+        ]
+        return jsonify({
+            'status': 'success',
+            'crops': crops_list,
+        })
+    else:
+        # Return an error message if no data is found
+        return jsonify({
+            'status': 'error',
+            'message': 'No data found for the provided farm ID'
+        }), 404
 
 
 

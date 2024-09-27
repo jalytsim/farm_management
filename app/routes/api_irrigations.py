@@ -91,19 +91,27 @@ def delete_irrigation(id):
 @bp.route('/getbycrop/<int:crop_id>', methods=['GET'])
 def get_by_crop_id(crop_id):
     irrigations = Irrigation.query.filter_by(crop_id=crop_id).all()
-    irrigation_list = [
-        {
-            'id': irrigation.id,
-            'crop_id': irrigation.crop_id,
-            'farm_id': irrigation.farm_id,
-            'irrigation_date': irrigation.irrigation_date,
-            'water_applied': irrigation.water_applied,
-            'method': irrigation.method,
-            'date_created': irrigation.date_created,
-            'date_updated': irrigation.date_updated
+    if irrigations :
+        irrigation_list = [
+            {
+                'id': irrigation.id,
+                'crop_id': irrigation.crop_id,
+                'farm_id': irrigation.farm_id,
+                'irrigation_date': irrigation.irrigation_date,
+                'water_applied': irrigation.water_applied,
+                'method': irrigation.method,
+                'date_created': irrigation.date_created,
+                'date_updated': irrigation.date_updated
 
-        } for irrigation in irrigations
-    ]
-    return jsonify({
-        'irrigation': irrigation_list,
-    })
+            } for irrigation in irrigations
+        ]
+        return jsonify({
+            'status': 'success',
+            'irrigation': irrigation_list,
+        })
+    else:
+        # Return an error message if no data is found
+        return jsonify({
+            'status': 'error',
+            'message': 'No data found for the provided farm ID'
+        }), 404
