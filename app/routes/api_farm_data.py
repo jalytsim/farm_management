@@ -3,6 +3,9 @@ from flask_jwt_extended import get_jwt_identity, jwt_required
 from app.utils import farmdata_utils
 from app.models import Farm, Crop, FarmData, User
 
+# ALTER TABLE farmdata
+# ADD COLUMN hs_code VARCHAR(10) NULL;
+
 bp = Blueprint('api_farmdata', __name__, url_prefix='/api/farmdata')
 
 @bp.route('/', methods=['GET'])
@@ -32,7 +35,8 @@ def index():
             'channel_partner': data.channel_partner,
             'destination_country': data.destination_country,
             'customer_name': data.customer_name,
-            'number_of_tree': data.number_of_tree
+            'number_of_tree': data.number_of_tree,
+            'hs_code': data.hs_code  # Include hs_code in the response
         } for data in farmdata_list
     ]
     
@@ -44,10 +48,13 @@ def create_farmdata():
     identity = get_jwt_identity()  # Returns {'id': user.id, 'user_type': user.user_type}
     user_id = identity['id']
     user = User.query.get(user_id)
-    print( "+++++++++===========+++++++++",user_id,)
 
     data = request.json
     farm_id = data.get('farm_id')
+
+    # Include hs_code in the data to be processed
+    hs_code = data.get('hs_code')
+    data['hs_code'] = hs_code  # Ensure hs_code is part of the data
 
     farmdata_utils.create_farmdata(data, user)
     return jsonify({"msg": "FarmData created successfully."}), 201
@@ -56,6 +63,10 @@ def create_farmdata():
 def edit_farmdata(id):
     farmdata = farmdata_utils.get_farmdata_by_id(id)
     data = request.json
+
+    # Include hs_code in the updated data if provided
+    if 'hs_code' in data:
+        farmdata.hs_code = data['hs_code']
 
     farmdata_utils.update_farmdata(farmdata, data)
     return jsonify({"msg": "FarmData updated successfully."})
@@ -81,6 +92,7 @@ def get_farmdata(id):
         'destination_country': farmdata.destination_country,
         'customer_name': farmdata.customer_name,
         'number_of_tree': farmdata.number_of_tree,
+        'hs_code': farmdata.hs_code,  # Include hs_code in the response
     }
 
     return jsonify(farmdata_json)

@@ -108,6 +108,7 @@ class FarmData(db.Model):
     modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     number_of_tree = db.Column(db.Integer, nullable=True)
+    hs_code = db.Column(db.String(10), nullable=True) 
 
 class Forest(db.Model):
     __tablename__ = 'forest'
