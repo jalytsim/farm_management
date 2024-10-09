@@ -37,6 +37,8 @@ def index():
         'geolocation': farm.geolocation,
         "phonenumber1": farm.phonenumber,
         "phonenumber2": farm.phonenumber2,
+        "gender": farm.gender,
+        "cin": farm.cin,
     } for farm in farms.items]
     
     # Return the response as JSON
@@ -76,7 +78,9 @@ def create_farm():
             district_id=data['district_id'],
             geolocation=geolocation,  # Expecting 'latitude,longitude' as a string
             phonenumber1=data.get('phonenumber1'),
-            phonenumber2=data.get('phonenumber2', '')  # Optional field
+            phonenumber2=data.get('phonenumber2', ''),  # Optional field
+            gender=data['gender'], 
+            cin=data['cin'],
         )
 
         return jsonify({"success": True, "farm_id": new_farm.farm_id}), 201
@@ -103,6 +107,8 @@ def update_farm_route(farm_id):
         geolocation=data['geolocation'],
         phonenumber1=data['phonenumber'],
         phonenumber2=data.get('phonenumber2'),
+        gender=data['gender'],
+        cin=data['cin'],
         user=user
     )
     return jsonify(success=True)
@@ -132,6 +138,9 @@ def get_farm_by_id(farm_id):
             "geolocation": farm.geolocation,
             "phonenumber1": farm.phonenumber,
             "phonenumber2": farm.phonenumber2,
+            "gender": farm.gender,
+            "cin":farm.cin,
+
         }
         return jsonify({
             'status': 'success',

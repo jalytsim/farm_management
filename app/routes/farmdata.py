@@ -92,7 +92,7 @@ def edit_farmdata(id):
     crops = Crop.query.all()
     return render_template('farmdata/edit.html', farmdata=farmdata, farms=farms, crops=crops)
 
-@bp.route('/farmdata/<int:id>/delete', methods=['POST'])
+@bp.route('/farmdata/<int:id>/delete', methods=['DELETE'])
 @login_required
 @farmer_or_admin_required
 def delete_farmdata(id):

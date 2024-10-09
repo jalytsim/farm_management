@@ -114,7 +114,7 @@ def get_all_farms():
         District.name.label('district_name'), FarmerGroup.name.label('farmergroup_name')
     ).all()
 
-def create_farm(user=None, name=None, subcounty=None, farmergroup_id=None, district_id=None, geolocation=None, phonenumber1=None, phonenumber2=None, gender=None, cin=None):
+def create_farm(user=None, name=None, subcounty=None, farmergroup_id=None, district_id=None, geolocation=None, phonenumber1=None, phonenumber2=None):
     # Check if a user object is provided; otherwise, use the current user's ID from context or global state
     if user:
         user_id = user.id
@@ -165,8 +165,6 @@ def create_farm(user=None, name=None, subcounty=None, farmergroup_id=None, distr
         geolocation=geolocation,
         phonenumber=phonenumber1,
         phonenumber2=phonenumber2,
-        gender=gender,
-        cin=cin,
         created_by=user_id,  # Use the resolved user_id
         modified_by=user_id,  # Use the resolved user_id
         date_created=datetime.utcnow(),
@@ -176,7 +174,7 @@ def create_farm(user=None, name=None, subcounty=None, farmergroup_id=None, distr
     db.session.commit()
     return farm
 
-def update_farm(farm_id, name, subcounty, farmergroup_id, district_id, geolocation, phonenumber1, gender, cin, phonenumber2=None, user=None):
+def update_farm(farm_id, name, subcounty, farmergroup_id, district_id, geolocation, phonenumber1, phonenumber2=None, user=None):
     
     if user:
         user_id = user.id
@@ -200,8 +198,6 @@ def update_farm(farm_id, name, subcounty, farmergroup_id, district_id, geolocati
         farm.geolocation = geolocation
         farm.phonenumber = phonenumber1
         farm.phonenumber2 = phonenumber2 if phonenumber2 else None
-        farm.gender = gender
-        farm.cin = cin
         farm.modified_by = user_id
         farm.date_updated = datetime.utcnow()
         db.session.commit()
