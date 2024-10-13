@@ -312,6 +312,7 @@ def gfw(owner_type, owner_id):
             'data_fields': data_fields,
             'coordinates': geometry["coordinates"]
         })
+    print(dataset_results)
     
     return {"dataset_results": dataset_results}, 200
 
