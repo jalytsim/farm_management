@@ -171,6 +171,25 @@ UNLOCK TABLES;
 --
 -- Table structure for table `farmdata`
 --
+-- ------ajout du colonne Gender and CIN
+LOCK TABLES `farm` WRITE;
+/*!40000 ALTER TABLE `farm` DISABLE KEYS */;
+INSERT INTO `farm` VALUES
+(1, 'B0001', 'Isiah Namanya', '1', 1, 1, '0.38551,33.3421', '2024-06-11 09:08:19', '2024-07-14 01:26:50', NULL, NULL, NULL, NULL, NULL, NULL),
+(3, 'WAK0002', 'Lwetutte Brian', 'Busukuma', 3, 3, '0.545614,32.579339', '2024-06-21 11:50:52', '2024-07-14 01:26:50', '256783130358', '256756411682', NULL, NULL, NULL, NULL),
+(5, 'KBRL001', 'Jackus Munihera', 'Karangura', 4, 9, '0.658541,30.156032', '2024-06-24 14:22:52', '2024-07-14 01:26:50', '25674123456', '25675123456', NULL, NULL, NULL, NULL),
+(6, 'KBRL004', 'John Mugisha', 'Karangura', 4, 9, '0.69297,30.180577', '2024-06-25 10:18:54', '2024-07-14 01:26:50', '', '', NULL, NULL, NULL, NULL),
+(7, 'KBRL003', 'Daniel Maate', 'Karangura', 4, 9, '0.69391,30.180621', '2024-06-25 10:26:38', '2024-07-14 01:26:50', '', '', NULL, NULL, NULL, NULL),
+(8, 'KBRL002', 'Musoki Faibe', 'Karangura', 4, 9, '0.658917,30.156655', '2024-06-25 10:28:22', '2024-07-14 01:26:50', '', '', NULL, NULL, NULL, NULL),
+(9, 'BUIK002', 'Bwebale Badru', 'Ngoogwe', 1, 1, '0.257593,32.923496', '2024-06-25 19:52:04', '2024-07-14 01:26:50', '', '', NULL, NULL, NULL, NULL),
+(10, 'BUIK003', 'Mafuko Muzamiru', 'Ngoogwe', 1, 1, '0.234431,32.910984', '2024-06-25 20:01:21', '2024-07-14 01:26:50', '256755976395', '', NULL, NULL, NULL, NULL),
+(13, 'BUNDI02', 'Biira Jolly', '', 4, 17, '0.700031,30.065901', '2024-07-27 13:33:30', '2024-07-29 19:47:47', '', '256772954040', NULL, NULL, NULL, NULL),
+(14, 'BUNDI01', 'Biira Safina', 'Bundibugyo T.C', 4, 17, '0.711227,30.068870', '2024-07-29 19:19:51', '2024-07-29 19:19:51', '256787227508', '', NULL, NULL, NULL, NULL),
+(15, 'BUNDI03', 'Mahanda David', 'Bundibugyo T.C', 4, 17, '0.699054,30.066693', '2024-07-29 19:31:07', '2024-07-29 19:31:07', '256785184424', '', NULL, NULL, NULL, NULL),
+(16, 'BUNDI04', 'Masereka Ibrahim', 'Bundibugyo T.C', 4, 17, '0.698725,30.066361', '2024-07-29 19:40:17', '2024-07-29 19:40:17', '256789238888', '', NULL, NULL, NULL, NULL);
+/*!40000 ALTER TABLE `farm` ENABLE KEYS */;
+UNLOCK TABLES;
+
 
 DROP TABLE IF EXISTS `farmdata`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;

@@ -1,64 +1,99 @@
+from datetime import datetime
 from flask import Blueprint, jsonify, request
 from app.models import ProduceCategory, db
-from app.utils import producecategory_utils
 
 bp = Blueprint('api_producecategory', __name__, url_prefix='/api/producecategory')
 
+# Get all produce category records
 @bp.route('/', methods=['GET'])
 def index():
-    pcs = ProduceCategory.query.all()
-    pcs_json = [
+    categories = ProduceCategory.query.all()
+    categories_list = [
         {
-            'id': pc.id,
-            'name': pc.name,
-            'grade': pc.grade,
-            'created_by': pc.created_by,
-            'modified_by': pc.modified_by,
-            'date_created': pc.date_created,
-            'date_updated': pc.date_updated
-        } for pc in pcs
+            "id": category.id,
+            "name": category.name,
+            "date_created": category.date_created,
+            "date_updated": category.date_updated,
+            "created_by": category.created_by,
+            "modified_by": category.modified_by
+        }
+        for category in categories
     ]
-    return jsonify(pcs_json)
+    return jsonify(categories=categories_list)
 
+# Create a new produce category record
 @bp.route('/create', methods=['POST'])
-def create_pc():
+def create_category():
     data = request.json
     name = data.get('name')
-    grade = data.get('grade')
-    created_by = data.get('created_by')  # You might want to retrieve this from the JWT or session in a real scenario
-    modified_by = data.get('modified_by')  # Same here
+    created_by = data.get('created_by')
 
-    producecategory_utils.create_pc(name, grade, created_by=created_by, modified_by=modified_by)
+    new_category = ProduceCategory(
+        name=name,
+        created_by=created_by,
+        date_created=datetime.utcnow(),
+        date_updated=datetime.utcnow()
+    )
+
+    db.session.add(new_category)
+    db.session.commit()
     return jsonify({"msg": "Produce category created successfully!"}), 201
 
-@bp.route('/<int:pc_id>/edit', methods=['PUT'])
-def edit_pc(pc_id):
-    pc = ProduceCategory.query.get_or_404(pc_id)
+# Edit an existing produce category record
+@bp.route('/<int:id>/edit', methods=['PUT'])
+def edit_category(id):
+    category = ProduceCategory.query.get_or_404(id)
     data = request.json
 
-    name = data.get('name')
-    grade = data.get('grade')
-    modified_by = data.get('modified_by')  # Same here
+    category.name = data.get('name')
+    category.modified_by = data.get('modified_by')
+    category.date_updated = datetime.utcnow()
 
-    producecategory_utils.update_pc(pc, name, grade, modified_by=modified_by)
+    db.session.commit()
     return jsonify({"msg": "Produce category updated successfully!"})
 
-@bp.route('/<int:pc_id>', methods=['GET'])
-def get_pc(pc_id):
-    pc = ProduceCategory.query.get_or_404(pc_id)
-    pc_json = {
-        'id': pc.id,
-        'name': pc.name,
-        'grade': pc.grade,
-        'created_by': pc.created_by,
-        'modified_by': pc.modified_by,
-        'date_created': pc.date_created,
-        'date_updated': pc.date_updated
+# Get a specific produce category record by id
+@bp.route('/<int:id>', methods=['GET'])
+def get_category(id):
+    category = ProduceCategory.query.get_or_404(id)
+    category_data = {
+        'id': category.id,
+        'name': category.name,
+        'date_created': category.date_created,
+        'date_updated': category.date_updated,
+        'created_by': category.created_by,
+        'modified_by': category.modified_by
     }
-    return jsonify(pc_json)
+    return jsonify(category_data)
 
-@bp.route('/<int:pc_id>/delete', methods=['DELETE'])
-def delete_pc(pc_id):
-    pc = ProduceCategory.query.get_or_404(pc_id)
-    producecategory_utils.delete_pc(pc)
+# Delete a produce category record
+@bp.route('/<int:id>/delete', methods=['DELETE'])
+def delete_category(id):
+    category = ProduceCategory.query.get_or_404(id)
+    db.session.delete(category)
+    db.session.commit()
     return jsonify({"msg": "Produce category deleted successfully!"})
+
+# Optional: Get categories for a specific crop (if needed)
+@bp.route('/getbycrop/<int:crop_id>', methods=['GET'])
+def get_by_crop_id(crop_id):
+    categories = ProduceCategory.query.join(Crop).filter(Crop.id == crop_id).all()
+    if categories :
+        categories_list = [
+            {
+                'id': category.id,
+                'name': category.name,
+                'date_created': category.date_created,
+                'date_updated': category.date_updated
+            } for category in categories
+        ]
+        return jsonify({
+            'status': 'success',
+            'categories': categories_list,
+        })
+    else:
+        # Return an error message if no data is found
+        return jsonify({
+            'status': 'error',
+            'message': 'No data found for the provided farm ID'
+        }), 404

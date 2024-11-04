@@ -76,6 +76,8 @@ class Farm(db.Model):
     geolocation = db.Column(db.String(255), nullable=False)
     phonenumber = db.Column(db.String(20), nullable=True)
     phonenumber2 = db.Column(db.String(20), nullable=True)
+    cin = db.Column(db.String, nullable=True)
+    gender = db.Column(db.String, nullable=True) 
     date_created = db.Column(db.DateTime, default=datetime.utcnow)
     date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
@@ -84,7 +86,8 @@ class Farm(db.Model):
 
     def __repr__(self):
         return f"<Farm(id={self.id}, farm_id={self.farm_id})>"
-
+    
+    # ovana any @BD
 class FarmData(db.Model):
     __tablename__ = 'farmdata'
     id = db.Column(db.Integer, primary_key=True)
@@ -107,6 +110,9 @@ class FarmData(db.Model):
     date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    number_of_tree = db.Column(db.Integer, nullable=True)
+    hs_code = db.Column(db.String(10), nullable=True) 
+    # -------------------------------------------------------------------------------------------
 
 class Forest(db.Model):
     __tablename__ = 'forest'

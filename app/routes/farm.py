@@ -54,8 +54,10 @@ def create_farm():
         geolocation = f"{latitude},{longitude}"
         phonenumber1 = request.form.get('phonenumber1')
         phonenumber2 = request.form.get('phonenumber2')
+        gender = request.form['gender']
+        cin = request.form['cin']
 
-        farm_utils.create_farm(farm_id, name, subcounty, farmergroup_id, district_id, geolocation, phonenumber1, phonenumber2)
+        farm_utils.create_farm(farm_id, name, subcounty, farmergroup_id, district_id, geolocation, phonenumber1, phonenumber2, gender, cin)
         return redirect(url_for('farm.index'))
 
     districts = District.query.all()
@@ -75,7 +77,9 @@ def update_farm_route(farm_id):
         district_id=data['district_id'],
         geolocation=data['geolocation'],
         phonenumber1=data['phonenumber'],
-        phonenumber2=data.get('phonenumber2')  # Use .get() to handle optional fields
+        phonenumber2=data.get('phonenumber2'), # Use .get() to handle optional fields
+        gender=data['gender'],
+        cin= data['cin']
     )
     return jsonify(success=True)
 
