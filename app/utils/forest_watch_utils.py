@@ -12,7 +12,11 @@ async def query_forest_watch_async(dataset, geometry, sql_query):
         "geometry": geometry,
         "sql": sql_query
     }
-    url = f'https://data-api.globalforestwatch.org/dataset/{dataset}/latest/query'
+
+    if dataset == "gfw_soil_carbon" :
+        url = f'https://data-api.globalforestwatch.org/dataset/gfw_soil_carbon/v20230322/query'
+    else : 
+        url = f'https://data-api.globalforestwatch.org/dataset/{dataset}/latest/query'
     
     async with aiohttp.ClientSession() as session:
         async with session.post(
