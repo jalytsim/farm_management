@@ -1,8 +1,30 @@
 import json
 import requests
+import aiohttp
+import asyncio
 
 # Replace with your actual API key
 api_key = '2a63c69c-ab85-49c3-ba2c-f7456277fc6e'
+
+
+async def query_forest_watch_async(dataset, geometry, sql_query):
+    payload = {
+        "geometry": geometry,
+        "sql": sql_query
+    }
+    url = f'https://data-api.globalforestwatch.org/dataset/{dataset}/latest/query'
+    
+    async with aiohttp.ClientSession() as session:
+        async with session.post(
+            url,
+            headers={
+                'x-api-key': api_key,
+                'Content-Type': 'application/json'
+            },
+            json=payload
+        ) as response:
+            return await response.json()
+
 
 def query_forest_watch(dataset, geometry, sql_query):
     # Create the payload dynamically

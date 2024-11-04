@@ -4,7 +4,7 @@ from flask_login import current_user, login_required
 from app.models import Crop, Farm, FarmData, Forest, Point
 from app.routes.farm import farmer_or_admin_required
 from app.routes.forest import forest_or_admin_required
-from app.utils.forest_watch_utils import query_forest_watch
+from app.utils.forest_watch_utils import query_forest_watch, query_forest_watch_async
 from app.utils.map_utils import calculate_area, create_mapbox_html,generate_choropleth_map, generate_choropleth_map_combined, generate_choropleth_map_soil
 from flask import Blueprint, render_template
 from app import db
@@ -18,6 +18,7 @@ from shapely.geometry import Polygon
 from pyproj import Transformer
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
+import asyncio
 
 bp = Blueprint('map', __name__)
 
@@ -265,7 +266,8 @@ def create_geojson(points, owner):
     feature = Feature(geometry=geojson_polygon, properties=properties)
     return FeatureCollection([feature])
 
-def gfw(owner_type, owner_id):
+
+async def gfw_async(owner_type, owner_id):
     datasets = [
         'gfw_radd_alerts',
         'umd_tree_cover_loss',
@@ -275,6 +277,79 @@ def gfw(owner_type, owner_id):
         'gfw_forest_flux_aboveground_carbon_stock_in_emissions_year',
         'gfw_forest_flux_belowground_carbon_stock_in_emissions_year',
         'gfw_forest_flux_deadwood_carbon_stock_in_emissions_year',
+        'wri_agriculture_linked_deforestation', 
+        'wri_tropical_tree_cover_extent',
+        'jrc_global_forest_cover',
+        'gfw_soil_carbon',
+        'fao_forest_change',
+        # Add other datasets here
+    ]
+
+    # Define SQL queries specific to each dataset
+    sql_queries = {
+        'gfw_radd_alerts': "SELECT COUNT(area__ha) FROM results",
+        'umd_tree_cover_loss': "SELECT SUM(area__ha) FROM results",
+
+        # Add more dataset-specific queries as needed
+    }
+    
+    # Get coordinates
+    coordinates = get_coordinates(owner_type, owner_id)
+    if not coordinates:
+        return {"error": "No points found for the specified owner"}
+    
+    geometry = {
+        "type": "Polygon",
+        "coordinates": [coordinates]
+    }
+    
+    tasks = []
+    for dataset in datasets:
+        # Clean dataset name for display
+        clean_dataset_name = dataset.replace('gfw_', '').replace('umd_', '').replace('_', ' ')
+
+        # Select the SQL query for the current dataset, or use a default if not specified
+        sql_query = sql_queries.get(dataset, "SELECT COUNT(area__ha) FROM results")
+        
+        # Schedule the async request
+        tasks.append(query_forest_watch_async(dataset, geometry, sql_query))
+
+    # Execute all tasks concurrently
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    
+    # Collect and structure results
+    dataset_results = []
+    for i, result in enumerate(results):
+        if isinstance(result, Exception):
+            # Handle any exceptions that occurred during requests
+            data_fields = {"error": str(result)}
+        else:
+            # Extract fields from the data
+            data_fields = result.get("data", [{}])[0] if result else {}
+        
+        dataset_results.append({
+            'dataset': datasets[i].replace('gfw_', '').replace('umd_', '').replace('_', ' '),
+            'data_fields': data_fields,
+            'coordinates': geometry["coordinates"]
+        })
+    
+    return {"dataset_results": dataset_results}, 200
+
+def gfw(owner_type, owner_id, ):
+    datasets = [
+        'gfw_radd_alerts',
+        'umd_tree_cover_loss',
+        'gfw_forest_carbon_gross_emissions',
+        'gfw_forest_carbon_gross_removals',
+        'gfw_forest_carbon_net_flux',
+        'gfw_forest_flux_aboveground_carbon_stock_in_emissions_year',
+        'gfw_forest_flux_belowground_carbon_stock_in_emissions_year',
+        'gfw_forest_flux_deadwood_carbon_stock_in_emissions_year',
+        'wri_agriculture_linked_deforestation', 
+        'wri_tropical_tree_cover_extent',
+        'jrc_global_forest_cover',
+        'gfw_soil_carbon',
+        'fao_forest_change',
     ]
     
     dataset_results = []
@@ -301,7 +376,7 @@ def gfw(owner_type, owner_id):
         }
         
         # Query data from the dataset
-        sql_query = "SELECT SUM(area__ha) FROM results"
+        sql_query = "SELECT COUNT(area__ha) FROM results"
         dataset_data = query_forest_watch(datasetss, geometry, sql_query)
         
         # Extract fields dynamically, ensuring to handle cases where 'data' key might be missing

@@ -8,7 +8,7 @@ bp = Blueprint('api_user', __name__, url_prefix='/api/users')
 
 # Fetch all users or a specific user by username or email
 @bp.route('/', methods=['GET'])
-@jwt_required()
+@jwt_required() 
 def get_users():
     username = request.args.get('username')
     email = request.args.get('email')
