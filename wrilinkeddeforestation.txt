@@ -1,0 +1,311 @@
+{
+  "data": [
+    {
+      "name": "gfw_fid",
+      "alias": "gfw_fid",
+      "description": null,
+      "data_type": "integer",
+      "unit": null,
+      "is_feature_info": true,
+      "is_filter": true
+    },
+    {
+      "name": "gid_0",
+      "alias": "gid_0",
+      "description": null,
+      "data_type": "character varying",
+      "unit": null,
+      "is_feature_info": true,
+      "is_filter": true
+    },
+    {
+      "name": "name_0",
+      "alias": "name_0",
+      "description": null,
+      "data_type": "character varying",
+      "unit": null,
+      "is_feature_info": true,
+      "is_filter": true
+    },
+    {
+      "name": "gid_1",
+      "alias": "gid_1",
+      "description": null,
+      "data_type": "character varying",
+      "unit": null,
+      "is_feature_info": true,
+      "is_filter": true
+    },
+    {
+      "name": "id_1",
+      "alias": "id_1",
+      "description": null,
+      "data_type": "bigint",
+      "unit": null,
+      "is_feature_info": true,
+      "is_filter": true
+    },
+    {
+      "name": "name_1",
+      "alias": "name_1",
+      "description": null,
+      "data_type": "character varying",
+      "unit": null,
+      "is_feature_info": true,
+      "is_filter": true
+    },
+    {
+      "name": "gid_2",
+      "alias": "gid_2",
+      "description": null,
+      "data_type": "character varying",
+      "unit": null,
+      "is_feature_info": true,
+      "is_filter": true
+    },
+    {
+      "name": "id_2",
+      "alias": "id_2",
+      "description": null,
+      "data_type": "bigint",
+      "unit": null,
+      "is_feature_info": true,
+      "is_filter": true
+    },
+    {
+      "name": "name_2",
+      "alias": "name_2",
+      "description": null,
+      "data_type": "character varying",
+      "unit": null,
+      "is_feature_info": true,
+      "is_filter": true
+    },
+    {
+      "name": "loss_2001",
+      "alias": "loss_2001",
+      "description": null,
+      "data_type": "double precision",
+      "unit": null,
+      "is_feature_info": true,
+      "is_filter": true
+    },
+    {
+      "name": "loss_2002",
+      "alias": "loss_2002",
+      "description": null,
+      "data_type": "double precision",
+      "unit": null,
+      "is_feature_info": true,
+      "is_filter": true
+    },
+    {
+      "name": "loss_2003",
+      "alias": "loss_2003",
+      "description": null,
+      "data_type": "double precision",
+      "unit": null,
+      "is_feature_info": true,
+      "is_filter": true
+    },
+    {
+      "name": "loss_2004",
+      "alias": "loss_2004",
+      "description": null,
+      "data_type": "double precision",
+      "unit": null,
+      "is_feature_info": true,
+      "is_filter": true
+    },
+    {
+      "name": "loss_2005",
+      "alias": "loss_2005",
+      "description": null,
+      "data_type": "double precision",
+      "unit": null,
+      "is_feature_info": true,
+      "is_filter": true
+    },
+    {
+      "name": "loss_2006",
+      "alias": "loss_2006",
+      "description": null,
+      "data_type": "double precision",
+      "unit": null,
+      "is_feature_info": true,
+      "is_filter": true
+    },
+    {
+      "name": "loss_2007",
+      "alias": "loss_2007",
+      "description": null,
+      "data_type": "double precision",
+      "unit": null,
+      "is_feature_info": true,
+      "is_filter": true
+    },
+    {
+      "name": "loss_2008",
+      "alias": "loss_2008",
+      "description": null,
+      "data_type": "double precision",
+      "unit": null,
+      "is_feature_info": true,
+      "is_filter": true
+    },
+    {
+      "name": "loss_2009",
+      "alias": "loss_2009",
+      "description": null,
+      "data_type": "double precision",
+      "unit": null,
+      "is_feature_info": true,
+      "is_filter": true
+    },
+    {
+      "name": "loss_2010",
+      "alias": "loss_2010",
+      "description": null,
+      "data_type": "double precision",
+      "unit": null,
+      "is_feature_info": true,
+      "is_filter": true
+    },
+    {
+      "name": "loss_2011",
+      "alias": "loss_2011",
+      "description": null,
+      "data_type": "double precision",
+      "unit": null,
+      "is_feature_info": true,
+      "is_filter": true
+    },
+    {
+      "name": "loss_2012",
+      "alias": "loss_2012",
+      "description": null,
+      "data_type": "double precision",
+      "unit": null,
+      "is_feature_info": true,
+      "is_filter": true
+    },
+    {
+      "name": "loss_2013",
+      "alias": "loss_2013",
+      "description": null,
+      "data_type": "double precision",
+      "unit": null,
+      "is_feature_info": true,
+      "is_filter": true
+    },
+    {
+      "name": "loss_2014",
+      "alias": "loss_2014",
+      "description": null,
+      "data_type": "double precision",
+      "unit": null,
+      "is_feature_info": true,
+      "is_filter": true
+    },
+    {
+      "name": "loss_2015",
+      "alias": "loss_2015",
+      "description": null,
+      "data_type": "double precision",
+      "unit": null,
+      "is_feature_info": true,
+      "is_filter": true
+    },
+    {
+      "name": "total_loss",
+      "alias": "total_loss",
+      "description": null,
+      "data_type": "double precision",
+      "unit": null,
+      "is_feature_info": true,
+      "is_filter": true
+    },
+    {
+      "name": "layer",
+      "alias": "layer",
+      "description": null,
+      "data_type": "character varying",
+      "unit": null,
+      "is_feature_info": true,
+      "is_filter": true
+    },
+    {
+      "name": "geom",
+      "alias": "geom",
+      "description": null,
+      "data_type": "geometry",
+      "unit": null,
+      "is_feature_info": false,
+      "is_filter": false
+    },
+    {
+      "name": "geom_wm",
+      "alias": "geom_wm",
+      "description": null,
+      "data_type": "geometry",
+      "unit": null,
+      "is_feature_info": false,
+      "is_filter": false
+    },
+    {
+      "name": "gfw_area__ha",
+      "alias": "gfw_area__ha",
+      "description": null,
+      "data_type": "numeric",
+      "unit": null,
+      "is_feature_info": true,
+      "is_filter": true
+    },
+    {
+      "name": "gfw_geostore_id",
+      "alias": "gfw_geostore_id",
+      "description": null,
+      "data_type": "uuid",
+      "unit": null,
+      "is_feature_info": true,
+      "is_filter": true
+    },
+    {
+      "name": "gfw_geojson",
+      "alias": "gfw_geojson",
+      "description": null,
+      "data_type": "text",
+      "unit": null,
+      "is_feature_info": false,
+      "is_filter": false
+    },
+    {
+      "name": "gfw_bbox",
+      "alias": "gfw_bbox",
+      "description": null,
+      "data_type": "ARRAY",
+      "unit": null,
+      "is_feature_info": false,
+      "is_filter": false
+    },
+    {
+      "name": "created_on",
+      "alias": "created_on",
+      "description": null,
+      "data_type": "timestamp without time zone",
+      "unit": null,
+      "is_feature_info": false,
+      "is_filter": false
+    },
+    {
+      "name": "updated_on",
+      "alias": "updated_on",
+      "description": null,
+      "data_type": "timestamp without time zone",
+      "unit": null,
+      "is_feature_info": false,
+      "is_filter": false
+    }
+  ],
+  "status": "success"
+}

@@ -289,7 +289,12 @@ async def gfw_async(owner_type, owner_id):
     sql_queries = {
         'gfw_radd_alerts': "SELECT COUNT(area__ha) FROM results",
         'umd_tree_cover_loss': "SELECT SUM(area__ha) FROM results",
-
+        'gfw_forest_carbon_gross_removals': "SELECT SUM(area__ha) FROM results",
+        'gfw_forest_carbon_gross_emissions': "SELECT SUM(area__ha) FROM results",
+        'gfw_forest_flux_aboveground_carbon_stock_in_emissions_year': "SELECT SUM(area__ha) FROM results",
+        'gfw_forest_flux_belowground_carbon_stock_in_emissions_year': "SELECT SUM(area__ha) FROM results",
+        'gfw_soil_carbon': "SELECT wri_tropical_tree_cover__percent FROM results",
+        'fao_forest_change': "SELECT reforestation FROM results",
         # Add more dataset-specific queries as needed
     }
     
@@ -332,7 +337,7 @@ async def gfw_async(owner_type, owner_id):
             'data_fields': data_fields,
             'coordinates': geometry["coordinates"]
         })
-    
+    print("dataset_results", dataset_results)
     return {"dataset_results": dataset_results}, 200
 
 def gfw(owner_type, owner_id, ):
