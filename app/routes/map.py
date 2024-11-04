@@ -295,6 +295,7 @@ async def gfw_async(owner_type, owner_id):
         'gfw_forest_flux_belowground_carbon_stock_in_emissions_year': "SELECT SUM(area__ha) FROM results",
         'gfw_soil_carbon': "SELECT wri_tropical_tree_cover__percent FROM results",
         'fao_forest_change': "SELECT reforestation FROM results",
+        'jrc_global_forest_cover': "SELECT wri_tropical_tree_cover_extent__decile FROM results",
         # Add more dataset-specific queries as needed
     }
     
