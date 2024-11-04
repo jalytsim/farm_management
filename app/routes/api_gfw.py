@@ -79,14 +79,14 @@ async def forestReport(forest_id):
 #         "report": data['dataset_results']
 #     }), 200
 
-
 @bp.route('/farm/<string:farm_id>/report', methods=['GET'])
 async def farmerReport(farm_id):
-    farm = await Farm.query.filter_by(farm_id=farm_id).first()
+    # Fetch farm information synchronously
+    farm = Farm.query.filter_by(farm_id=farm_id).first()
     if farm is None:
         return jsonify({"error": "Farm not found"}), 404
 
-    crops_data = await FarmData.query.filter_by(farm_id=farm_id).all()
+    # Create farm info dictionary
     farm_info = {
         'farm_id': farm.farm_id,
         'name': farm.name,
@@ -98,26 +98,33 @@ async def farmerReport(farm_id):
         'phonenumber2': farm.phonenumber2,
         'date_created': farm.date_created.strftime('%Y-%m-%d %H:%M:%S'),
         'date_updated': farm.date_updated.strftime('%Y-%m-%d %H:%M:%S'),
-        'crops': [
-            {
-                'crop': (await Crop.query.get(data.crop_id)).name if data.crop_id else 'N/A',
-                'land_type': data.land_type,
-                'tilled_land_size': data.tilled_land_size,
-                'planting_date': data.planting_date.strftime('%Y-%m-%d') if data.planting_date else 'N/A',
-                'season': data.season,
-                'quality': data.quality,
-                'quantity': data.quantity,
-                'harvest_date': data.harvest_date.strftime('%Y-%m-%d') if data.harvest_date else 'N/A',
-                'expected_yield': data.expected_yield,
-                'actual_yield': data.actual_yield,
-                'timestamp': data.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
-                'channel_partner': data.channel_partner,
-                'destination_country': data.destination_country,
-                'customer_name': data.customer_name
-            } for data in crops_data
-        ]
+        'crops': []
     }
-    
+
+    # Fetch crops data synchronously
+    crops_data = FarmData.query.filter_by(farm_id=farm_id).all()
+
+    # Populate crops information
+    for data in crops_data:
+        crop_name = Crop.query.get(data.crop_id).name if data.crop_id else 'N/A'
+        farm_info['crops'].append({
+            'crop': crop_name,
+            'land_type': data.land_type,
+            'tilled_land_size': data.tilled_land_size,
+            'planting_date': data.planting_date.strftime('%Y-%m-%d') if data.planting_date else 'N/A',
+            'season': data.season,
+            'quality': data.quality,
+            'quantity': data.quantity,
+            'harvest_date': data.harvest_date.strftime('%Y-%m-%d') if data.harvest_date else 'N/A',
+            'expected_yield': data.expected_yield,
+            'actual_yield': data.actual_yield,
+            'timestamp': data.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+            'channel_partner': data.channel_partner,
+            'destination_country': data.destination_country,
+            'customer_name': data.customer_name
+        })
+
+    # Fetch additional data asynchronously
     data, status_code = await gfw_async(owner_type='farmer', owner_id=farm_id)
     if status_code != 200:
         return jsonify(data), status_code
