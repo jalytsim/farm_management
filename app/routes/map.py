@@ -269,34 +269,20 @@ def create_geojson(points, owner):
 
 async def gfw_async(owner_type, owner_id):
     datasets = [
-        'gfw_radd_alerts',
-        'umd_tree_cover_loss',
-        'gfw_forest_carbon_gross_emissions',
-        'gfw_forest_carbon_gross_removals',
-        'gfw_forest_carbon_net_flux',
-        'gfw_forest_flux_aboveground_carbon_stock_in_emissions_year',
-        'gfw_forest_flux_belowground_carbon_stock_in_emissions_year',
-        'gfw_forest_flux_deadwood_carbon_stock_in_emissions_year',
-        'wri_agriculture_linked_deforestation', 
-        'wri_tropical_tree_cover_extent',
         'jrc_global_forest_cover',
-        'gfw_soil_carbon',
-        'fao_forest_change',
+        'gfw_radd_alerts',
         # Add other datasets here
     ]
-
-    # Define SQL queries specific to each dataset
-    sql_queries = {
-        'gfw_radd_alerts': "SELECT COUNT(area__ha) FROM results",
-        'umd_tree_cover_loss': "SELECT SUM(area__ha) FROM results",
-        'gfw_forest_carbon_gross_removals': "SELECT SUM(area__ha) FROM results",
-        'gfw_forest_carbon_gross_emissions': "SELECT SUM(area__ha) FROM results",
-        'gfw_forest_flux_aboveground_carbon_stock_in_emissions_year': "SELECT SUM(area__ha) FROM results",
-        'gfw_forest_flux_belowground_carbon_stock_in_emissions_year': "SELECT SUM(area__ha) FROM results",
-        'gfw_soil_carbon': "SELECT wri_tropical_tree_cover__percent FROM results",
-        'fao_forest_change': "SELECT reforestation FROM results",
-        'jrc_global_forest_cover': "SELECT wri_tropical_tree_cover_extent__decile FROM results",
-        # Add more dataset-specific queries as needed
+    
+    # Define pixels for each dataset
+    dataset_pixels = {
+        'jrc_global_forest_cover': [
+            'gfwpro_negligible_risk_analysis__risk',
+            'is__per_protected_areas',
+            'is__gfw_land_rights',
+            'is__gfw_resource_rights'
+        ],
+        # Define other datasets' pixels if needed
     }
     
     # Get coordinates
@@ -311,33 +297,50 @@ async def gfw_async(owner_type, owner_id):
     
     tasks = []
     for dataset in datasets:
-        # Clean dataset name for display
-        clean_dataset_name = dataset.replace('gfw_', '').replace('umd_', '').replace('_', ' ')
-
-        # Select the SQL query for the current dataset, or use a default if not specified
-        sql_query = sql_queries.get(dataset, "SELECT COUNT(area__ha) FROM results")
+        # Get the pixels for the current dataset
+        pixels = dataset_pixels.get(dataset, [])
+        if not pixels:
+            continue  # Skip datasets without defined pixels
         
-        # Schedule the async request
-        tasks.append(query_forest_watch_async(dataset, geometry, sql_query))
-
+        for pixel in pixels:
+            # Construct the SQL query for each pixel
+            sql_query = f"SELECT {pixel} FROM results"
+            
+            # Schedule the async request
+            tasks.append(
+                query_forest_watch_async(dataset, geometry, sql_query)
+            )
+    
     # Execute all tasks concurrently
     results = await asyncio.gather(*tasks, return_exceptions=True)
     
     # Collect and structure results
     dataset_results = []
-    for i, result in enumerate(results):
-        if isinstance(result, Exception):
-            # Handle any exceptions that occurred during requests
-            data_fields = {"error": str(result)}
-        else:
-            # Extract fields from the data
-            data_fields = result.get("data", [{}])[0] if result else {}
+    task_index = 0
+    for dataset in datasets:
+        pixels = dataset_pixels.get(dataset, [])
+        if not pixels:
+            continue
         
-        dataset_results.append({
-            'dataset': datasets[i].replace('gfw_', '').replace('umd_', '').replace('_', ' '),
-            'data_fields': data_fields,
-            'coordinates': geometry["coordinates"]
-        })
+        for pixel in pixels:
+            result = results[task_index]
+            task_index += 1
+            
+            if isinstance(result, Exception):
+                # Handle any exceptions that occurred during requests
+                data_fields = {"error": str(result)}
+            else:
+                # Extract fields from the data
+                data_fields = result.get("data", [{}])[0] if result and result.get("data") else {}
+
+            
+            dataset_results.append({
+                'dataset': dataset.replace('gfw_', '').replace('umd_', '').replace('_', ' '),
+                'pixel': pixel,
+                'data_fields': data_fields,
+                'coordinates': geometry["coordinates"]
+            })
+    
     print("dataset_results", dataset_results)
     return {"dataset_results": dataset_results}, 200
 

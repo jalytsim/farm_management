@@ -13,23 +13,47 @@ async def query_forest_watch_async(dataset, geometry, sql_query):
         "sql": sql_query
     }
 
-    if dataset == "gfw_soil_carbon" :
+    if dataset == "gfw_soil_carbon":
         url = f'https://data-api.globalforestwatch.org/dataset/gfw_soil_carbon/v20230322/query'
     elif dataset == "jrc_global_forest_cover":
         url = f'https://data-api.globalforestwatch.org/dataset/jrc_global_forest_cover/v2020/query'
-    else : 
+    else:
         url = f'https://data-api.globalforestwatch.org/dataset/{dataset}/latest/query'
-    
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            url,
-            headers={
-                'x-api-key': api_key,
-                'Content-Type': 'application/json'
-            },
-            json=payload
-        ) as response:
-            return await response.json()
+
+    # Generate CURL command for debugging in the requested format
+    curl_command = (
+        f"curl --location --request POST '{url}' "
+        f"--header 'x-api-key: {api_key}' "
+        f"--header 'Content-Type: application/json' "
+        f"--data-raw '{json.dumps(payload)}'"
+    )
+
+    # Log query details
+    print("---- QUERY DETAILS ----")
+    print(f"Dataset: {dataset}")
+    print(f"URL: {url}")
+    print(f"SQL Query: {sql_query}")
+    print(f"Payload: {json.dumps(payload, indent=4)}")
+    print(f"Generated CURL command:\n{curl_command}")
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                url,
+                headers={
+                    'x-api-key': api_key,
+                    'Content-Type': 'application/json'
+                },
+                json=payload
+            ) as response:
+                print(f"HTTP Status Code: {response.status}")
+                response_data = await response.json()
+                print(f"Response: {json.dumps(response_data, indent=4)}")
+                return response_data
+    except Exception as e:
+        # Log errors explicitly
+        print(f"Error occurred for dataset '{dataset}': {str(e)}")
+        return {"error": str(e)}
 
 
 def query_forest_watch(dataset, geometry, sql_query):
