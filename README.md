@@ -45,14 +45,14 @@ farm_management/
 
 2. Create a virtual environment and activate it:
     ```sh
-    python -m venv venv
+    python -m venv venv please use python 3.12
     source venv/bin/activate  # 
     Windows use `venv\Scripts\activate`
     ```
 
 3. Install the required packages:
     ```sh
-    pip install -r requirements.txt
+    pip install -r requirements.txt please use python 3.12
     ```
 
 4. Set up the environment variables in a `.env` file:
