@@ -128,7 +128,7 @@ def farmerReport(farm_id):
         ]
     }
     # Fetch GFW data for the farm
-    data, status_code = gfw(owner_type='farmer', owner_id=farm_id)
+    data, status_code = gfw_async(owner_type='farmer', owner_id=farm_id)
     if status_code != 200:
         return jsonify(data), status_code
     object_type = 'farm'
@@ -138,7 +138,7 @@ def farmerReport(farm_id):
 @bp.route('/forests/<int:forest_id>/report', methods=['GET'])
 @forest_or_admin_required 
 def forestReport(forest_id):
-    data, status_code = gfw(owner_type='forest', owner_id=str(forest_id))
+    data, status_code = gfw_async(owner_type='forest', owner_id=str(forest_id))
     if status_code != 200:
         return jsonify(data), status_code
     forest = Forest.query.filter_by(id=forest_id).first()
@@ -251,6 +251,7 @@ def create_mapbox_html_static(geojson_data):
     return fig.to_html(full_html=False)
 
 def get_coordinates(owner_type, owner_id):
+    print(owner_type,"###############", owner_id)
     if owner_type:
         points = Point.query.filter_by(owner_type=owner_type, owner_id=owner_id).options(db.load_only(Point.longitude, Point.latitude)).all()
     else:
@@ -280,14 +281,18 @@ async def gfw_async(owner_type, owner_id):
             'gfwpro_negligible_risk_analysis__risk',
             'is__per_protected_areas',
             'is__gfw_land_rights',
-            'is__gfw_resource_rights'
+            'is__gfw_resource_rights',
+            'wri_tropical_tree_cover_extent__decile',
+            'tsc_tree_cover_loss_drivers__driver'
         ],
         # Define other datasets' pixels if needed
     }
     
     # Get coordinates
     coordinates = get_coordinates(owner_type, owner_id)
+    print(coordinates)
     if not coordinates:
+        print('Error')
         return {"error": "No points found for the specified owner"}
     
     geometry = {
@@ -341,64 +346,63 @@ async def gfw_async(owner_type, owner_id):
                 'coordinates': geometry["coordinates"]
             })
     
-    print("dataset_results", dataset_results)
     return {"dataset_results": dataset_results}, 200
 
-def gfw(owner_type, owner_id, ):
-    datasets = [
-        'gfw_radd_alerts',
-        'umd_tree_cover_loss',
-        'gfw_forest_carbon_gross_emissions',
-        'gfw_forest_carbon_gross_removals',
-        'gfw_forest_carbon_net_flux',
-        'gfw_forest_flux_aboveground_carbon_stock_in_emissions_year',
-        'gfw_forest_flux_belowground_carbon_stock_in_emissions_year',
-        'gfw_forest_flux_deadwood_carbon_stock_in_emissions_year',
-        'wri_agriculture_linked_deforestation', 
-        'wri_tropical_tree_cover_extent',
-        'jrc_global_forest_cover',
-        'gfw_soil_carbon',
-        'fao_forest_change',
-    ]
+# def gfw(owner_type, owner_id, ):
+#     datasets = [
+#         'gfw_radd_alerts',
+#         'umd_tree_cover_loss',
+#         'gfw_forest_carbon_gross_emissions',
+#         'gfw_forest_carbon_gross_removals',
+#         'gfw_forest_carbon_net_flux',
+#         'gfw_forest_flux_aboveground_carbon_stock_in_emissions_year',
+#         'gfw_forest_flux_belowground_carbon_stock_in_emissions_year',
+#         'gfw_forest_flux_deadwood_carbon_stock_in_emissions_year',
+#         'wri_agriculture_linked_deforestation', 
+#         'wri_tropical_tree_cover_extent',
+#         'jrc_global_forest_cover',
+#         'gfw_soil_carbon',
+#         'fao_forest_change',
+#     ]
     
-    dataset_results = []
+#     dataset_results = []
     
-    for dataset in datasets:
-        # Get the dataset from the URL parameters or use a default value
-        datasetss = request.args.get('dataset', dataset)
+#     for dataset in datasets:
+#         # Get the dataset from the URL parameters or use a default value
+#         datasetss = request.args.get('dataset', dataset)
         
-        # Remove 'gfw_' and 'umd_' prefixes
-        clean_dataset_name = datasetss.replace('gfw_', '').replace('umd_', '')
+#         # Remove 'gfw_' and 'umd_' prefixes
+#         clean_dataset_name = datasetss.replace('gfw_', '').replace('umd_', '')
         
-        # Replace 'radd' with 'Radar for Detecting Deforestation'
-        clean_dataset_name = clean_dataset_name.replace('radd', 'Radar for Detecting Deforestation')
-        clean_dataset_name = clean_dataset_name.replace('_', ' ')
+#         # Replace 'radd' with 'Radar for Detecting Deforestation'
+#         clean_dataset_name = clean_dataset_name.replace('radd', 'Radar for Detecting Deforestation')
+#         clean_dataset_name = clean_dataset_name.replace('_', ' ')
         
-        # Get coordinates from the database
-        coordinates = get_coordinates(owner_type, owner_id)
-        if not coordinates:
-            return {"error": "No points found for the specified owner"}
+#         # Get coordinates from the database
+#         coordinates = get_coordinates(owner_type, owner_id)
+#         if not coordinates:
+#             return {"error": "No points found for the specified owner"}
         
-        geometry = {
-            "type": "Polygon",
-            "coordinates": [coordinates]
-        }
+#         geometry = {
+#             "type": "Polygon",
+#             "coordinates": [coordinates]
+#         }
         
-        # Query data from the dataset
-        sql_query = "SELECT COUNT(area__ha) FROM results"
-        dataset_data = query_forest_watch(datasetss, geometry, sql_query)
+#         # Query data from the dataset
+#         sql_query = "SELECT COUNT(area__ha) FROM results"
+#         dataset_data = query_forest_watch(datasetss, geometry, sql_query)
         
-        # Extract fields dynamically, ensuring to handle cases where 'data' key might be missing
-        data_fields = dataset_data.get("data", [{}])[0] if dataset_data else {}
+#         # Extract fields dynamically, ensuring to handle cases where 'data' key might be missing
+#         data_fields = dataset_data.get("data", [{}])[0] if dataset_data else {}
         
-        dataset_results.append({
-            'dataset': clean_dataset_name,  # Use cleaned name with replacements
-            'data_fields': data_fields,
-            'coordinates': geometry["coordinates"]
-        })
-    print(dataset_results)
+#         dataset_results.append({
+#             'dataset': clean_dataset_name,  # Use cleaned name with replacements
+#             'data_fields': data_fields,
+#             'coordinates': geometry["coordinates"]
+#         })
+#     print(dataset_results)
     
-    return {"dataset_results": dataset_results}, 200
+#     return {"dataset_results": dataset_results}, 200
 
 
 

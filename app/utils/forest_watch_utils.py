@@ -29,12 +29,12 @@ async def query_forest_watch_async(dataset, geometry, sql_query):
     )
 
     # Log query details
-    print("---- QUERY DETAILS ----")
-    print(f"Dataset: {dataset}")
-    print(f"URL: {url}")
-    print(f"SQL Query: {sql_query}")
-    print(f"Payload: {json.dumps(payload, indent=4)}")
-    print(f"Generated CURL command:\n{curl_command}")
+    # print("---- QUERY DETAILS ----")
+    # print(f"Dataset: {dataset}")
+    # print(f"URL: {url}")
+    # print(f"SQL Query: {sql_query}")
+    # # print(f"Payload: {json.dumps(payload, indent=4)}")
+    # print(f"Generated CURL command:\n{curl_command}")
 
     try:
         async with aiohttp.ClientSession() as session:
@@ -48,7 +48,6 @@ async def query_forest_watch_async(dataset, geometry, sql_query):
             ) as response:
                 print(f"HTTP Status Code: {response.status}")
                 response_data = await response.json()
-                print(f"Response: {json.dumps(response_data, indent=4)}")
                 return response_data
     except Exception as e:
         # Log errors explicitly
