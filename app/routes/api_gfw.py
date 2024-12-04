@@ -1,9 +1,6 @@
-
-from flask import Blueprint, abort, jsonify
-from flask_jwt_extended import jwt_required, get_jwt_identity
-from app.models import Crop, Farm, FarmData, Forest, User
+from flask import Blueprint, jsonify
+from app.models import Crop, Farm, FarmData, Forest
 from app.routes.map import gfw_async
-import logging
 bp = Blueprint('api_gfw', __name__, url_prefix='/api/gfw')
 
 

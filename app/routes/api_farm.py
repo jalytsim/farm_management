@@ -1,5 +1,4 @@
 from flask import Blueprint, jsonify, request
-from flask_cors import cross_origin
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.models import Farm, User
 from app.utils import farm_utils
@@ -61,7 +60,7 @@ def create_farm():
     
     data = request.json
     logging.info("Form data received: %s", data)
-    print("============================++++++++++++++++++==============",data)
+    print("============================++++++++++++++++++===========================",data)
     
     try:
         # Ensure geolocation is handled properly

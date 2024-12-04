@@ -1,7 +1,6 @@
 import json
 import requests
 import aiohttp
-import asyncio
 
 # Replace with your actual API key
 api_key = '2a63c69c-ab85-49c3-ba2c-f7456277fc6e'
@@ -33,7 +32,7 @@ async def query_forest_watch_async(dataset, geometry, sql_query):
     # print(f"Dataset: {dataset}")
     # print(f"URL: {url}")
     # print(f"SQL Query: {sql_query}")
-    # # print(f"Payload: {json.dumps(payload, indent=4)}")
+    # print(f"Payload: {json.dumps(payload, indent=4)}")
     # print(f"Generated CURL command:\n{curl_command}")
 
     try:
@@ -48,6 +47,9 @@ async def query_forest_watch_async(dataset, geometry, sql_query):
             ) as response:
                 print(f"HTTP Status Code: {response.status}")
                 response_data = await response.json()
+                if dataset == "gfw_soil_carbon":
+                    print("hello",response_data)
+                print(response_data)
                 return response_data
     except Exception as e:
         # Log errors explicitly
