@@ -45,7 +45,8 @@ async def gfw_async(owner_type, owner_id):
         'jrc_global_forest_cover',
         'gfw_radd_alerts',
         'wri_tropical_tree_cover_extent',
-        'landmark_indigenous_and_community_lands'
+        'landmark_indigenous_and_community_lands',
+        'gfw_soil_carbon'
         # Add other datasets here
     ]
     
@@ -54,10 +55,15 @@ async def gfw_async(owner_type, owner_id):
         'jrc_global_forest_cover': [
             'gfwpro_negligible_risk_analysis__risk',
             'is__per_protected_areas',
-            'is__gfw_land_rights',
-            'is__gfw_resource_rights',
+            # 'is__gfw_land_rights',
+            # 'is__gfw_resource_rights',
             'wri_tropical_tree_cover_extent__decile',
             'tsc_tree_cover_loss_drivers__driver'
+        ],
+        'gfw_soil_carbon':[
+            'is__landmark_indigenous_and_community_lands',
+            'wdpa_protected_areas__iucn_cat',
+            'wri_tropical_tree_cover__percent',
         ],
         'umd_tree_cover_loss':[
             'SUM(area__ha)',
@@ -66,13 +72,13 @@ async def gfw_async(owner_type, owner_id):
         'landmark_indigenous_and_community_lands':[
             'name',
         ],
-        'gfw_soil_carbon':[
-            'is__landmark_indigenous_and_community_lands',
-            'wdpa_protected_areas__iucn_cat',
-        ],
+        
         'gfw_radd_alerts':[
             'COUNT(*)',
         ],
+        'wri_tropical_tree_cover_extent':[
+             'SUM(area__ha)',
+        ]
 
         # Define other datasets' pixels if needed
     }

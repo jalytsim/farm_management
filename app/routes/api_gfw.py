@@ -22,8 +22,7 @@ async def forestReport(forest_id):
     data, status_code = await gfw_async(owner_type='forest', owner_id=str(forest_id))
     if status_code != 200:
         return jsonify(data), status_code
-    
-    print(data)
+
 
     return jsonify({
         "forest_info": forest_info,
@@ -81,7 +80,7 @@ async def farmerReport(farm_id):
     data, status_code = await gfw_async(owner_type='farmer', owner_id=farm_id)
     if status_code != 200:
         return jsonify(data), status_code
-    
+    print(farm_info)
     return jsonify({
         "farm_info": farm_info,
         "report": data['dataset_results']

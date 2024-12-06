@@ -14,7 +14,7 @@ def get_pixel_meanings(json_file):
         return pixel_meanings
 
 # Example usage
-json_file_path = r'D:\project\Brian\farm_management\gfw.json'  # Replace with the actual path to your JSON file
+json_file_path = r'D:\project\farm_management\extent.json'  # Replace with the actual path to your JSON file
 pixel_meanings = get_pixel_meanings(json_file_path)
 
 if pixel_meanings:
