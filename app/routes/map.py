@@ -36,59 +36,48 @@ def get_coordinates(owner_type, owner_id):
 #     properties = {column.name: getattr(owner, column.name) for column in owner.__table__.columns}
 #     feature = Feature(geometry=geojson_polygon, properties=properties)
 #     return FeatureCollection([feature])
-
-
 async def gfw_async(owner_type, owner_id):
     datasets = [
         'gfw_radd_alerts',
         'umd_tree_cover_loss',
         'jrc_global_forest_cover',
-        'gfw_radd_alerts',
         'wri_tropical_tree_cover_extent',
+        'wri_tropical_tree_cover_percent',
         'landmark_indigenous_and_community_lands',
-        'gfw_soil_carbon'
-        # Add other datasets here
+        'gfw_soil_carbon',
+        'wur_radd_alerts',
     ]
     
     # Define pixels for each dataset
     dataset_pixels = {
         'jrc_global_forest_cover': [
-            'gfwpro_negligible_risk_analysis__risk',
-            'is__per_protected_areas',
-            # 'is__gfw_land_rights',
-            # 'is__gfw_resource_rights',
             'wri_tropical_tree_cover_extent__decile',
             'tsc_tree_cover_loss_drivers__driver'
         ],
-        'gfw_soil_carbon':[
-            'is__landmark_indigenous_and_community_lands',
+        'gfw_soil_carbon': [
             'wdpa_protected_areas__iucn_cat',
-            'wri_tropical_tree_cover__percent',
         ],
-        'umd_tree_cover_loss':[
+        'umd_tree_cover_loss': [
             'SUM(area__ha)',
-         
         ],
-        'landmark_indigenous_and_community_lands':[
+        'landmark_indigenous_and_community_lands': [
             'name',
         ],
-        
-        'gfw_radd_alerts':[
-            'COUNT(*)',
+        'gfw_radd_alerts': [
+            'SUM(area__ha)',
         ],
-        'wri_tropical_tree_cover_extent':[
-             'SUM(area__ha)',
-        ]
-
-        # Define other datasets' pixels if needed
+        'wri_tropical_tree_cover_extent': [
+            'SUM(area__ha)',
+        ],
+        'wri_tropical_tree_cover_percent': [
+            'SUM(area__ha)',
+        ],
     }
     
     # Get coordinates
     coordinates = get_coordinates(owner_type, owner_id)
-    print(coordinates)
     if not coordinates:
-        print('Error')
-        return {"error": "No points found for the specified owner"}
+        return {"error": "No points found for the specified owner"}, 400
     
     geometry = {
         "type": "Polygon",
@@ -107,9 +96,7 @@ async def gfw_async(owner_type, owner_id):
             sql_query = f"SELECT {pixel} FROM results"
             
             # Schedule the async request
-            tasks.append(
-                query_forest_watch_async(dataset, geometry, sql_query)
-            )
+            tasks.append(query_forest_watch_async(dataset, geometry, sql_query))
     
     # Execute all tasks concurrently
     results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -130,8 +117,12 @@ async def gfw_async(owner_type, owner_id):
                 # Handle any exceptions that occurred during requests
                 data_fields = {"error": str(result)}
             else:
-                # Extract fields from the data
-                data_fields = result.get("data", [{}])[0] if result and result.get("data") else {}
+                # Extract fields from the response
+                data = result.get("data", [])
+                if len(data) == 1:
+                    data_fields = data[0]  # Single record
+                else:
+                    data_fields = data      # Multiple records
             
             dataset_results.append({
                 'dataset': dataset.replace('gfw_', '').replace('umd_', '').replace('_', ' '),
@@ -141,6 +132,8 @@ async def gfw_async(owner_type, owner_id):
             })
     
     return {"dataset_results": dataset_results}, 200
+
+
 
 # def gfw(owner_type, owner_id, ):
 #     datasets = [
