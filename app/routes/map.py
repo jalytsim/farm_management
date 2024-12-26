@@ -133,60 +133,82 @@ async def gfw_async(owner_type, owner_id):
     
     return {"dataset_results": dataset_results}, 200
 
+async def gfw_async_carbon(owner_type, owner_id):
+    datasets = [
+        'gfw_forest_carbon_gross_emissions',
+        'gfw_forest_carbon_gross_removals',
+        'gfw_forest_carbon_net_flux',
+    ]
+    
+    # Define pixels for each dataset
+    dataset_pixels = {
+        'gfw_forest_carbon_gross_emissions': [
+            'SUM(area__ha)',
+        ],
+        'gfw_forest_carbon_gross_removals': [
+            'SUM(area__ha)',
+        ],
+        'gfw_forest_carbon_net_flux': [
+            'SUM(area__ha)',
+        ],
+    }
+    
+    # Get coordinates
+    coordinates = get_coordinates(owner_type, owner_id)
+    if not coordinates:
+        return {"error": "No points found for the specified owner"}, 400
+    
+    geometry = {
+        "type": "Polygon",
+        "coordinates": [coordinates]
+    }
+    
+    tasks = []
+    for dataset in datasets:
+        # Get the pixels for the current dataset
+        pixels = dataset_pixels.get(dataset, [])
+        if not pixels:
+            continue  # Skip datasets without defined pixels
+        
+        for pixel in pixels:
+            # Construct the SQL query for each pixel
+            sql_query = f"SELECT {pixel} FROM results"
+            
+            # Schedule the async request
+            tasks.append(query_forest_watch_async(dataset, geometry, sql_query))
+    
+    # Execute all tasks concurrently
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    
+    # Collect and structure results
+    dataset_results = []
+    task_index = 0
+    for dataset in datasets:
+        pixels = dataset_pixels.get(dataset, [])
+        if not pixels:
+            continue
+        
+        for pixel in pixels:
+            result = results[task_index]
+            task_index += 1
+            
+            if isinstance(result, Exception):
+                # Handle any exceptions that occurred during requests
+                data_fields = {"error": str(result)}
+            else:
+                # Extract fields from the response
+                data = result.get("data", [])
+                if len(data) == 1:
+                    data_fields = data[0]  # Single record
+                else:
+                    data_fields = data      # Multiple records
+            
+            dataset_results.append({
+                'dataset': dataset.replace('gfw_', '').replace('umd_', '').replace('_', ' '),
+                'pixel': pixel,
+                'data_fields': data_fields,
+                'coordinates': geometry["coordinates"]
+            })
+    
+    return {"dataset_results": dataset_results}, 200
 
-
-# def gfw(owner_type, owner_id, ):
-#     datasets = [
-#         'gfw_radd_alerts',
-#         'umd_tree_cover_loss',
-#         'gfw_forest_carbon_gross_emissions',
-#         'gfw_forest_carbon_gross_removals',
-#         'gfw_forest_carbon_net_flux',
-#         'gfw_forest_flux_aboveground_carbon_stock_in_emissions_year',
-#         'gfw_forest_flux_belowground_carbon_stock_in_emissions_year',
-#         'gfw_forest_flux_deadwood_carbon_stock_in_emissions_year',
-#         'wri_agriculture_linked_deforestation', 
-#         'wri_tropical_tree_cover_extent',
-#         'jrc_global_forest_cover',
-#         'gfw_soil_carbon',
-#         'fao_forest_change',
-#     ]
-    
-#     dataset_results = []
-    
-#     for dataset in datasets:
-#         # Get the dataset from the URL parameters or use a default value
-#         datasetss = request.args.get('dataset', dataset)
-        
-#         # Remove 'gfw_' and 'umd_' prefixes
-#         clean_dataset_name = datasetss.replace('gfw_', '').replace('umd_', '')
-        
-#         # Replace 'radd' with 'Radar for Detecting Deforestation'
-#         clean_dataset_name = clean_dataset_name.replace('radd', 'Radar for Detecting Deforestation')
-#         clean_dataset_name = clean_dataset_name.replace('_', ' ')
-        
-#         # Get coordinates from the database
-#         coordinates = get_coordinates(owner_type, owner_id)
-#         if not coordinates:
-#             return {"error": "No points found for the specified owner"}
-        
-#         geometry = {
-#             "type": "Polygon",
-#             "coordinates": [coordinates]
-#         }
-        
-#         # Query data from the dataset
-#         sql_query = "SELECT COUNT(area__ha) FROM results"
-#         dataset_data = query_forest_watch(datasetss, geometry, sql_query)
-        
-#         # Extract fields dynamically, ensuring to handle cases where 'data' key might be missing
-#         data_fields = dataset_data.get("data", [{}])[0] if dataset_data else {}
-        
-#         dataset_results.append({
-#             'dataset': clean_dataset_name,  # Use cleaned name with replacements
-#             'data_fields': data_fields,
-#             'coordinates': geometry["coordinates"]
-#         })
-#     print(dataset_results)
-    
-#     return {"dataset_results": dataset_results}, 200

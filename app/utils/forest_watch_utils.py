@@ -14,7 +14,6 @@ async def query_forest_watch_async(dataset, geometry, sql_query):
 
     if dataset == "gfw_soil_carbon":
         url = f'https://data-api.globalforestwatch.org/dataset/gfw_soil_carbon/v20230322/query/json'
-        print('#########################---------------------------#########################')
     elif dataset == "jrc_global_forest_cover":
         url = f'https://data-api.globalforestwatch.org/dataset/jrc_global_forest_cover/v2020/query/json'
     else:
