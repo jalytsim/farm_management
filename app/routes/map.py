@@ -143,13 +143,13 @@ async def gfw_async_carbon(owner_type, owner_id):
     # Define pixels for each dataset
     dataset_pixels = {
         'gfw_forest_carbon_gross_emissions': [
-            'SUM(area__ha)',
+            'SUM(gfw_forest_carbon_gross_emissions__Mg_CO2e)',
         ],
         'gfw_forest_carbon_gross_removals': [
-            'SUM(area__ha)',
+            'SUM(gfw_forest_carbon_gross_removals__Mg_CO2e)',
         ],
         'gfw_forest_carbon_net_flux': [
-            'SUM(area__ha)',
+            'SUM(gfw_forest_carbon_net_flux__Mg_CO2e)',
         ],
     }
     
