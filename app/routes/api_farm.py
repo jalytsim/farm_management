@@ -47,6 +47,43 @@ def index():
         current_page=farms.page,  # Return the current page
     )
 
+@bp.route('/all')
+@jwt_required()
+def all():
+    # Retrieve the user identity (which is a dictionary)
+    identity = get_jwt_identity()  # Returns {'id': user.id, 'user_type': user.user_type}
+    user_id = identity['id']  # Extract the 'id' from the identity dictionary
+
+    # Query the user from the database
+    user = User.query.get(user_id)
+    print("+++++++++===========+++++++++", user_id)
+
+    # Check if user is an admin or not
+    if user.is_admin:
+        farms = Farm.query.all()  # Retrieve all farms
+    else:
+        farms = Farm.query.filter_by(created_by=user_id).all()  # Retrieve farms created by the user
+
+    # Format the farm data
+    farms_list = [{
+        "id": farm.farm_id,
+        "name": farm.name,
+        "subcounty": farm.subcounty,
+        "district_id": farm.district_id,
+        "farmergroup_id": farm.farmergroup_id,
+        'geolocation': farm.geolocation,
+        "phonenumber1": farm.phonenumber,
+        "phonenumber2": farm.phonenumber2,
+        "gender": farm.gender,
+        "cin": farm.cin,
+    } for farm in farms]
+
+    # Return the response as JSON
+    return jsonify(
+        farms=farms_list,
+        total_farms=len(farms_list),  # Return the total number of farms
+    )
+
 @bp.route('/create', methods=['POST'])
 @jwt_required()
 def create_farm():

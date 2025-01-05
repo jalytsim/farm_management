@@ -154,7 +154,9 @@ async def gfw_async_carbon(owner_type, owner_id):
         ],
         'gfw_full_extent_aboveground_carbon_potential_sequestration': [
             'SUM(gfw_reforestable_extent_belowground_carbon_potential_sequestration__Mg_C)',
+            'SUM(gfw_reforestable_extent_aboveground_carbon_potential_sequestration__Mg_C)',
         ],
+        
     }
     
     # Get coordinates
