@@ -138,6 +138,7 @@ async def gfw_async_carbon(owner_type, owner_id):
         'gfw_forest_carbon_gross_emissions',
         'gfw_forest_carbon_gross_removals',
         'gfw_forest_carbon_net_flux',
+        'gfw_full_extent_aboveground_carbon_potential_sequestration',
     ]
     
     # Define pixels for each dataset
@@ -150,6 +151,9 @@ async def gfw_async_carbon(owner_type, owner_id):
         ],
         'gfw_forest_carbon_net_flux': [
             'SUM(gfw_forest_carbon_net_flux__Mg_CO2e)',
+        ],
+        'gfw_full_extent_aboveground_carbon_potential_sequestration': [
+            'SUM(gfw_reforestable_extent_belowground_carbon_potential_sequestration__Mg_C)',
         ],
     }
     

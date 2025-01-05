@@ -104,7 +104,7 @@ def update_farm_route(farm_id):
         farmergroup_id=data['farmergroup_id'],
         district_id=data['district_id'],
         geolocation=data['geolocation'],
-        phonenumber1=data['phonenumber'],
+        phonenumber1=data['phonenumber1'],
         phonenumber2=data.get('phonenumber2'),
         gender=data['gender'],
         cin=data['cin'],
