@@ -1,0 +1,18 @@
+@startuml
+title Diagramme de séquence pour Polygon Creation
+actor Admin
+boundary Ecran_Utilisateur
+control Controlleur
+entity Service_Utilisateur
+database Base_de_donnees
+collections Cache_Systeme
+queue Queue_Operations
+entity Système_Externe
+Admin_Client -> Ecran_Utilisateur: Ouvrir l'outil de dessin
+Ecran_Utilisateur -> Controlleur: Envoyer les coordonnées du polygone
+Controlleur -> Service_Utilisateur: Valider les coordonnées
+Service_Utilisateur -> Cache_Systeme: Enregistrer temporairement le polygone
+Cache_Systeme -> Service_Utilisateur: Confirmer l'enregistrement
+Service_Utilisateur -> Controlleur: Notifier l'utilisateur
+Controlleur -> Ecran_Utilisateur: Afficher la confirmation
+@enduml

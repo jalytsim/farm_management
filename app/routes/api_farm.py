@@ -98,7 +98,6 @@ def create_farm():
     data = request.json
     logging.info("Form data received: %s", data)
     print("============================++++++++++++++++++===========================",data)
-    
     try:
         # Ensure geolocation is handled properly
         geolocation = data['geolocation']

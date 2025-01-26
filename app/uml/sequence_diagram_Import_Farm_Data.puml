@@ -1,0 +1,18 @@
+@startuml
+title Diagramme de séquence pour Import Farm Data
+actor Admin
+boundary Ecran_Utilisateur
+control Controlleur
+entity Service_Utilisateur
+database Base_de_donnees
+collections Cache_Systeme
+queue Queue_Operations
+entity Système_Externe
+Admin_Client -> Ecran_Utilisateur: Charger le fichier de données
+Ecran_Utilisateur -> Controlleur: Envoyer le fichier au backend
+Controlleur -> Service_Utilisateur: Analyser les données du fichier
+Service_Utilisateur -> Base_de_donnees: Importer les données dans la base
+Base_de_donnees -> Service_Utilisateur: Confirmer l'importation
+Service_Utilisateur -> Controlleur: Notifier l'écran
+Controlleur -> Ecran_Utilisateur: Afficher le message de succès
+@enduml

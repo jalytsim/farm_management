@@ -1,0 +1,18 @@
+@startuml
+title Diagramme de séquence pour Calculer les valeurs ET0 et ETc
+actor Client
+boundary Ecran_Utilisateur
+control Controlleur
+entity Service_Utilisateur
+database Base_de_donnees
+collections Cache_Systeme
+queue Queue_Operations
+entity Système_Externe
+Client -> Ecran_Utilisateur: Demander les calculs ET0 et ETc
+Ecran_Utilisateur -> Controlleur: Envoyer les données météo et Kc
+Controlleur -> Service_Calculs: Effectuer les calculs ET0 et ETc
+Service_Calculs -> Base_de_donnees: Stocker les résultats des calculs
+Base_de_donnees -> Service_Calculs: Confirmer la sauvegarde
+Service_Calculs -> Controlleur: Fournir les résultats des calculs
+Controlleur -> Ecran_Utilisateur: Afficher les valeurs calculées à l'utilisateur
+@enduml

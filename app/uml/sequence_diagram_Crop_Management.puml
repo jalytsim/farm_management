@@ -1,0 +1,18 @@
+@startuml
+title Diagramme de séquence pour Crop Management
+actor Admin
+boundary Ecran_Utilisateur
+control Controlleur
+entity Service_Utilisateur
+database Base_de_donnees
+collections Cache_Systeme
+queue Queue_Operations
+entity Système_Externe
+Admin_client -> Ecran_Utilisateur: Accéder à la gestion des cultures
+Ecran_Utilisateur -> Controlleur: Envoyer les informations de gestion
+Controlleur -> Service_Utilisateur: Mettre à jour les informations de culture
+Service_Utilisateur -> Base_de_donnees: Mettre à jour les données
+Base_de_donnees -> Service_Utilisateur: Confirmer la mise à jour
+Service_Utilisateur -> Controlleur: Notifier l'écran
+Controlleur -> Ecran_Utilisateur: Afficher la confirmation
+@enduml

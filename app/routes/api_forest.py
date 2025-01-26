@@ -90,11 +90,15 @@ def create_forest():
 @bp.route('/<forest_id>/update', methods=['POST'])
 @jwt_required()
 def update_forest_route(forest_id):
+    identity = get_jwt_identity()  # Returns {'id': user.id, 'user_type': user.user_type}
+    user_id = identity['id'] 
+    user = User.query.get(user_id)
     data = request.json
     forest_utils.update_forest(
         forest_id=forest_id,
         name=data['name'],
-        tree_type=data['tree_type']
+        tree_type=data['tree_type'],
+        user=user,
     )
     return jsonify(success=True)
 

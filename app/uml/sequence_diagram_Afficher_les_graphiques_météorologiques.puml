@@ -1,0 +1,18 @@
+@startuml
+title Diagramme de séquence pour Afficher les graphiques météorologiques
+actor Client
+boundary Ecran_Utilisateur
+control Controlleur
+entity Service_Utilisateur
+database Base_de_donnees
+collections Cache_Systeme
+queue Queue_Operations
+entity Système_Externe
+Client -> Ecran_Utilisateur: Demander les graphiques météorologiques
+Ecran_Utilisateur -> Controlleur: Envoyer les paramètres de la localisation
+Controlleur -> Service_Graphique: Préparer les données pour le graphique
+Service_Graphique -> API_Graphique: Générer le graphique à partir des données météo
+API_Graphique -> Service_Graphique: Fournir le graphique généré
+Service_Graphique -> Controlleur: Envoyer le graphique à l'interface
+Controlleur -> Ecran_Utilisateur: Afficher le graphique à l'utilisateur
+@enduml

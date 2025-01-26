@@ -1,0 +1,18 @@
+@startuml
+title Diagramme de séquence pour Consulter les prévisions météorologiques
+actor Client
+boundary Ecran_Utilisateur
+control Controlleur
+entity Service_Utilisateur
+database Base_de_donnees
+collections Cache_Systeme
+queue Queue_Operations
+entity Système_Externe
+Client -> Ecran_Utilisateur: Demander les prévisions météo
+Ecran_Utilisateur -> Controlleur: Envoyer les coordonnées de la localisation
+Controlleur -> Service_Previsions: Demander les prévisions météo
+Service_Previsions -> API_Meteo: Requêter les prévisions pour plusieurs jours
+API_Meteo -> Service_Previsions: Retourner les données de prévisions
+Service_Previsions -> Controlleur: Fournir les données de prévisions
+Controlleur -> Ecran_Utilisateur: Afficher les prévisions météo
+@enduml

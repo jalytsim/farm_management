@@ -1,0 +1,58 @@
+@startuml
+class User {
+    id: Integer
+    username: String
+    email: String
+    password: String
+    phonenumber: String
+    user_type: String
+    is_admin: Boolean
+    date_created: DateTime
+    date_updated: DateTime
+    id_start: String
+}
+class Farm {
+    id: Integer
+    farm_id: String
+    name: String
+    subcounty: String
+    farmergroup_id: Integer
+    district_id: Integer
+    geolocation: String
+    phonenumber: String
+    phonenumber2: String
+    cin: String
+    gender: String
+    date_created: DateTime
+    date_updated: DateTime
+    modified_by: Integer
+    created_by: Integer
+}
+class Forest {
+    id: Integer
+    name: String
+    tree_type: String
+    date_created: DateTime
+    date_updated: DateTime
+    modified_by: Integer
+    created_by: Integer
+}
+class Point {
+    id: Integer
+    longitude: Float
+    latitude: Float
+    owner_type: Enum(forest, farmer, tree)
+    owner_id: String
+    district_id: Integer
+    date_created: DateTime
+    date_updated: DateTime
+    modified_by: Integer
+    created_by: Integer
+}
+User --> Farm : created
+User --> Forest : created
+User --> Point : created
+Farm --> FarmData : has
+Forest --> Tree : has
+Point --> Tree : has
+@enduml

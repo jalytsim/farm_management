@@ -1,0 +1,18 @@
+@startuml
+title Diagramme de séquence pour Provide Account List
+actor Admin
+boundary Ecran_Utilisateur
+control Controlleur
+entity Service_Utilisateur
+database Base_de_donnees
+collections Cache_Systeme
+queue Queue_Operations
+entity Système_Externe
+Admin -> Ecran_Utilisateur: Accéder à la liste des comptes
+Ecran_Utilisateur -> Controlleur: Demander la liste des comptes
+Controlleur -> Service_Utilisateur: Récupérer les comptes
+Service_Utilisateur -> Base_de_donnees: Lister les comptes
+Base_de_donnees -> Service_Utilisateur: Retourner les comptes
+Service_Utilisateur -> Controlleur: Envoyer les données
+Controlleur -> Ecran_Utilisateur: Afficher la liste des comptes
+@enduml

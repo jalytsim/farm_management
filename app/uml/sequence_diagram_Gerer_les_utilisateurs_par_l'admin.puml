@@ -1,0 +1,9 @@
+@startuml
+title Diagramme de sequence pour Gerer les utilisateurs par l'admin
+actor Utilisateur
+participant Système
+Admin -> Systeme: Creer, lire, modifier ou supprimer un utilisateur
+Systeme -> Base_de_donnees: Enregistrer ou mettre à jour les informations utilisateur
+Base_de_donnees -> Systeme: Retourner la confirmation de l'operation
+Systeme -> Admin: Afficher les resultats de la gestion
+@enduml

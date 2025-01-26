@@ -1,0 +1,33 @@
+@startuml
+class User {
+    id: Integer
+    username: String
+    email: String
+    password: String
+    phonenumber: String
+    user_type: String
+    is_admin: Boolean
+    date_created: DateTime
+    date_updated: DateTime
+    id_start: String
+}
+class District {
+    id: Integer
+    name: String
+    region: String
+    date_created: DateTime
+    date_updated: DateTime
+    modified_by: Integer
+    created_by: Integer
+}
+class Pays {
+    id: SmallInteger
+    code: Integer
+    alpha2: String(2)
+    alpha3: String(3)
+    nom_en_gb: String(45)
+    nom_fr_fr: String(45)
+}
+User --> District : created
+User --> Pays : created
+@enduml

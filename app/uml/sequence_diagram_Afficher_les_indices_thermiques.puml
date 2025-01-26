@@ -1,0 +1,18 @@
+@startuml
+title Diagramme de séquence pour Afficher les indices thermiques
+actor Client
+boundary Ecran_Utilisateur
+control Controlleur
+entity Service_Utilisateur
+database Base_de_donnees
+collections Cache_Systeme
+queue Queue_Operations
+entity Système_Externe
+Client -> Ecran_Utilisateur: Demander les indices thermiques
+Ecran_Utilisateur -> Controlleur: Envoyer les coordonnées et les données nécessaires
+Controlleur -> Service_Indices: Calculer GDD, HDD et CDD
+Service_Indices -> Base_de_donnees: Stocker les indices thermiques
+Base_de_donnees -> Service_Indices: Confirmer la sauvegarde
+Service_Indices -> Controlleur: Fournir les résultats des indices
+Controlleur -> Ecran_Utilisateur: Afficher les indices thermiques à l'utilisateur
+@enduml

@@ -1,0 +1,18 @@
+@startuml
+title Diagramme de séquence pour Create Account
+actor Admin
+boundary Ecran_Utilisateur
+control Controlleur
+entity Service_Utilisateur
+database Base_de_donnees
+collections Cache_Systeme
+queue Queue_Operations
+entity Système_Externe
+Admin -> Ecran_Utilisateur: Accéder à l'écran de création de compte
+Ecran_Utilisateur -> Controlleur: Envoyer les données du formulaire
+Controlleur -> Service_Utilisateur: Valider les données de l'utilisateur
+Service_Utilisateur -> Base_de_donnees: Créer un nouvel utilisateur
+Base_de_donnees -> Service_Utilisateur: Confirmer la création de l'utilisateur
+Service_Utilisateur -> Controlleur: Retourner la confirmation
+Controlleur -> Ecran_Utilisateur: Afficher le message de succès
+@enduml

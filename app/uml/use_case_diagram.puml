@@ -1,0 +1,41 @@
+@startuml
+left to right direction
+actor Admin
+actor Client
+actor System as System
+rectangle System {
+    usecase "View All Farms" as UC_View_All_Farms
+    usecase "Provide Environmental Data" as UC_Provide_Environmental_Data
+    usecase "Crop Management" as UC_Crop_Management
+    usecase "Create Account" as UC_Create_Account
+    usecase "Admin View All Farms" as UC_Admin_View_All_Farms
+    usecase "Polygon Creation" as UC_Polygon_Creation
+    usecase "Generate Carbon Report" as UC_Generate_Carbon_Report
+    usecase "Generate Farm Report" as UC_Generate_Farm_Report
+    usecase "Farm Management" as UC_Farm_Management
+    usecase "Provide Account List" as UC_Provide_Account_List
+    usecase "Import Farm Data" as UC_Import_Farm_Data
+}
+Admin --> UC_Farm_Management
+Admin --> UC_Admin_View_All_Farms
+Admin --> UC_Create_Account
+Admin --> UC_Polygon_Creation
+Admin --> UC_Import_Farm_Data
+Admin --> UC_Crop_Management
+Client --> UC_Farm_Management
+Client --> UC_Polygon_Creation
+Client --> UC_Import_Farm_Data
+Client --> UC_Crop_Management
+Client --> UC_View_All_Farms
+GFW --> UC_Generate_Farm_Report
+GFW --> UC_Generate_Carbon_Report
+GFW --> UC_Provide_Environmental_Data
+GFW --> UC_Provide_Account_List
+UC_Farm_Management ..> UC_Polygon_Creation : include
+UC_Farm_Management ..> UC_Import_Farm_Data : include
+UC_Crop_Management ..> UC_Import_Farm_Data : include
+UC_View_All_Farms .> UC_Provide_Farm_Data : extend
+UC_Create_Account .> UC_Provide_Account_List : extend
+UC_Farm_Management .> UC_Generate_Farm_Report : extend
+UC_Farm_Management .> UC_Generate_Carbon_Report : extend
+@enduml

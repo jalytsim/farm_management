@@ -1,0 +1,69 @@
+@startuml
+class User {
+    id: Integer
+    username: String
+    email: String
+    password: String
+    phonenumber: String
+    user_type: String
+    is_admin: Boolean
+    date_created: DateTime
+    date_updated: DateTime
+    id_start: String
+}
+class FarmerGroup {
+    id: Integer
+    name: String
+    description: Text
+    date_created: DateTime
+    date_updated: DateTime
+    modified_by: Integer
+    created_by: Integer
+}
+class Farm {
+    id: Integer
+    farm_id: String
+    name: String
+    subcounty: String
+    farmergroup_id: Integer
+    district_id: Integer
+    geolocation: String
+    phonenumber: String
+    phonenumber2: String
+    cin: String
+    gender: String
+    date_created: DateTime
+    date_updated: DateTime
+    modified_by: Integer
+    created_by: Integer
+}
+class FarmData {
+    id: Integer
+    farm_id: String
+    crop_id: Integer
+    land_type: String
+    tilled_land_size: Float
+    planting_date: Date
+    season: Integer
+    quality: String
+    quantity: Integer
+    harvest_date: Date
+    expected_yield: Float
+    actual_yield: Float
+    timestamp: DateTime
+    channel_partner: String
+    destination_country: String
+    customer_name: String
+    date_created: DateTime
+    date_updated: DateTime
+    modified_by: Integer
+    created_by: Integer
+    number_of_tree: Integer
+    hs_code: String
+}
+User --> FarmerGroup : created
+User --> Farm : created
+User --> FarmData : created
+FarmerGroup --> Farm : has
+Farm --> FarmData : has
+@enduml

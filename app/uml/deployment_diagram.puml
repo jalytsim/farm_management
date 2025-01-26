@@ -1,0 +1,18 @@
+@startuml
+node Serveur_Web {
+  [Application React]
+}
+node Serveur_Backend {
+  [API Flask Backend]
+}
+database Serveur_BDD {
+  [Base de Données MySQL]
+}
+node API_Externe {
+  [Service Externe]
+}
+[Application React] --> [API Flask Backend]: Requêtes API
+[API Flask Backend] --> [Base de Données MySQL]: Requêtes SQL
+[API Flask Backend] --> [Service Externe]: Requêtes vers API
+Utilisateur --> [Application React]: Navigateur Web
+@enduml

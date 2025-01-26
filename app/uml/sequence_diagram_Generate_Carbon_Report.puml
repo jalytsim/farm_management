@@ -1,0 +1,18 @@
+@startuml
+title Diagramme de séquence pour Generate Carbon Report
+actor Admin
+boundary Ecran_Utilisateur
+control Controlleur
+entity Service_Utilisateur
+database Base_de_donnees
+collections Cache_Systeme
+queue Queue_Operations
+entity Système_Externe
+Admin_client -> Ecran_Utilisateur: Choisir les paramètres de rapport
+Ecran_Utilisateur -> Controlleur: Envoyer les paramètres au backend
+Controlleur -> Service_Utilisateur: Calculer les émissions de carbone
+Service_Utilisateur -> Base_de_donnees: Obtenir les données pertinentes
+Base_de_donnees -> Service_Utilisateur: Fournir les données
+Service_Utilisateur -> Controlleur: Envoyer le rapport
+Controlleur -> Ecran_Utilisateur: Afficher ou télécharger le rapport
+@enduml

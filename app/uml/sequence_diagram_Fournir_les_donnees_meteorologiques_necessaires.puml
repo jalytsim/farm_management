@@ -1,0 +1,9 @@
+@startuml
+title Diagramme de sequence pour Fournir les donnees meteorologiques necessaires
+actor Utilisateur
+participant Système
+Systeme -> API_Meteorologique: Envoyer une requete pour les donnees climatiques
+API_Meteorologique -> Systeme: Retourner les donnees meteorologiques
+Systeme -> Base_de_donnees: Stocker ou mettre en cache les donnees utiles
+Systeme -> Modules_Fonctionnels: Fournir les donnees necessaires
+@enduml

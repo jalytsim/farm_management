@@ -1,0 +1,31 @@
+@startuml
+package Système {
+package UserManagement {
+    class User
+    class District
+    class FarmerGroup
+}
+package FarmManagement {
+    class Farm
+    class FarmData
+    class Point
+}
+package CropManagement {
+    class Crop
+    class ProduceCategory
+    class Grade
+    class CropCoefficient
+    class Irrigation
+}
+package EnvironmentalData {
+    class Weather
+    class SoilData
+    class Solar
+}
+}
+User --> District : manages
+User --> FarmerGroup : belongs to
+Farm --> FarmerGroup : managed by
+Crop --> ProduceCategory : categorized as
+Weather --> SoilData : affects
+@enduml

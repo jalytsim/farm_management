@@ -1,0 +1,18 @@
+@startuml
+title Diagramme de séquence pour Obtenir les informations météorologiques associées
+actor Client
+boundary Ecran_Utilisateur
+control Controlleur
+entity Service_Utilisateur
+database Base_de_donnees
+collections Cache_Systeme
+queue Queue_Operations
+entity Système_Externe
+Client -> Ecran_Utilisateur: Sélectionner une localisation
+Ecran_Utilisateur -> Controlleur: Envoyer l'ID ou les coordonnées de la localisation
+Controlleur -> Service_Meteo: Demander les données météorologiques
+Service_Meteo -> API_Meteo: Requêter les données météo pour la localisation
+API_Meteo -> Service_Meteo: Retourner les données météorologiques
+Service_Meteo -> Controlleur: Fournir les informations météo
+Controlleur -> Ecran_Utilisateur: Afficher les informations météo à l'utilisateur
+@enduml

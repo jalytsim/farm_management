@@ -3,7 +3,7 @@ from ..models import db
 from datetime import datetime
 from flask_login import current_user
 
-def create_forest( name, tree_type, user=None):
+def create_forest(name, tree_type, user=None):
     print(user.id)
     if user:
         user_id = user.id
@@ -20,13 +20,15 @@ def create_forest( name, tree_type, user=None):
     )
     db.session.add(new_forest)
     db.session.commit()
+    return new_forest  # Retourner l'objet créé
 
-def update_forest(id, name, tree_type, user=None):
-    forest = db.session.query(Forest).get(id)
+def update_forest(forest_id, name, tree_type, user=None):
+    forest = db.session.query(Forest).get(forest_id)
+    print(user.id) 
     if user:
         user_id = user.id
     else:
-        # Assuming that 'current_user' is a global or context-based object that provides the current user's ID
+        # Assuming 'current_user' is a global or context-based object that provides the current user's ID
         user_id = current_user.id
     if forest:
         forest.name = name
@@ -34,6 +36,7 @@ def update_forest(id, name, tree_type, user=None):
         forest.date_updated = datetime.utcnow()
         forest.modified_by = user_id
         db.session.commit()
+
 
 def delete_forest(id):
     forest = db.session.query(Forest).get(id)

@@ -1,0 +1,18 @@
+@startuml
+title Diagramme de séquence pour Admin View All Farms
+actor Admin
+boundary Ecran_Utilisateur
+control Controlleur
+entity Service_Utilisateur
+database Base_de_donnees
+collections Cache_Systeme
+queue Queue_Operations
+entity Système_Externe
+Admin -> Ecran_Utilisateur: Accéder à l'écran des fermes
+Ecran_Utilisateur -> Controlleur: Demander toutes les fermes
+Controlleur -> Service_Utilisateur: Récupérer les données
+Service_Utilisateur -> Base_de_donnees: Lister les fermes
+Base_de_donnees -> Service_Utilisateur: Retourner les fermes
+Service_Utilisateur -> Controlleur: Envoyer les données
+Controlleur -> Ecran_Utilisateur: Afficher les fermes
+@enduml

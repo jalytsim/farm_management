@@ -1,0 +1,18 @@
+@startuml
+title Diagramme de séquence pour Rechercher une localisation géographique
+actor Client
+boundary Ecran_Utilisateur
+control Controlleur
+entity Service_Utilisateur
+database Base_de_donnees
+collections Cache_Systeme
+queue Queue_Operations
+entity Système_Externe
+Client -> Ecran_Utilisateur: Entrer le nom ou les coordonnées de la localisation
+Ecran_Utilisateur -> Controlleur: Envoyer les données de recherche
+Controlleur -> Service_Localisation: Rechercher la localisation dans les services géographiques
+Service_Localisation -> API_Geographique: Envoyer la requête de recherche
+API_Geographique -> Service_Localisation: Retourner les résultats de la recherche
+Service_Localisation -> Controlleur: Fournir les données de localisation
+Controlleur -> Ecran_Utilisateur: Afficher les résultats à l'utilisateur
+@enduml

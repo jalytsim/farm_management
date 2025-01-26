@@ -1,0 +1,838 @@
+<html><head><script>var __ezHttpConsent={setByCat:function(src,tagType,attributes,category,force){var setScript=function(){if(force||window.ezTcfConsent[category]){var scriptElement=document.createElement(tagType);scriptElement.src=src;attributes.forEach(function(attr){for(var key in attr){if(attr.hasOwnProperty(key)){scriptElement.setAttribute(key,attr[key]);}}});var firstScript=document.getElementsByTagName(tagType)[0];firstScript.parentNode.insertBefore(scriptElement,firstScript);}};if(force||(window.ezTcfConsent&&window.ezTcfConsent.loaded)){setScript();}else if(typeof getEzConsentData==="function"){getEzConsentData().then(function(ezTcfConsent){if(ezTcfConsent&&ezTcfConsent.loaded){setScript();}else{console.error("cannot get ez consent data");force=true;setScript();}});}else{force=true;setScript();console.error("getEzConsentData is not a function");}},};</script>
+<script>var ezTcfConsent=window.ezTcfConsent?window.ezTcfConsent:{loaded:false,store_info:false,develop_and_improve_services:false,measure_ad_performance:false,measure_content_performance:false,select_basic_ads:false,create_ad_profile:false,select_personalized_ads:false,create_content_profile:false,select_personalized_content:false,understand_audiences:false,use_limited_data_to_select_content:false,};function getEzConsentData(){return new Promise(function(resolve){document.addEventListener("ezConsentEvent",function(event){var ezTcfConsent=event.detail.ezTcfConsent;resolve(ezTcfConsent);});});}</script>
+<script>if(typeof _setEzCookies!=='function'){function _setEzCookies(ezConsentData){var cookies=window.ezCookieQueue;for(var i=0;i<cookies.length;i++){var cookie=cookies[i];if(ezConsentData&&ezConsentData.loaded&&ezConsentData[cookie.tcfCategory]){document.cookie=cookie.name+"="+cookie.value;}}}}
+window.ezCookieQueue=window.ezCookieQueue||[];if(typeof addEzCookies!=='function'){function addEzCookies(arr){window.ezCookieQueue=[...window.ezCookieQueue,...arr];}}
+addEzCookies([{name:"ezopvc_173770",value:"1; Path=/; Domain=plantuml.com; Expires=Tue, 14 Jan 2025 10:22:38 UTC",tcfCategory:"understand_audiences",isEzoic:"true",},{name:"ezoab_173770",value:"mod145-c; Path=/; Domain=plantuml.com; Max-Age=7200",tcfCategory:"store_info",isEzoic:"true",},{name:"active_template::173770",value:"pub_site.1736848358; Path=/; Domain=plantuml.com; Expires=Thu, 16 Jan 2025 09:52:38 UTC",tcfCategory:"store_info",isEzoic:"true",},{name:"ezoadgid_173770",value:"-1; Path=/; Domain=plantuml.com; Max-Age=1800",tcfCategory:"understand_audiences",isEzoic:"true",},{name:"ezosuibasgeneris-1",value:"ad209c5d-ddc7-424a-6200-1f8f2982f6a4; Path=/; Domain=plantuml.com; Expires=Wed, 14 Jan 2026 09:52:38 UTC; Secure; SameSite=None",tcfCategory:"understand_audiences",isEzoic:"true",}]);if(window.ezTcfConsent&&window.ezTcfConsent.loaded){_setEzCookies(window.ezTcfConsent);}else if(typeof getEzConsentData==="function"){getEzConsentData().then(function(ezTcfConsent){if(ezTcfConsent&&ezTcfConsent.loaded){_setEzCookies(window.ezTcfConsent);}else{console.error("cannot get ez consent data");_setEzCookies(window.ezTcfConsent);}});}else{console.error("getEzConsentData is not a function");_setEzCookies(window.ezTcfConsent);}</script><script type="text/javascript" data-ezscrex='false' data-cfasync='false'>window._ezaq = Object.assign({"edge_cache_status":31,"edge_response_time":477,"url":"http://www.plantuml.com/plantuml/uml/SyfFKj2rKt3CoKnELR1Io4ZDoSa700001"}, typeof window._ezaq !== "undefined" ? window._ezaq : {});</script><script type="text/javascript" data-ezscrex='false' data-cfasync='false'>window._ezaq = Object.assign({"ab_test_id":"mod145-c"}, typeof window._ezaq !== "undefined" ? window._ezaq : {});window.__ez=window.__ez||{};window.__ez.tf={};</script><script data-ezscrex='false' data-cfasync='false' data-pagespeed-no-defer>var __ez=__ez||{};__ez.stms=Date.now();__ez.evt={};__ez.script={};__ez.ck=__ez.ck||{};__ez.template={};__ez.template.isOrig=false;__ez.queue=__ez.queue||function(){var e=0,i=0,t=[],n=!1,o=[],r=[],s=!0,a=function(e,i,n,o,r,s,a){var l=arguments.length>7&&void 0!==arguments[7]?arguments[7]:window,d=this;this.name=e,this.funcName=i,this.parameters=null===n?null:w(n)?n:[n],this.isBlock=o,this.blockedBy=r,this.deleteWhenComplete=s,this.isError=!1,this.isComplete=!1,this.isInitialized=!1,this.proceedIfError=a,this.fWindow=l,this.isTimeDelay=!1,this.process=function(){f("... func = "+e),d.isInitialized=!0,d.isComplete=!0,f("... func.apply: "+e);var i=d.funcName.split("."),n=null,o=this.fWindow||window;i.length>3||(n=3===i.length?o[i[0]][i[1]][i[2]]:2===i.length?o[i[0]][i[1]]:o[d.funcName]),null!=n&&n.apply(null,this.parameters),!0===d.deleteWhenComplete&&delete t[e],!0===d.isBlock&&(f("----- F'D: "+d.name),m())}},l=function(e,i,t,n,o,r,s){var a=arguments.length>7&&void 0!==arguments[7]?arguments[7]:window,l=this;this.name=e,this.path=i,this.async=o,this.defer=r,this.isBlock=t,this.blockedBy=n,this.isInitialized=!1,this.isError=!1,this.isComplete=!1,this.proceedIfError=s,this.fWindow=a,this.isTimeDelay=!1,this.isPath=function(e){return"/"===e[0]&&"/"!==e[1]},this.getSrc=function(e){return void 0!==window.__ezScriptHost&&this.isPath(e)&&"banger.js"!==this.name?window.__ezScriptHost+e:e},this.process=function(){l.isInitialized=!0,f("... file = "+e);var i=this.fWindow?this.fWindow.document:document,t=i.createElement("script");t.src=this.getSrc(this.path),!0===o?t.async=!0:!0===r&&(t.defer=!0),t.onerror=function(){var e={url:window.location.href,name:l.name,path:l.path,user_agent:window.navigator.userAgent};"undefined"!=typeof _ezaq&&(e.pageview_id=_ezaq.page_view_id);var i=encodeURIComponent(JSON.stringify(e)),t=new XMLHttpRequest;t.open("GET","//g.ezoic.net/ezqlog?d="+i,!0),t.send(),f("----- ERR'D: "+l.name),l.isError=!0,!0===l.isBlock&&m()},t.onreadystatechange=t.onload=function(){var e=t.readyState;f("----- F'D: "+l.name),e&&!/loaded|complete/.test(e)||(l.isComplete=!0,!0===l.isBlock&&m())},i.getElementsByTagName("head")[0].appendChild(t)}},d=function(e,i){this.name=e,this.path="",this.async=!1,this.defer=!1,this.isBlock=!1,this.blockedBy=[],this.isInitialized=!0,this.isError=!1,this.isComplete=i,this.proceedIfError=!1,this.isTimeDelay=!1,this.process=function(){}};function c(e,i,n,s,a,d,c,u,f){var m=new l(e,i,n,s,a,d,c,f);!0===u?o[e]=m:r[e]=m,t[e]=m,h(m)}function h(e){!0!==u(e)&&0!=s&&e.process()}function u(e){if(!0===e.isTimeDelay&&!1===n)return f(e.name+" blocked = TIME DELAY!"),!0;if(w(e.blockedBy))for(var i=0;i<e.blockedBy.length;i++){var o=e.blockedBy[i];if(!1===t.hasOwnProperty(o))return f(e.name+" blocked = "+o),!0;if(!0===e.proceedIfError&&!0===t[o].isError)return!1;if(!1===t[o].isComplete)return f(e.name+" blocked = "+o),!0}return!1}function f(e){var i=window.location.href,t=new RegExp("[?&]ezq=([^&#]*)","i").exec(i);"1"===(t?t[1]:null)&&console.debug(e)}function m(){++e>200||(f("let's go"),p(o),p(r))}function p(e){for(var i in e)if(!1!==e.hasOwnProperty(i)){var t=e[i];!0===t.isComplete||u(t)||!0===t.isInitialized||!0===t.isError?!0===t.isError?f(t.name+": error"):!0===t.isComplete?f(t.name+": complete already"):!0===t.isInitialized&&f(t.name+": initialized already"):t.process()}}function w(e){return"[object Array]"==Object.prototype.toString.call(e)}return window.addEventListener("load",(function(){setTimeout((function(){n=!0,f("TDELAY -----"),m()}),5e3)}),!1),{addFile:c,addFileOnce:function(e,i,n,o,r,s,a,l,d){t[e]||c(e,i,n,o,r,s,a,l,d)},addDelayFile:function(e,i){var n=new l(e,i,!1,[],!1,!1,!0);n.isTimeDelay=!0,f(e+" ...  FILE! TDELAY"),r[e]=n,t[e]=n,h(n)},addFunc:function(e,n,s,l,d,c,u,f,m,p){!0===c&&(e=e+"_"+i++);var w=new a(e,n,s,l,d,u,f,p);!0===m?o[e]=w:r[e]=w,t[e]=w,h(w)},addDelayFunc:function(e,i,n){var o=new a(e,i,n,!1,[],!0,!0);o.isTimeDelay=!0,f(e+" ...  FUNCTION! TDELAY"),r[e]=o,t[e]=o,h(o)},items:t,processAll:m,setallowLoad:function(e){s=e},markLoaded:function(e){if(e&&0!==e.length){if(e in t){var i=t[e];!0===i.isComplete?f(i.name+" "+e+": error loaded duplicate"):(i.isComplete=!0,i.isInitialized=!0)}else t[e]=new d(e,!0);f("markLoaded dummyfile: "+t[e].name)}},logWhatsBlocked:function(){for(var e in t)!1!==t.hasOwnProperty(e)&&u(t[e])}}}();__ez.evt.add=function(e,t,n){e.addEventListener?e.addEventListener(t,n,!1):e.attachEvent?e.attachEvent("on"+t,n):e["on"+t]=n()},__ez.evt.remove=function(e,t,n){e.removeEventListener?e.removeEventListener(t,n,!1):e.detachEvent?e.detachEvent("on"+t,n):delete e["on"+t]};__ez.script.add=function(e){var t=document.createElement("script");t.src=e,t.async=!0,t.type="text/javascript",document.getElementsByTagName("head")[0].appendChild(t)};__ez.dot={};__ez.queue.addFile('/detroitchicago/boise.js', '/detroitchicago/boise.js?gcb=195-2&cb=5', true, [], true, false, true, false);__ez.queue.addFile('/parsonsmaize/abilene.js', '/parsonsmaize/abilene.js?gcb=195-2&cb=7f81d60744', true, [], true, false, true, false);</script>
+<script data-ezscrex="false" type="text/javascript" data-cfasync="false">window._ezaq = Object.assign({"ad_cache_level":1,"adpicker_placement_cnt":0,"ai_placeholder_cache_level":1,"ai_placeholder_placement_cnt":-1,"domain_id":173770,"ezcache_level":0,"ezcache_skip_code":14,"has_bad_image":0,"has_bad_words":0,"is_sitespeed":0,"lt_cache_level":0,"response_size":21846,"response_size_orig":16447,"response_time_orig":432,"template_id":134,"url":"http://www.plantuml.com/plantuml/uml/SyfFKj2rKt3CoKnELR1Io4ZDoSa700001","word_count":61,"worst_bad_word_level":0}, typeof window._ezaq !== "undefined" ? window._ezaq : {});__ez.queue.markLoaded('ezaqBaseReady');</script>
+<link rel='preload' as='script' href='//securepubads.g.doubleclick.net/tag/js/gpt.js'>
+<link rel='preload' as='script' href='//go.ezodn.com/hb/dall.js?cb=195-2-112'>
+<script type="text/javascript">(function(){function storageAvailable(type){var storage;try{storage=window[type];var x='__storage_test__';storage.setItem(x,x);storage.removeItem(x);return true;}
+catch(e){return e instanceof DOMException&&(e.code===22||e.code===1014||e.name==='QuotaExceededError'||e.name==='NS_ERROR_DOM_QUOTA_REACHED')&&(storage&&storage.length!==0);}}
+function remove_ama_config(){if(storageAvailable('localStorage')){localStorage.removeItem("google_ama_config");}}
+remove_ama_config()})()</script>
+<script type="text/javascript">var ezoicTestActive = true</script>
+<script type='text/javascript' data-ezscrex='false' data-cfasync='false'>
+window.ezAnalyticsStatic = true;
+
+function analyticsAddScript(script) {
+	var ezDynamic = document.createElement('script');
+	ezDynamic.type = 'text/javascript';
+	ezDynamic.innerHTML = script;
+	document.head.appendChild(ezDynamic);
+}
+function getCookiesWithPrefix() {
+    var allCookies = document.cookie.split(';');
+    var cookiesWithPrefix = {};
+
+    for (var i = 0; i < allCookies.length; i++) {
+        var cookie = allCookies[i].trim();
+
+        for (var j = 0; j < arguments.length; j++) {
+            var prefix = arguments[j];
+            if (cookie.indexOf(prefix) === 0) {
+                var cookieParts = cookie.split('=');
+                var cookieName = cookieParts[0];
+                var cookieValue = cookieParts.slice(1).join('=');
+                cookiesWithPrefix[cookieName] = decodeURIComponent(cookieValue);
+                break; // Once matched, no need to check other prefixes
+            }
+        }
+    }
+
+    return cookiesWithPrefix;
+}
+function productAnalytics() {
+	var d = {"pr":[1,6],"aop":{"14":0,"2":0,"26":0,"4":134,"7":0},"omd5":"439f8f00b10c210c1f583a2b176ca51e"};
+	d.u = _ezaq.url;
+	d.p = _ezaq.page_view_id;
+	d.v = _ezaq.visit_uuid;
+	d.ab = _ezaq.ab_test_id;
+	d.e = JSON.stringify(_ezaq);
+	d.ref = document.referrer;
+	d.c = getCookiesWithPrefix('active_template', 'ez', 'lp_');
+	if(typeof ez_utmParams !== 'undefined') {
+		d.utm = ez_utmParams;
+	}
+
+	var dataText = JSON.stringify(d);
+	var xhr = new XMLHttpRequest();
+	xhr.open('POST','/ezais/analytics?cb=1', true);
+	xhr.onload = function () {
+		if (xhr.status!=200) {
+            return;
+		}
+
+        if(document.readyState !== 'loading') {
+            analyticsAddScript(xhr.response);
+            return;
+        }
+
+        var eventFunc = function() {
+            if(document.readyState === 'loading') {
+                return;
+            }
+            document.removeEventListener('readystatechange', eventFunc, false);
+            analyticsAddScript(xhr.response);
+        };
+
+        document.addEventListener('readystatechange', eventFunc, false);
+	};
+	xhr.setRequestHeader('Content-Type','text/plain');
+	xhr.send(dataText);
+}
+__ez.queue.addFunc("productAnalytics", "productAnalytics", null, true, ['ezaqBaseReady'], false, false, false, true);
+</script><script type="text/javascript" data-ezscrex="false" data-cfasync="false" async="">
+function productEzoicAds() {
+if(window.ezDisableAds === true) {
+	return;
+}
+window.google_reactive_ads_global_state = {
+                adCount: {},
+                floatingAdsStacking: { maxZIndexListeners: [], maxZIndexRestrictions: {}, nextRestrictionId: 0 },
+                messageValidationEnabled: false,
+                reactiveTypeDisabledByPublisher: {},
+                reactiveTypeEnabledInAsfe: {},
+                sideRailAvailableSpace: [],
+                sideRailOverlappableElements: [],
+                stateForType: {},
+                tagSpecificState: {},
+                wasPlaTagProcessed: true,
+                wasReactiveAdConfigReceived: { 1: true, 2: true, 8: true },
+                wasReactiveAdVisible: {},
+                wasReactiveTagRequestSent: true,
+                description: "Can't disable auto ads programmatically on the page, so here we are!"
+            };
+var d = {"ab":"","km":{},"pv":"","vu":"e5a193cb-4f49-4b83-73ab-9b7cc8b787bb","r":{"r":[{"p":" ezoic_pub_ad_placeholder-163-sidebar-120x600-163-nonexxxnonexxxxxxezmaxscaleval100 ","s":163},{"p":" ezoic_pub_ad_placeholder-163-sidebar-160x600-163-nonexxxnonexxxxxxezmaxscaleval100 ","s":163},{"p":" ezoic_pub_ad_placeholder-163-sidebar-300x1050-163-nonexxxnonexxxxxxezmaxscaleval100 ","s":163},{"p":" ezoic_pub_ad_placeholder-163-sidebar-300x250v4-163-nonexxxnonexxxxxxezmaxscaleval100 ","s":163},{"p":" ezoic_pub_ad_placeholder-163-sidebar-300x600-163-nonexxxnonexxxxxxezmaxscaleval100 ","s":163},{"p":" ezoic_pub_ad_placeholder-163-sidebar-300x250v2-163-nonexxxnonexxxxxxezmaxscaleval100 ","s":163},{"p":" ezoic_pub_ad_placeholder-163-sidebar-120x600x2-163-nonexxxnonexxxxxxezmaxscaleval100 ","s":163},{"p":" ezoic_pub_ad_placeholder-645-bottom_of_page-250x250-645-nonexxxnonexxxxxxezmaxscaleval100 ","s":645},{"p":" ezoic_pub_ad_placeholder-645-bottom_of_page-300x250-645-nonexxxnonexxxxxxezmaxscaleval100 ","s":645},{"p":" ezoic_pub_ad_placeholder-645-bottom_of_page-336x280-645-nonexxxnonexxxxxxezmaxscaleval100 ","s":645},{"p":" ezoic_pub_ad_placeholder-645-bottom_of_page-320x100v2-645-nonexxxnonexxxxxxezmaxscaleval100 ","s":645},{"p":" ezoic_pub_ad_placeholder-645-bottom_of_page-468x60-645-nonexxxnonexxxxxxezmaxscaleval100 ","s":645},{"p":" ezoic_pub_ad_placeholder-645-bottom_of_page-728x90-645-nonexxxnonexxxxxxezmaxscaleval100 ","s":645},{"p":" ezoic_pub_ad_placeholder-645-bottom_of_page-970x90-645-nonexxxnonexxxxxxezmaxscaleval100 ","s":645},{"p":" ezoic_pub_ad_placeholder-169-sidebar-120x600-169-nonexxxnonexxxxxxezmaxscaleval100 ","s":169},{"p":" ezoic_pub_ad_placeholder-169-sidebar-160x600-169-nonexxxnonexxxxxxezmaxscaleval100 ","s":169},{"p":" ezoic_pub_ad_placeholder-169-sidebar-300x1050-169-nonexxxnonexxxxxxezmaxscaleval100 ","s":169},{"p":" ezoic_pub_ad_placeholder-169-sidebar-300x250v4-169-nonexxxnonexxxxxxezmaxscaleval100 ","s":169},{"p":" ezoic_pub_ad_placeholder-169-sidebar-300x600-169-nonexxxnonexxxxxxezmaxscaleval100 ","s":169},{"p":" ezoic_pub_ad_placeholder-169-sidebar-300x250v2-169-nonexxxnonexxxxxxezmaxscaleval100 ","s":169},{"p":" ezoic_pub_ad_placeholder-169-sidebar-120x600x2-169-nonexxxnonexxxxxxezmaxscaleval100 ","s":169},{"p":" ezoic_pub_ad_placeholder-100-bottom_floating-728x90-100-nonexxxnonexxxxxxezmaxscaleval100 ","s":100},{"p":" ezoic_pub_ad_placeholder-100-bottom_floating-970x90-100-nonexxxnonexxxxxxezmaxscaleval100 ","s":100,"h":90,"w":970}],"a":{"100":true,"163":true,"169":true,"6":true,"645":true},"g":-1,"l":{"0":2,"1":3,"2":2,"3":1,"4":-1,"5":-1},"m":{"0":2,"1":3,"2":2,"3":1,"4":-1,"5":-1},"v":0,"ve":false,"hr":false,"sa":false},"cr":"","tid":134,"tn":"pub_site","url":"","wc":61,"ff":1,"dhh":""};
+d.ab = _ezaq.ab_test_id;
+d.pv = _ezaq.page_view_id;
+d.vu = _ezaq.visit_uuid;
+d.url = window.location.href;
+var dynamicAddScript = function(script) {
+	if(window.ezFinishedStatic === true) {
+		console.error("attempted to load dynamic script again");
+		return;
+	}
+	var errorMessages = [];
+	function errorHandler(event) {
+	  var errorObj = event.error;
+	  if (errorObj && errorObj.stack && errorObj.stack.indexOf('dynamicAddScript') !== -1) {
+		var errorMessage = {
+		  Message: event.message,
+		  LineNo: event.lineno,
+		  ColumnNo: event.colno,
+		  Stack: errorObj.stack
+		};
+		errorMessages.push(errorMessage);
+	  }
+
+	  if (typeof window.onerror === 'function') {
+		window.onerror.apply(this, arguments);
+	  }
+	}
+ 	window.addEventListener('error', errorHandler);
+
+	var ezDynamic = document.createElement('script');
+	ezDynamic.type = 'text/javascript';
+	ezDynamic.innerHTML = script;
+	document.head.appendChild(ezDynamic);
+
+	window.removeEventListener('error', errorHandler);
+	if (window.ezFinishedStatic !== true || typeof window.ezstaticerrors !== 'undefined') {
+		d.Script = script;
+		d.ErrorMessages = JSON.stringify(errorMessages);
+		d.ErrorStaticMessages = window.ezstaticerrors || '';
+		var dataTxt = JSON.stringify(d);
+		if (dataTxt.length > 0) {
+			var logXHR = new XMLHttpRequest();
+			logXHR.open('POST','/ezais/log?cb=1', true);
+			logXHR.setRequestHeader('Content-Type','application/json');
+			logXHR.send(dataTxt);
+		}
+	}
+};
+var dataText = JSON.stringify(d);
+if (dataText.length > 0) {
+	var startTime = Date.now() - __ez.stms;
+
+	var xhr = new XMLHttpRequest();
+	xhr.open('POST','/ezais/dynamic?cb=1', true);
+	xhr.onload = function () {
+		if (xhr.status!=200) {
+            return;
+		}
+
+        if(document.readyState !== 'loading') {
+            dynamicAddScript(xhr.response);
+            return;
+        }
+
+        var eventFunc = function() {
+            if(document.readyState === 'loading') {
+                return;
+            }
+            document.removeEventListener('readystatechange', eventFunc, false);
+            dynamicAddScript(xhr.response);
+        };
+
+        document.addEventListener('readystatechange', eventFunc, false);
+	};
+	xhr.setRequestHeader('Content-Type','text/plain');
+	xhr.send(dataText);
+}
+}
+
+function callDynamicAfterConsent() {
+	window.__tcfapi("addEventListener", 2, function (tcdata, success) {
+		if (success) {
+			if(tcdata.gdprApplies == true) {
+				if(tcdata.eventStatus === "useractioncomplete" || tcdata.eventStatus === "tcloaded") {
+					__ez.queue.addFunc("productEzoicAds", "productEzoicAds", null, true, ['ezaqReady'], false, false, false, true);
+				}
+			} else {
+			 	__ez.queue.addFunc("productEzoicAds", "productEzoicAds", null, true, ['ezaqReady'], false, false, false, true);
+			}
+		}
+	});
+}
+
+
+if (window.__tcfapi) {
+	callDynamicAfterConsent();
+} else {
+	if (typeof window.ezCMPQueue !== "undefined") {
+		window.ezCMPQueue.push(callDynamicAfterConsent);
+	} else {
+		__ez.queue.addFunc("productEzoicAds", "productEzoicAds", null, true, ['ezaqReady'], false, false, false, true);
+	}
+}
+</script><base href="http://www.plantuml.com/plantuml/uml/SyfFKj2rKt3CoKnELR1Io4ZDoSa700001"/>
+<link rel="shortcut icon" href="https://plantuml.com/favicon.ico"/>
+<link rel="preload" as="image" href="//www.plantuml.com/plantuml/png/SyfFKj2rKt3CoKnELR1Io4ZDoSa700001"/>
+
+
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+<meta http-equiv="expires" content="0"/>
+<meta http-equiv="pragma" content="no-cache"/>
+<meta http-equiv="cache-control" content="no-cache, must-revalidate"/>
+<meta name="description" content="Create simply and freely UML diagrams from your browser thanks to PlantUML Web Server. Just enter a text diagram, and get the result in PNG or SVG format."/>
+
+<style media="screen" type="text/css">
+a {
+    text-decoration:none;
+
+    color:#0366d6;
+
+}
+a:hover {
+    text-decoration:underline;
+}
+
+#diagram {
+	text-align: center;
+}
+
+body {
+	margin-left:45px;
+	overflow-x: hidden;
+
+	background: #fefefe;
+
+}
+
+textarea {
+	width: 100%;
+	height: 400px;
+	resize: none;
+}
+#enter {
+	display: flex;
+	justify-content: space-between;
+	width: 100%;
+	margin: 3px 0 5px 0;
+}
+
+input[type=text],
+textarea {
+
+	background-color: #fff;
+
+	font-family: monospace;
+	width: 100%;
+}
+
+code {
+	font-family: 'courier new', courier, monospace;
+	letter-spacing: -1pt;
+}
+
+#diagram img {
+	padding: 1px;
+}
+
+.container {
+	display: flex;
+	width:100%;
+}
+
+.topsticky {
+  position:sticky; top: 0px;
+}
+
+.left, .right {
+  flex-shrink: 0;
+}
+
+.main {
+  width:100%;
+}
+
+#left0 {
+position: fixed;
+height:100%;
+top: 0;
+bottom: 0;
+left: 0;
+width: 35px;
+background-color: #edeff3;
+border-left: 1px solid #e1e4e8;
+border-right: 1px solid #e1e4e8;
+padding: 0;
+margin: 0;
+}
+
+
+.sel2 {
+border: 2px solid #edeff3;
+}
+.nosel2 {
+border: 2px solid #edeff3;
+filter: grayscale(100%) opacity(75%);
+}
+.sel2:hover, .nosel2:hover {
+border: 2px solid #0366d6;
+border-spacing: 0;
+filter: grayscale(0%);
+filter: contrast(200%);
+filter: brightness(150%);
+}
+
+.menuside2 {
+    display: flex;
+    flex-direction: column;
+    border: 0;
+    font-family: Helvetica,sans-serif;
+    font-size: 14px;
+    padding: 0;
+    margin: 0;
+    overflow: hidden;
+	justify-content: center;
+}
+
+.menuside2 img {
+vertical-align: top;
+padding: 0 8px;
+
+filter: brightness(0) saturate(100%) invert(42%) sepia(22%) saturate(385%) hue-rotate(170deg) brightness(92%) contrast(84%);
+
+
+
+}
+
+.menuside2 a {
+    padding: 6px 0;
+    text-decoration: none;
+}
+
+.menuside2 a:hover {
+	background: #fefefe;
+}
+
+.menuside2 a:hover img {
+
+filter: brightness(0) saturate(100%) invert(23%) sepia(44%) saturate(7029%) hue-rotate(203deg) brightness(94%) contrast(98%);
+
+
+}
+
+
+</style>
+
+<title>PlantUML Web Server</title>
+<meta property="og:title" content="PlantUML Web Server"/>
+<meta property="og:description" content="The PlantUML Web Server allows you to create and edit online UML diagrams using the PlantUML Language."/>
+<meta property="og:url" content="https://plantuml.com"/>
+<meta property="og:site_name" content="PlantUML.com"/>
+<meta property="og:image" content="https:&#34;//www.plantuml.com/plantuml/png/SyfFKj2rKt3CoKnELR1Io4ZDoSa700001&#34;/"/>
+
+<meta name="twitter:image" content="https://www.plantuml.com/plantuml/sqr/SyfFKj2rKt3CoKnELR1Io4ZDoSa700001"/>
+
+
+<meta name="twitter:card" content="summary"/>
+
+<meta name="twitter:description" content="The PlantUML Web Server allows you to create and edit online UML diagrams using the PlantUML Language."/>
+<meta name="twitter:title" content="PlantUML Web Server"/>
+<meta name="twitter:site" content="@PlantUML"/>
+<meta name="twitter:creator" content="@PlantUML"/>
+
+
+
+<script async="" src="https://www.googletagmanager.com/gtag/js?id=G-JDTK9HQ3G7"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-JDTK9HQ3G7');
+</script>
+
+<script type='text/javascript'>
+var ezoTemplate = 'pub_site';
+var ezouid = '1';
+var ezoFormfactor = '1';
+</script><script data-ezscrex="false" type='text/javascript'>
+var soc_app_id = '0';
+var did = 173770;
+var ezdomain = 'plantuml.com';
+var ezoicSearchable = 1;
+</script>
+<link rel='canonical' href='http://plantuml.com/plantuml/uml/SyfFKj2rKt3CoKnELR1Io4ZDoSa700001' /></head>
+<body>
+
+
+<div class="container">
+
+<div class="left">
+
+<div class="topsticky">
+<!-- Ezoic - SERV -->
+<span id="ezoic-pub-ad-placeholder-163"></span><span data-ez-ph-id="163"></span>
+<!-- End Ezoic - SERV -->
+</div><!-- topsticky -->
+
+</div>
+<div class="left" style="width:10px;"></div>
+
+<div class="main">
+
+<script async="" src="https://cdn-0.plantuml.com/synchro2.min.js"></script>
+<script>
+function compress(s, pre) {
+//UTF8
+s = unescape(encodeURIComponent(s));
+var arr = [];
+for (var i = 0; i < s.length; i++) {
+	arr.push(s.charCodeAt(i));
+}
+var compressor = new Zopfli.RawDeflate(arr);
+var compressed = compressor.compress();
+dest = "//www.plantuml.com/plantuml" + pre + encode64_(compressed);
+window.location.href = dest;
+}
+function backto(s) {
+	var i = s.lastIndexOf("/");
+	if (i!=-1) s = s.substring(i+1);
+
+	dest = "//www.plantuml.com/plantuml" + "/uml/"+s;
+
+	window.location.href = dest;
+}
+</script>
+
+<textarea name="text" id="inflated" spellcheck="false" onkeyup="sendCode()">@startuml
+Bob -&gt; Alice : hello
+@enduml</textarea>
+
+<div id="enter">
+
+<div style="flex-grow:10;">
+<input title="You can enter here a previously generated URL" name="url" id="url" type="text" value="//www.plantuml.com/plantuml/png/SyfFKj2rKt3CoKnELR1Io4ZDoSa700001" onkeyup="if (event.keyCode == 13) { backto(GID(&#39;url&#39;).value); return false; }"/>
+</div>
+
+<div>
+<button onclick="backto(GID(&#39;url&#39;).value)">Decode URL</button>
+</div>
+
+</div><!-- enter -->
+
+<style>
+#irefresh {
+cursor: pointer;
+}
+#irefresh:hover {
+
+filter: invert(25%) sepia(97%) saturate(2026%) hue-rotate(201deg) brightness(91%) contrast(98%);
+
+}
+.ablue {
+
+filter: invert(25%) sepia(97%) saturate(2026%) hue-rotate(201deg) brightness(91%) contrast(98%);
+
+}
+.agray {
+filter: invert(94%) sepia(0%) saturate(7471%) hue-rotate(37deg) brightness(91%) contrast(87%);
+}
+.picon {
+cursor: pointer;
+vertical-align: top;
+margin-right: 10px;
+
+}
+.picon:hover {
+
+filter: invert(25%) sepia(97%) saturate(2026%) hue-rotate(201deg) brightness(91%) contrast(98%);
+
+}
+
+</style>
+
+<img style="margin-right:10px;" id="irefresh" title="Autorefresh" onclick="chauto()" class="ablue" src="/plantuml/svgrepo-refresh.svg" width="20" height="20"/>
+
+
+
+<button style="margin-right:15px; vertical-align:top;" onclick="compress(GID(&#39;inflated&#39;).value,&#39;/uml/&#39;)">Submit</button>
+<img title="Dark mode" onclick="compress(GID(&#39;inflated&#39;).value,&#39;/duml/&#39;)" class="picon" src="/plantuml/svgrepo-uxwing-light-mode-toggle.svg" height="20"/>
+<img title="Change layout" onclick="compress(GID(&#39;inflated&#39;).value,&#39;/umla/&#39;)" class="picon" src="/plantuml/svgrepo-change.svg" width="20" height="20"/>
+
+
+
+
+<img id="ewindow" title="Extract window" onclick="dual()" class="picon" src="/plantuml/svgrepo-dock-panel.svg" width="20" height="20"/>
+
+<script>
+var win;
+function childOpen() {
+if (win && win.closed==false) return true;
+return false;
+}
+
+function dual(t) {
+if (childOpen()) {
+win.close();
+GID('ewindow').className = "picon";
+GID('inflated').style.height="400px";
+GID('cde').style.display = "flex";
+GID('hlong').style.display = "none";
+return;
+}
+GID('ewindow').className = "ablue";
+GID('cde').style.display = "none";
+GID('hlong').style.display = "block";
+h=window.innerHeight-220;
+GID('inflated').style.height=""+h+"px";
+if (GID('irefresh').className == "agray") chauto();
+
+if (lw>0)
+option = "width="+lw+",height="+lh+",left="+lx+",top="+ly+",toolbar=no,location=no,directories=no,status=no,menubar=no,scrollbars=no,copyhistory=no";
+else{
+w = 800;
+h = Math.max(500,window.top.outerHeight/2);
+x = window.screenLeft;
+y = window.top.outerHeight/2 - h/2;
+option = "width="+w+",height="+h+",left="+x+",top="+y+",toolbar=no,location=no,directories=no,status=no,menubar=no,scrollbars=no,copyhistory=no";
+}
+
+win = window.open('/plantuml/dual.html', '', option);
+
+}
+
+</script>
+
+
+
+<select style="vertical-align:top;" name="stheme" id="stheme" onchange="doSomething(this.selectedIndex);">
+<option value="nul"></option>
+<option value="amiga">amiga</option>
+<option value="aws-orange">aws-orange</option>
+<option value="black-knight">black-knight</option>
+<option value="bluegray">bluegray</option>
+<option value="blueprint">blueprint</option>
+<option value="cerulean-outline">cerulean-outline</option>
+<option value="cerulean">cerulean</option>
+<option value="crt-amber">crt-amber</option>
+<option value="crt-green">crt-green</option>
+<option value="cyborg-outline">cyborg-outline</option>
+<option value="cyborg">cyborg</option>
+<option value="hacker">hacker</option>
+<option value="lightgray">lightgray</option>
+<option value="mars">mars</option>
+<option value="materia-outline">materia-outline</option>
+<option value="materia">materia</option>
+<option value="metal">metal</option>
+<option value="mimeograph">mimeograph</option>
+<option value="minty">minty</option>
+<option value="plain">plain</option>
+<option value="reddress-darkblue">reddress-darkblue</option>
+<option value="reddress-darkgreen">reddress-darkgreen</option>
+<option value="reddress-darkorange">reddress-darkorange</option>
+<option value="reddress-darkred">reddress-darkred</option>
+<option value="reddress-lightblue">reddress-lightblue</option>
+<option value="reddress-lightgreen">reddress-lightgreen</option>
+<option value="reddress-lightorange">reddress-lightorange</option>
+<option value="reddress-lightred">reddress-lightred</option>
+<option value="sandstone">sandstone</option>
+<option value="silver">silver</option>
+<option value="sketchy-outline">sketchy-outline</option>
+<option value="sketchy">sketchy</option>
+<option value="spacelab">spacelab</option>
+<option value="spacelab-white">spacelab-white</option>
+<option value="superhero-outline">superhero-outline</option>
+<option value="superhero">superhero</option>
+<option value="toy">toy</option>
+<option value="united">united</option>
+<option value="vibrant">vibrant</option>
+</select>
+
+ 
+
+ 
+
+ 
+<a id="urljs" style="vertical-align:top;" href="https://editor.plantuml.com/uml/SyfFKj2rKt3CoKnELR1Io4ZDoSa700001"><b>🎉 Discover the future PlantUML Web Editor! 🚀</b></a> 
+<a id="urlpng" style="vertical-align:top;" href="//www.plantuml.com/plantuml/png/SyfFKj2rKt3CoKnELR1Io4ZDoSa700001">PNG</a> 
+<a id="urlsvg" style="vertical-align:top;" href="//www.plantuml.com/plantuml/svg/SyfFKj2rKt3CoKnELR1Io4ZDoSa700001">SVG</a> 
+<a id="urltxt" style="vertical-align:top;" href="//www.plantuml.com/plantuml/txt/SyfFKj2rKt3CoKnELR1Io4ZDoSa700001">ASCII Art</a>
+
+
+
+<div style="float:right;">
+</div>
+
+<script>
+function splitLines(t) { return t.split(/\r\n|\r|\n/); }
+
+function doSomething(num) {
+	var src = document.getElementById('theimg').src;
+		
+	
+	const regex = /\/png\/theme\/[-_a-zA_Z0-9\/]+\//;
+	src = src.replace(regex, '/png/');
+	
+
+	var tname;
+	if (num>0) {
+		tname = document.getElementById('stheme').options[num].text;
+		
+		src = src.replace('/png/', '/png/theme/' + tname + '/');
+		
+	}
+	document.getElementById('theimg').src = src;
+	
+	tab = splitLines(document.getElementById('inflated').value);
+	res = "";
+	for (const ss of tab) {
+		if (ss.startsWith("!theme ") == false) res = res + ss + "\r\n";
+		if (num>0 && ss.startsWith("@start")) res = res + "!theme " + tname + "\r\n";
+	}
+	res = res.substring(0, res.length - 2);
+	document.getElementById('inflated').value = res;
+
+}
+</script>
+
+
+<script>
+var last = Date.now();
+var ltext = "";
+var lx=0,ly=0,lw=0,lh=0;
+
+function sendCode(){
+last = Date.now();
+}
+
+function watchdog() {
+if (childOpen()){
+win.document.getElementById('theimg').src = GID('theimg').src;
+lx=win.screenX;
+ly=win.screenY;
+lh=win.outerHeight;
+lw=win.outerWidth;
+}else{
+GID('inflated').style.height="400px";
+GID('ewindow').className = "picon";
+GID('cde').style.display = "flex";
+GID('hlong').style.display = "none";
+}
+var diff = Date.now() - last
+var current = GID("inflated").value;
+if (diff > 1000 && current != ltext) {
+  ltext = current;
+  comp2 = compress2(current);
+  tmp = GID('theimg').src;
+
+  tmp = tmp.substring(0, tmp.indexOf('/png/')) + "/png/" +comp2;
+
+  GID('theimg').src = tmp;
+  if (childOpen())
+	  win.document.getElementById('theimg').src = tmp;
+  GID('urlpng').href = tmp;
+  tmp = GID('urlsvg').href;
+
+  GID('urljs').href = "https://editor.plantuml.com/uml/" + comp2;
+  tmp = tmp.substring(0, tmp.indexOf('/svg/')) + "/svg/" +comp2;
+
+  GID('urlsvg').href = tmp;
+  tmp = GID('urltxt').href;
+  tmp = tmp.substring(0, tmp.indexOf('/txt/')) + "/txt/" +comp2;
+  GID('urltxt').href = tmp;
+  tmp = GID('url').value;
+  
+  tmp = tmp.substring(0, tmp.indexOf('/png/')) + "/png/" +comp2;
+  
+  GID('url').value = tmp;
+
+}
+}
+
+function compress2(s) {
+	//UTF8
+	s = unescape(encodeURIComponent(s));
+	var arr = [];
+	for (var i = 0; i < s.length; i++)
+		arr.push(s.charCodeAt(i));	
+	var compressor = new Zopfli.RawDeflate(arr);
+	var compressed = compressor.compress();
+	return encode64_(compressed);
+}
+
+function chauto() {
+if (GID('irefresh').className == "agray") {
+GID('irefresh').className = "ablue";
+myTimer = setInterval("watchdog()", 900);
+} else {
+GID('irefresh').className = "agray";
+clearInterval(myTimer);
+}
+}
+</script>
+
+
+<div style="clear:both"></div>
+
+<style>
+#hlong {
+display:none;
+height:100px;
+}
+</style>
+<div id="hlong">
+<!-- Ezoic - hlong - bottom_of_page -->
+<span id="ezoic-pub-ad-placeholder-645"></span><span data-ez-ph-id="645"></span>
+<!-- End Ezoic - hlong - bottom_of_page -->
+</div><!-- hlong -->
+
+<style>
+#cde {
+  display: flex;
+  justify-content: center;
+  
+}
+</style>
+
+<div id="cde">
+<div>
+<div class="topsticky">
+<!-- Ezoic - io_v1 - mid_content -->
+
+<!-- End Ezoic - io_v1 - mid_content -->
+</div><!-- topsticky -->
+</div>
+
+<div id="diagram">
+    
+    <img loading="lazy" id="theimg" src="//cdn-0.plantuml.com/plantuml/png/SyfFKj2rKt3CoKnELR1Io4ZDoSa700001" style="max-width: 100%; height: auto;" alt="PlantUML diagram"/>
+    
+</div>
+
+<div>
+<div class="topsticky">
+<!-- Ezoic - io_v2 - long_content -->
+
+<!-- End Ezoic - io_v2 - long_content -->
+</div><!-- topsticky -->
+</div>
+
+</div><!-- cde -->
+
+
+
+
+
+</div><!-- main -->
+
+<div class="right" style="width:10px;"></div>
+
+<div class="right">
+
+<div class="topsticky">
+<!-- Ezoic - SERV0 -->
+<span id="ezoic-pub-ad-placeholder-169"></span><span data-ez-ph-id="169"></span>
+<!-- End Ezoic - SERV0 -->
+</div><!-- topsticky -->
+
+</div><!-- right -->
+
+
+</div><!-- container -->
+
+
+<div id="left0">
+<div class="menuside2">
+
+<a href="https://plantuml.com"><img src="https://cdn-0.plantuml.com/svgrepo-house.svg" width="16" height="16" title="Home"/></a>
+<a href="https://plantuml.com/news"><img src="https://cdn-0.plantuml.com/svgrepo-text-news.svg" width="16" height="16" title="What&#39;s New ?"/></a>
+<a href="https://plantuml.com/starting"><img src="https://cdn-0.plantuml.com/svgrepo-rocket-3-start.svg" width="16" height="16" title="Getting Started"/></a>
+<a href="https://www.plantuml.com/plantuml/uml/SyfFKj2rKt3CoKnELR1Io4ZDoSa70000"><img src="https://cdn-0.plantuml.com/svgrepo-server.svg" width="16" height="16" title="Online Server"/></a>
+<a href="https://plantuml.com/running"><img src="https://cdn-0.plantuml.com/svgrepo-play.svg" width="16" height="16" title="Running"/></a>
+<a href="https://plantuml.com/faq"><img src="https://cdn-0.plantuml.com/svgrepo-forum.svg" width="16" height="16" title="F.A.Q."/></a>
+<a href="https://plantuml.com/download"><img src="https://cdn-0.plantuml.com/svgrepo-add-to-online-cart.svg" width="16" height="16" title="Download"/></a>
+<a href="https://forum.plantuml.net"><img src="https://cdn-0.plantuml.com/svgrepo-forum-message.svg" width="16" height="16" title="Forum"/></a>
+<a href="https://plantuml.com/theme"><img src="https://cdn-0.plantuml.com/svgrepo-palette-fill.svg" width="16" height="16" title="Theme"/></a>
+<a href="https://plantuml.com/preprocessing"><img src="https://cdn-0.plantuml.com/svgrepo-cpu.svg" width="16" height="16" title="Preprocessing"/></a>
+<a href="https://plantuml.com/stdlib"><img src="https://cdn-0.plantuml.com/svgrepo-books-library.svg" width="16" height="16" title="Standard Library"/></a>
+<a href="https://crashedmind.github.io/PlantUMLHitchhikersGuide"><img src="https://cdn-0.plantuml.com/svgrepo-signpost-fill.svg" width="16" height="16" title="Hitchhiker&#39;s Guide"/></a>
+<a href="https://plantuml.com/guide"><img src="https://cdn-0.plantuml.com/svgrepo-library.svg" width="16" height="16" title="PDF Guide"/></a>
+
+</div>
+</div>
+
+<!-- Start of StatCounter Code for Default Guide -->
+<script type="text/javascript">
+var sc_project=9301480; 
+var sc_invisible=1; 
+var sc_security="6eff847c"; 
+var scJsHost = (("https:" == document.location.protocol) ?
+"https://secure." : "http://www.");
+document.write("<sc"+"ript type='text/javascript' src='" +
+scJsHost+
+"statcounter.com/counter/counter.js'></"+"script>");
+</script>
+<noscript><div class="statcounter"><a title="web analytics"
+href="https://statcounter.com/" target="_blank"><img
+class="statcounter"
+src="https://c.statcounter.com/9301480/0/6eff847c/1/"
+alt="web analytics"></a></div></noscript>
+<!-- End of StatCounter Code for Default Guide -->
+
+<script>
+var myTimer = setInterval("watchdog()", 900);
+</script>
+
+
+
+<!--[selectrongo:done]--><span id="ezoic-pub-ad-placeholder-100"></span><span data-ez-ph-id="100"></span><script type='text/javascript' style='display:none;' async>if (typeof window.__ez !== 'undefined' && window.__ez?.queue?.addFileOnce) {window.__ez.queue.addFileOnce('identity', 'https://go.ezodn.com/detroitchicago/indy.js?cb=22&gcb=0', true, [], true, false, false, true);} </script><script data-cfasync="false">function _emitEzConsentEvent(){var customEvent=new CustomEvent("ezConsentEvent",{detail:{ezTcfConsent:window.ezTcfConsent},bubbles:true,cancelable:true,});document.dispatchEvent(customEvent);}
+(function(window,document){function _setAllEzConsentTrue(){window.ezTcfConsent.loaded=true;window.ezTcfConsent.store_info=true;window.ezTcfConsent.develop_and_improve_services=true;window.ezTcfConsent.measure_ad_performance=true;window.ezTcfConsent.measure_content_performance=true;window.ezTcfConsent.select_basic_ads=true;window.ezTcfConsent.create_ad_profile=true;window.ezTcfConsent.select_personalized_ads=true;window.ezTcfConsent.create_content_profile=true;window.ezTcfConsent.select_personalized_content=true;window.ezTcfConsent.understand_audiences=true;window.ezTcfConsent.use_limited_data_to_select_content=true;window.ezTcfConsent.select_personalized_content=true;}
+function _clearEzConsentCookie(){document.cookie="ezCMPCookieConsent=tcf2;Domain=.plantuml.com;Path=/;expires=Thu, 01 Jan 1970 00:00:00 GMT";}
+_clearEzConsentCookie();if(typeof window.__tcfapi!=="undefined"){window.ezgconsent=false;var amazonHasRun=false;function _ezAllowed(tcdata,purpose){return(tcdata.purpose.consents[purpose]||tcdata.purpose.legitimateInterests[purpose]);}
+function _handleConsentDecision(tcdata){window.ezTcfConsent.loaded=true;if(!tcdata.vendor.consents["347"]&&!tcdata.vendor.legitimateInterests["347"]){window._emitEzConsentEvent();return;}
+window.ezTcfConsent.store_info=_ezAllowed(tcdata,"1");window.ezTcfConsent.develop_and_improve_services=_ezAllowed(tcdata,"10");window.ezTcfConsent.measure_content_performance=_ezAllowed(tcdata,"8");window.ezTcfConsent.select_basic_ads=_ezAllowed(tcdata,"2");window.ezTcfConsent.create_ad_profile=_ezAllowed(tcdata,"3");window.ezTcfConsent.select_personalized_ads=_ezAllowed(tcdata,"4");window.ezTcfConsent.create_content_profile=_ezAllowed(tcdata,"5");window.ezTcfConsent.measure_ad_performance=_ezAllowed(tcdata,"7");window.ezTcfConsent.use_limited_data_to_select_content=_ezAllowed(tcdata,"11");window.ezTcfConsent.select_personalized_content=_ezAllowed(tcdata,"6");window.ezTcfConsent.understand_audiences=_ezAllowed(tcdata,"9");window._emitEzConsentEvent();}
+function _handleGoogleConsentV2(tcdata){if(!tcdata||!tcdata.purpose||!tcdata.purpose.consents){return;}
+var googConsentV2={};if(tcdata.purpose.consents[1]){googConsentV2.ad_storage='granted';googConsentV2.analytics_storage='granted';}
+if(tcdata.purpose.consents[3]&&tcdata.purpose.consents[4]){googConsentV2.ad_personalization='granted';}
+if(tcdata.purpose.consents[1]&&tcdata.purpose.consents[7]){googConsentV2.ad_user_data='granted';}
+if(googConsentV2.analytics_storage=='denied'){gtag('set','url_passthrough',true);}
+gtag('consent','update',googConsentV2);}
+__tcfapi("addEventListener",2,function(tcdata,success){if(!success||!tcdata){window._emitEzConsentEvent();return;}
+if(!tcdata.gdprApplies){_setAllEzConsentTrue();window._emitEzConsentEvent();return;}
+if(tcdata.eventStatus==="useractioncomplete"||tcdata.eventStatus==="tcloaded"){if(typeof gtag!='undefined'){_handleGoogleConsentV2(tcdata);}
+_handleConsentDecision(tcdata);if(tcdata.purpose.consents["1"]===true&&tcdata.vendor.consents["755"]!==false){window.ezgconsent=true;(adsbygoogle=window.adsbygoogle||[]).pauseAdRequests=0;}
+if(window.__ezconsent){__ezconsent.setEzoicConsentSettings(ezConsentCategories);}
+__tcfapi("removeEventListener",2,function(success){return null;},tcdata.listenerId);if(!(tcdata.purpose.consents["1"]===true&&_ezAllowed(tcdata,"2")&&_ezAllowed(tcdata,"3")&&_ezAllowed(tcdata,"4"))){if(typeof __ez=="object"&&typeof __ez.bit=="object"&&typeof window["_ezaq"]=="object"&&typeof window["_ezaq"]["page_view_id"]=="string"){__ez.bit.Add(window["_ezaq"]["page_view_id"],[new __ezDotData("non_personalized_ads",true),]);}}}});}else{_setAllEzConsentTrue();window._emitEzConsentEvent();}})(window,document);</script></body></html>

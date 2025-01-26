@@ -1,0 +1,14 @@
+@startuml
+class User {
+    id: Integer
+    username: String
+    email: String
+    password: String
+    phonenumber: String
+    user_type: String
+    is_admin: Boolean
+    date_created: DateTime
+    date_updated: DateTime
+    id_start: String
+}
+@enduml

@@ -1,0 +1,33 @@
+@startuml
+class Weather {
+    id: Integer
+    latitude: Float
+    longitude: Float
+    timestamp: DateTime
+    air_temperature: Float
+    air_temperature_80m: Float
+    air_temperature_100m: Float
+    air_temperature_1000hpa: Float
+    air_temperature_800hpa: Float
+    air_temperature_500hpa: Float
+    air_temperature_200hpa: Float
+    pressure: Float
+    cloud_cover: Float
+    current_direction: Float
+    current_speed: Float
+    gust: Float
+    humidity: Float
+    ice_cover: Float
+    precipitation: Float
+    snow_depth: Float
+    sea_level: Float
+    swell_direction: Float
+    swell_height: Float
+    swell_period: Float
+    secondary_swell_direction: Float
+    secondary_swell_height: Float
+    secondary_swell_period: Float
+    visibility: Float
+    water_temperature: Float
+}
+@enduml

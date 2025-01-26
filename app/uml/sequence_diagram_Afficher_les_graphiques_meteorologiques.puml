@@ -1,0 +1,9 @@
+@startuml
+title Diagramme de sequence pour Afficher les graphiques meteorologiques
+actor Utilisateur
+participant Système
+Utilisateur -> Systeme: Demander des graphiques pour la localisation
+Systeme -> API_Meteorologique: Recuperer les donnees necessaires
+API_Meteorologique -> Systeme: Retourner les donnees meteorologiques
+Systeme -> Utilisateur: Afficher les graphiques meteorologiques
+@enduml

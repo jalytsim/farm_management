@@ -1,0 +1,42 @@
+@startuml
+actor Admin
+actor Client
+participant Systeme
+
+== Précondition ==
+Admin -> Systeme: Se connecter à l'application
+Systeme -> Admin: Authentification réussie
+Client -> Systeme: Se connecter à l'application
+Systeme -> Client: Authentification réussie (type de compte vérifié)
+
+== Scénario Nominal ==
+alt Admin
+    Admin -> Systeme: Sélectionner "Gestion des fermes"
+    Systeme -> Admin: Afficher la liste des fermes
+    Admin -> Systeme: Effectuer une opération CRUD (Ajout, Modification, Suppression)
+    Systeme -> Admin: Confirmer l'opération
+end
+
+alt Client
+    Client -> Systeme: Sélectionner "Gestion des fermes"
+    Systeme -> Client: Afficher la liste des fermes
+    Client -> Systeme: Effectuer une opération CRUD
+    Systeme -> Client: Vérification des permissions
+    Systeme -> Client: Action autorisée ou refusée
+end
+
+== Scénario Alternatif ==
+alt Erreur de validation (Admin)
+    Admin -> Systeme: Ajouter une ferme
+    Systeme -> Admin: Erreur (ex. nom déjà utilisé)
+end
+
+alt Permissions insuffisantes (Client)
+    Client -> Systeme: Modifier une ferme
+    Systeme -> Client: Permission refusée (type de compte inadéquat)
+end
+
+== Postcondition ==
+Systeme -> Admin: Fermes gérées (ajoutées, modifiées ou supprimées)
+Systeme -> Client: Fermes gérées (en fonction des permissions)
+@enduml

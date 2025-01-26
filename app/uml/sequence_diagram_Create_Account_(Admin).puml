@@ -1,0 +1,16 @@
+@startuml
+title Diagramme de séquence pour Create Account (Admin)
+actor Admin
+participant Interface_Utilisateur
+participant Controlleur
+participant Service_Utilisateur
+participant Base_de_donnees
+Admin -> Interface_Utilisateur: Saisir les informations du compte
+Interface_Utilisateur -> Controlleur: Envoyer les données au contrôleur
+Controlleur -> Service_Utilisateur: Valider les informations
+Service_Utilisateur -> Base_de_donnees: Créer un nouvel utilisateur
+Base_de_donnees -> Service_Utilisateur: Confirmer la création
+Service_Utilisateur -> Controlleur: Retourner le statut
+Controlleur -> Interface_Utilisateur: Afficher la confirmation
+Interface_Utilisateur -> Admin: Afficher le statut de la création
+@enduml

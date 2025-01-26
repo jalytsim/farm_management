@@ -1,0 +1,18 @@
+@startuml
+title Diagramme de séquence pour Gérer les utilisateurs
+actor Client
+boundary Ecran_Utilisateur
+control Controlleur
+entity Service_Utilisateur
+database Base_de_donnees
+collections Cache_Systeme
+queue Queue_Operations
+entity Système_Externe
+Client -> Ecran_Utilisateur: Effectuer une opération (ajouter, modifier, supprimer)
+Ecran_Utilisateur -> Controlleur: Envoyer la demande d'opération utilisateur
+Controlleur -> Service_Utilisateur: Traiter l'opération sur les utilisateurs
+Service_Utilisateur -> Base_de_donnees: Mettre à jour les informations utilisateur
+Base_de_donnees -> Service_Utilisateur: Confirmer la mise à jour
+Service_Utilisateur -> Controlleur: Notifier la réussite de l'opération
+Controlleur -> Ecran_Utilisateur: Afficher un message de confirmation
+@enduml

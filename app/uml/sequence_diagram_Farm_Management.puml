@@ -1,0 +1,31 @@
+@startuml
+title Diagramme de séquence pour Farm Management
+actor Admin
+boundary Ecran_Utilisateur
+control Controlleur
+entity Service_Utilisateur
+database Base_de_donnees
+collections Cache_Systeme
+queue Queue_Operations
+entity Système_Externe
+Admin -> Ecran_Utilisateur: Accéder à l'écran de gestion des fermes
+Ecran_Utilisateur -> Controlleur: Envoyer la requête de gestion
+Controlleur -> Service_Utilisateur: Analyser la requête
+Service_Utilisateur -> Base_de_donnees: Rechercher les données des fermes
+Base_de_donnees -> Service_Utilisateur: Retourner les données des fermes
+Service_Utilisateur -> Cache_Systeme: Mettre en cache les données des fermes
+Cache_Systeme -> Service_Utilisateur: Confirmer la mise en cache
+Service_Utilisateur -> Système_Externe: Valider les données avec un service externe
+Système_Externe -> Service_Utilisateur: Retourner les résultats validés
+Service_Utilisateur -> Controlleur: Envoyer les données validées
+Controlleur -> Ecran_Utilisateur: Afficher les données des fermes
+Admin -> Ecran_Utilisateur: Effectuer une opération (Ajouter, Modifier, Supprimer)
+Ecran_Utilisateur -> Controlleur: Envoyer l'opération au système
+Controlleur -> Service_Utilisateur: Envoyer l'opération à la file d'attente
+Service_Utilisateur -> Queue_Operations: Ajouter l'opération à la file d'attente
+Queue_Operations -> Service_Utilisateur: Confirmer l'ajout
+Service_Utilisateur -> Base_de_donnees: Mettre à jour les données
+Base_de_donnees -> Service_Utilisateur: Confirmer la mise à jour
+Service_Utilisateur -> Controlleur: Transmettre la confirmation
+Controlleur -> Ecran_Utilisateur: Afficher la confirmation à l'utilisateur
+@enduml

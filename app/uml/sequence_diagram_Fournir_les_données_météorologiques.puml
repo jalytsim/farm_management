@@ -1,0 +1,18 @@
+@startuml
+title Diagramme de séquence pour Fournir les données météorologiques
+actor Client
+boundary Ecran_Utilisateur
+control Controlleur
+entity Service_Utilisateur
+database Base_de_donnees
+collections Cache_Systeme
+queue Queue_Operations
+entity Système_Externe
+Client -> Ecran_Utilisateur: Demander des données météorologiques spécifiques
+Ecran_Utilisateur -> Controlleur: Envoyer les paramètres de localisation et de temps
+Controlleur -> Service_Meteo: Requêter les données météo spécifiques
+Service_Meteo -> Base_de_donnees: Récupérer les données météo stockées
+Base_de_donnees -> Service_Meteo: Retourner les données requises
+Service_Meteo -> Controlleur: Fournir les données demandées
+Controlleur -> Ecran_Utilisateur: Afficher les données météorologiques
+@enduml

@@ -142,3 +142,31 @@ async def CarbonReport(farm_id):
         "farm_info": farm_info,
         "report": data['dataset_results']
     }), 200
+
+
+@bp.route('/forest/<string:forest_id>/CarbonReport', methods=['GET'])
+async def CarbonReportforest(forest_id):
+    # Fetch farm information synchronously
+    forest = Forest.query.filter_by(id=forest_id).first()
+    if forest is None:
+        return jsonify({"error": "Forest not found"}), 404
+
+    # Create farm info dictionary
+    forest_info = {
+        'name': forest.name,
+        'tree_type': forest.tree_type,
+        'date_created': forest.date_created.strftime('%Y-%m-%d %H:%M:%S'),
+        'date_updated': forest.date_updated.strftime('%Y-%m-%d %H:%M:%S'),
+    }
+
+
+    
+    # Fetch additional data asynchronously
+    data, status_code = await gfw_async_carbon(owner_type='forest', owner_id=forest_id)
+    if status_code != 200:
+        return jsonify(data), status_code
+    print(forest_info)
+    return jsonify({
+        "forest_info": forest_info,
+        "report": data['dataset_results']
+    }), 200

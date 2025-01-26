@@ -1,0 +1,69 @@
+@startuml
+class Weather {
+    id: Integer
+    latitude: Float
+    longitude: Float
+    timestamp: DateTime
+    air_temperature: Float
+    air_temperature_80m: Float
+    air_temperature_100m: Float
+    air_temperature_1000hpa: Float
+    air_temperature_800hpa: Float
+    air_temperature_500hpa: Float
+    air_temperature_200hpa: Float
+    pressure: Float
+    cloud_cover: Float
+    current_direction: Float
+    current_speed: Float
+    gust: Float
+    humidity: Float
+    ice_cover: Float
+    precipitation: Float
+    snow_depth: Float
+    sea_level: Float
+    swell_direction: Float
+    swell_height: Float
+    swell_period: Float
+    secondary_swell_direction: Float
+    secondary_swell_height: Float
+    secondary_swell_period: Float
+    visibility: Float
+    water_temperature: Float
+}
+class Solar {
+    id: Integer
+    latitude: String(20)
+    longitude: String(20)
+    timestamp: DateTime
+    uv_index: Float
+    downward_short_wave_radiation_flux: Float
+    source: String(100)
+    start_time: DateTime
+    end_time: DateTime
+    date_created: DateTime
+    date_updated: DateTime
+}
+class Crop {
+    id: Integer
+    name: String(255)
+    weight: Float
+    category_id: Integer (ForeignKey to ProduceCategory)
+    date_created: DateTime
+    date_updated: DateTime
+    modified_by: Integer (ForeignKey to User)
+    created_by: Integer (ForeignKey to User)
+}
+class CropCoefficient {
+    id: Integer
+    crop_id: Integer (ForeignKey to Crop)
+    stage: String(50)
+    kc_value: Float
+    date_created: DateTime
+    date_updated: DateTime
+    modified_by: Integer (ForeignKey to User)
+    created_by: Integer (ForeignKey to User)
+}
+Crop --> CropCoefficient : has
+Crop --> Weather : has
+Crop --> Solar : has
+@enduml

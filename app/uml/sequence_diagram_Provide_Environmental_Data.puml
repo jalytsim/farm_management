@@ -1,0 +1,18 @@
+@startuml
+title Diagramme de séquence pour Provide Environmental Data
+actor Admin
+boundary Ecran_Utilisateur
+control Controlleur
+entity Service_Utilisateur
+database Base_de_donnees
+collections Cache_Systeme
+queue Queue_Operations
+entity Système_Externe
+Admin_client -> Ecran_Utilisateur: Demander les données environnementales
+Ecran_Utilisateur -> Controlleur: Envoyer la requête
+Controlleur -> Service_Utilisateur: Récupérer les données environnementales
+Service_Utilisateur -> Système_Externe: Rechercher les données
+Système_Externe -> Service_Utilisateur: Retourner les données
+Service_Utilisateur -> Controlleur: Transmettre les données
+Controlleur -> Ecran_Utilisateur: Afficher les données environnementales
+@enduml
