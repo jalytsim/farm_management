@@ -1,0 +1,35 @@
+@startuml
+actor Utilisateur
+actor Admin
+boundary Ecran
+control Controleur
+entity API
+entity Graphique
+
+Utilisateur -> Ecran : Saisie d'un lieu ou coordonnées
+Admin -> Ecran : Saisie d'un lieu ou coordonnées
+Ecran -> Controleur : Envoie la demande de données météo
+Controleur -> API : Demande des données météo pour la localisation
+API -> Controleur : Retourne les données météo (température, humidité, vent, etc.)
+Controleur -> Graphique : Génère les graphiques météorologiques
+Graphique -> Controleur : Retourne les graphiques générés
+Controleur -> Ecran : Envoie les données et les graphiques pour affichage
+Ecran -> Utilisateur : Affiche les données et graphiques météo
+Ecran -> Admin : Affiche les données et graphiques météo
+
+Utilisateur -> Ecran : Nouvelle recherche ou saisie d'un autre lieu
+Admin -> Ecran : Nouvelle recherche ou saisie d'un autre lieu
+Ecran -> Controleur : Envoie la nouvelle demande
+Controleur -> API : Nouvelle requête pour la localisation sélectionnée
+API -> Controleur : Retourne les nouvelles données météo
+Controleur -> Graphique : Génère de nouveaux graphiques
+Graphique -> Controleur : Retourne les nouveaux graphiques générés
+Controleur -> Ecran : Envoie les nouvelles données et graphiques pour affichage
+Ecran -> Utilisateur : Affiche les nouvelles données et graphiques météo
+Ecran -> Admin : Affiche les nouvelles données et graphiques météo
+
+alt Si des données manquent ou sont insuffisantes
+    Graphique -> Ecran : Affiche un avertissement sur le graphique
+end
+
+@enduml

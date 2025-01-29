@@ -1,4 +1,3 @@
-# backend/api_crop_coefficient.py
 from datetime import datetime
 from flask import Blueprint, jsonify, request
 from app.models import CropCoefficient, db
@@ -78,7 +77,7 @@ def delete_coefficient(id):
     db.session.commit()
     return jsonify({"msg": "Crop coefficient deleted successfully!"})
 
-# Get crop coefficient records by crop id
+    
 @bp.route('/getbycrop/<int:crop_id>', methods=['GET'])
 def get_by_crop_id(crop_id):
     coefficients = CropCoefficient.query.filter_by(crop_id=crop_id).all()
@@ -106,28 +105,5 @@ def get_by_crop_id(crop_id):
             'message': 'No data found for the provided crop ID.'
         }), 404
 
-# Calculate ETc based on ET0 and CropCoefficient
-@bp.route('/calculate_et_c', methods=['GET'])
-def calculate_et_c():
-    crop_id = request.args.get('crop_id', type=int)
-    stage = request.args.get('stage', type=str)
-    et0 = request.args.get('et0', type=float)
 
-    if not crop_id or not stage or et0 is None:
-        return jsonify({"error": "Missing parameters"}), 400
 
-    # Retrieve the crop coefficient for the specific crop and stage
-    coefficient = CropCoefficient.query.filter_by(crop_id=crop_id, stage=stage).first()
-
-    if coefficient:
-        kc = coefficient.kc_value
-        et_c = et0 * kc
-        return jsonify({
-            "et_c": et_c,
-            "kc_value": kc,
-            "crop_id": crop_id,
-            "stage": stage,
-            "et0": et0
-        }), 200
-    else:
-        return jsonify({"error": "No crop coefficient found for the given parameters."}), 404

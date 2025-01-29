@@ -1,0 +1,83 @@
+@startuml
+title Modélisation du domaine - Gestion des prévisions et alertes météorologiques
+
+' Définition des classes principales
+class Utilisateur {
+    +int id
+    +String nom
+    +String email
+    +String motDePasse
+    +souscrireAlertes()
+    +recevoirAlertes()
+}
+
+class Alerte {
+    +int id
+    +String type
+    +String message
+    +Date dateEmission
+    +envoyerAlerte()
+}
+
+class API_Cartographique {
+    +String obtenirCoordonneesAdresse(String adresse)
+    +String obtenirVille(double latitude, double longitude)
+    +double obtenirAltitude(double latitude, double longitude)
+    +double calculerDistance(double lat1, double lon1, double lat2, double lon2)
+}
+
+class PrévisionMeteo {
+    +Date date
+    +double temperature
+    +double humidite
+    +double vent
+    +getPrevision()
+}
+
+class Graphique {
+    +String typeGraphique
+    +generateGraphique()
+}
+
+class EtudeThermique {
+    +double GDD
+    +double HDD
+    +double CDD
+    +calculerIndicesThermiques()
+}
+
+class Admin {
+    +int id
+    +String nom
+    +String email
+    +String motDePasse
+    +gererUtilisateurs()
+    +surveillerAlertes()
+    +envoyerAlertesEmail()
+    +envoyerAlertesSMS()
+}
+
+class ServiceMeteo {
+    +fournirDonneesMeteo()
+}
+
+' Relations entre les classes
+Utilisateur "1" -- "0..*" Alerte : Souscrit à
+Utilisateur --> "0..1" API_Cartographique : Se base sur
+API_Cartographique --> Utilisateur : Fournit les coordonnées et la localisation
+
+Alerte "1" -- "1..*" API_Cartographique : Relie à la localisation
+Alerte "1" -- "1..*" PrévisionMeteo : Base d'alerte
+
+Admin "1" -- "0..*" Utilisateur : Gère les utilisateurs
+Admin "1" -- "0..*" Alerte : Surveille et envoie des alertes
+Admin "1" -- "0..*" Graphique : Analyse les graphiques
+Admin "1" -- "0..*" PrévisionMeteo : Consulter les prévisions
+Admin --> "0..1" ServiceMeteo : Interroge pour les données
+Admin --> "0..1" API_Cartographique : Utilise pour localisation et distance
+
+PrévisionMeteo "1" -- "1..*" Graphique : Représente les données
+PrévisionMeteo "1" -- "1..*" EtudeThermique : Calcul des indices thermiques
+
+' L'alerte est générée en fonction des indices thermiques, mais n'est pas directement liée à l'EtudeThermique.
+@enduml

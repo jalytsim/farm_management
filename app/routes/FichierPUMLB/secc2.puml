@@ -1,0 +1,25 @@
+@startuml
+actor Utilisateur
+boundary Ecran
+control Controleur
+entity API
+
+Utilisateur -> Ecran : Clique sur une localisation ou effectue une recherche
+Ecran -> Controleur : Envoie les informations de la localisation
+Controleur -> API : Demande des données météo pour la localisation
+API -> Controleur : Retourne les données météo (température, humidité, etc.)
+Controleur -> Ecran : Transmet les données pour affichage (pop-up ou section dédiée)
+Ecran -> Utilisateur : Affiche les informations météo
+
+Utilisateur -> Ecran : Nouvelle recherche ou sélection d'une autre localisation
+Ecran -> Controleur : Envoie la nouvelle demande
+Controleur -> API : Nouvelle requête pour la localisation sélectionnée
+API -> Controleur : Retourne les nouvelles données météo
+Controleur -> Ecran : Envoie les nouvelles données pour affichage
+Ecran -> Utilisateur : Affiche les nouvelles informations météo
+
+alt Si les données météo ne sont pas disponibles
+    Ecran -> Utilisateur : Affiche un message d'erreur
+end
+
+@enduml

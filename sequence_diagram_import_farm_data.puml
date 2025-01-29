@@ -1,0 +1,12 @@
+@startuml
+title Diagramme de séquence pour Import Farm Data
+actor Admin_Client
+database Base de données
+database Système
+boundary Écran
+Admin_Client -> Écran: Télécharger un fichier CSV
+Écran -> Système: Valider le format du fichier
+Système -> Base de données: Enregistrer les données importées
+Base de données -> Système: Confirmer l'importation
+Système -> Écran: Afficher la confirmation
+@enduml

@@ -1,0 +1,36 @@
+@startuml
+left to right direction
+actor Admin
+actor Agriculteur
+actor System_Meteorologique
+actor System as System
+rectangle System {
+    usecase "Fournir les donnees meteorologiques" as UC_Fournir_les_donnees_meteorologiques
+    usecase "Afficher les graphiques meteorologiques" as UC_Afficher_les_graphiques_meteorologiques
+    usecase "Consulter les previsions meteorologiques" as UC_Consulter_les_previsions_meteorologiques
+    usecase "Afficher les indices thermiques GDD HDD CDD" as UC_Afficher_les_indices_thermiques_GDD_HDD_CDD
+    usecase "Gerer les utilisateurs" as UC_Gerer_les_utilisateurs
+    usecase "Calculer ET0 et ETc" as UC_Calculer_ET0_et_ETc
+    usecase "Rechercher une localisation geographique" as UC_Rechercher_une_localisation_geographique
+}
+Admin --> UC_Gerer_les_utilisateurs
+Admin --> UC_Consulter_les_previsions_meteorologiques
+Admin --> UC_Rechercher_une_localisation_geographique
+Agriculteur --> UC_Rechercher_une_localisation_geographique
+Agriculteur --> UC_Consulter_les_previsions_meteorologiques
+Admin --> UC_Afficher_les_graphiques_meteorologiques
+Agriculteur --> UC_Afficher_les_graphiques_meteorologiques
+Admin --> UC_Calculer_ET0_et_ETc
+Agriculteur --> UC_Calculer_ET0_et_ETc
+Admin --> UC_Afficher_les_indices_thermiques_GDD_HDD_CDD
+Agriculteur --> UC_Afficher_les_indices_thermiques_GDD_HDD_CDD
+System_Meteorologique --> UC_Fournir_les_donnees_meteorologiques
+UC_Rechercher_une_localisation_geographique ..> UC_Obtenir_les_informations_meteorologiques_associees : include
+UC_Consulter_les_previsions_meteorologiques ..> UC_Obtenir_les_informations_meteorologiques_associees : include
+UC_Afficher_les_graphiques_meteorologiques ..> UC_Obtenir_les_informations_meteorologiques_associees : include
+UC_Afficher_les_indices_thermiques_GDD_HDD_CDD ..> UC_Obtenir_les_informations_meteorologiques_associees : include
+UC_Consulter_les_previsions_meteorologiques .> UC_Fournir_les_donnees_meteorologiques : extend
+UC_Afficher_les_graphiques_meteorologiques .> UC_Fournir_les_donnees_meteorologiques : extend
+UC_Afficher_les_indices_thermiques_GDD_HDD_CDD .> UC_Fournir_les_donnees_meteorologiques : extend
+UC_Calculer_ET0_et_ETc .> UC_Fournir_les_donnees_meteorologiques : extend
+@enduml

@@ -1,0 +1,42 @@
+@startuml
+actor Utilisateur
+actor Admin
+boundary Ecran
+control Controleur
+database BaseDeDonnees
+entity API
+entity Calculateur
+
+Utilisateur -> Ecran : Accède à une localisation avec des données climatiques disponibles
+Admin -> Ecran : Accède à une localisation avec des données climatiques disponibles
+Ecran -> Controleur : Notifie la sélection de la localisation
+Controleur -> API : Récupère les données climatiques pour la localisation
+API -> Controleur : Retourne les données climatiques (température, humidité, etc.)
+Controleur -> BaseDeDonnees : Récupère le coefficient de culture (Kc) pour la culture sélectionnée
+BaseDeDonnees -> Controleur : Retourne la valeur de Kc
+
+Controleur -> Calculateur : Effectue le calcul d'ET₀
+Calculateur -> Controleur : Retourne la valeur d'ET₀ (mm/jour)
+Controleur -> Calculateur : Effectue le calcul d'ETc (ETc = ET₀ × Kc)
+Calculateur -> Controleur : Retourne la valeur d'ETc
+Controleur -> Ecran : Affiche les résultats (ET₀ et ETc) avec unités
+
+Utilisateur -> Ecran : Sélectionne une nouvelle localisation ou effectue une recherche
+Admin -> Ecran : Sélectionne une nouvelle localisation ou effectue une recherche
+Ecran -> Controleur : Notifie la nouvelle localisation sélectionnée
+Controleur -> API : Récupère les données climatiques pour la nouvelle localisation
+API -> Controleur : Retourne les nouvelles données climatiques
+Controleur -> BaseDeDonnees : Récupère le coefficient de culture (Kc) pour la nouvelle culture sélectionnée
+BaseDeDonnees -> Controleur : Retourne la valeur de Kc
+Controleur -> Calculateur : Effectue les nouveaux calculs d'ET₀ et d'ETc
+Calculateur -> Controleur : Retourne les nouvelles valeurs d'ET₀ et d'ETc
+Controleur -> Ecran : Affiche les nouveaux résultats (ET₀ et ETc)
+
+alt Données climatiques insuffisantes
+    Controleur -> Ecran : Affiche un avertissement pour données manquantes
+end
+
+alt Données de Kc manquantes
+    Controleur -> Ecran : Affiche un avertissement pour Kc manquant
+end
+@enduml

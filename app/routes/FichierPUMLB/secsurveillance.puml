@@ -1,0 +1,28 @@
+@startuml
+actor Utilisateur
+actor Admin
+boundary Ecran
+control Controleur
+entity API
+entity SystemMeteo
+entity BaseDeDonnees
+
+Controleur -> BaseDeDonnees : Vérifie régulièrement les coordonnées des utilisateurs
+BaseDeDonnees -> Controleur : Retourne les coordonnées géographiques des utilisateurs
+Controleur -> SystemMeteo : Interroge les données météorologiques
+SystemMeteo -> Controleur : Retourne les conditions météorologiques actuelles et prévisionnelles
+Controleur -> Controleur : Analyse les conditions pour détecter des anomalies ou conditions critiques
+alt Si alerte détectée
+    Controleur -> BaseDeDonnees : Enregistre l'alerte (type, heure, coordonnées)
+    Controleur -> Ecran : Prépare la notification pour l'utilisateur
+    Ecran -> Utilisateur : Envoie la notification de l'alerte
+end
+alt Si pas de coordonnées enregistrées
+    Controleur -> Ecran : Informe que l'utilisateur est exclu de la surveillance
+end
+
+alt Si système météorologique ne répond pas
+    Controleur -> Ecran : Affiche un message d'erreur
+    Ecran -> Admin : Informe que le système météorologique est hors ligne
+end
+@enduml

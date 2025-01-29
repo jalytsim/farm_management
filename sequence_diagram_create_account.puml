@@ -1,0 +1,12 @@
+@startuml
+title Diagramme de séquence pour Create Account
+actor Admin
+database Base de données
+database Système
+boundary Écran
+Admin -> Écran: Remplir le formulaire de création de compte
+Écran -> Système: Envoyer les données du formulaire
+Système -> Base de données: Enregistrer les données du nouvel utilisateur
+Base de données -> Système: Confirmer l'enregistrement
+Système -> Écran: Afficher la confirmation
+@enduml

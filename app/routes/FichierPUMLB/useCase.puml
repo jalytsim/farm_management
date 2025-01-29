@@ -1,0 +1,44 @@
+@startuml
+left to right direction
+
+actor Admin
+actor Agriculteur
+actor "System Meteorologique"
+
+usecase "Gerer les utilisateurs"
+usecase "Consulter les previsions meteorologiques"
+usecase "Rechercher une localisation geographique"
+usecase "Afficher les graphiques meteorologiques"
+usecase "Calculer ET0 et ETc"
+usecase "Afficher les indices thermiques GDD HDD CDD"
+usecase "Surveiller les alertes meteo par coordonnees des utilisateurs"
+usecase "Envoyer des alertes via email"
+usecase "Envoyer des alertes via sms"
+usecase "Obtenir les informations meteorologiques associees"
+usecase "Fournir les donnees meteorologiques"
+
+Admin --> "Gerer les utilisateurs"
+Admin --> "Consulter les previsions meteorologiques"
+Admin --> "Rechercher une localisation geographique"
+Admin --> "Afficher les graphiques meteorologiques"
+Admin --> "Calculer ET0 et ETc"
+Admin --> "Afficher les indices thermiques GDD HDD CDD"
+Admin --> "Surveiller les alertes meteo par coordonnees des utilisateurs"
+Admin --> "Envoyer des alertes via email"
+Admin --> "Envoyer des alertes via sms"
+
+Agriculteur --> "Consulter les previsions meteorologiques"
+Agriculteur --> "Rechercher une localisation geographique"
+Agriculteur --> "Afficher les graphiques meteorologiques"
+Agriculteur --> "Calculer ET0 et ETc"
+Agriculteur --> "Afficher les indices thermiques GDD HDD CDD"
+
+"System Meteorologique" --> "Fournir les donnees meteorologiques"
+
+"Rechercher une localisation geographique" --> "Obtenir les informations meteorologiques associees" : include
+"Consulter les previsions meteorologiques" --> "Obtenir les informations meteorologiques associees" : include
+"Afficher les graphiques meteorologiques" --> "Obtenir les informations meteorologiques associees" : include
+"Surveiller les alertes meteo par coordonnees des utilisateurs" --> "Fournir les donnees meteorologiques" : include
+"Envoyer des alertes via email" ..> "Surveiller les alertes meteo par coordonnees des utilisateurs" : extend
+"Envoyer des alertes via sms" ..> "Surveiller les alertes meteo par coordonnees des utilisateurs" : extend
+@enduml

@@ -1,0 +1,17 @@
+@startuml
+title Diagramme de séquence pour Farm Management
+actor Admin
+database Base de données
+database Système
+boundary Écran
+Admin -> Écran: Accéder à la gestion des fermes
+Écran -> Système: Demander la liste des fermes
+Système -> Base de données: Récupérer les données des fermes
+Base de données -> Système: Retourner les données
+Système -> Écran: Afficher la liste des fermes
+Admin -> Écran: Ajouter Modifier Supprimer une ferme
+Écran -> Système: Soumettre les modifications
+Système -> Base de données: Mettre à jour les données
+Base de données -> Système: Confirmer la mise à jour
+Système -> Écran: Afficher la confirmation à l'utilisateur
+@enduml

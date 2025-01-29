@@ -1,0 +1,25 @@
+@startuml
+actor Utilisateur
+actor Admin
+boundary Ecran
+control Controleur
+entity API
+entity Calculateur
+
+Controleur -> API : Se connecte à la source de données météorologiques
+API -> Controleur : Retourne les données météorologiques en temps réel
+Controleur -> Controleur : Récupère et stocke les données météorologiques (température, humidité, etc.)
+Controleur -> Ecran : Fournit les données météorologiques aux fonctionnalités nécessaires
+Ecran -> Utilisateur : Affiche les données météorologiques
+Ecran -> Admin : Affiche les données météorologiques
+Controleur -> Calculateur : Utilise les données pour effectuer des calculs (indices thermiques, ET₀, Etc., etc.)
+Calculateur -> Controleur : Retourne les résultats des calculs (par exemple, GDD, HDD, CDD, etc.)
+Controleur -> Ecran : Affiche les résultats des calculs à l'utilisateur ou admin
+
+alt Source de données inaccessible
+    Controleur -> Ecran : Affiche un message d'erreur (source de données inaccessible)
+    Ecran -> Utilisateur : Propose d'utiliser des données enregistrées ou d'attendre
+    Ecran -> Admin : Propose d'utiliser des données enregistrées ou d'attendre
+end
+
+@enduml

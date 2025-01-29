@@ -1,0 +1,40 @@
+@startuml
+actor Utilisateur
+actor Admin
+boundary Ecran
+control Controleur
+entity API
+entity Calculateur
+
+Utilisateur -> Ecran : Accède à la section Graph HDD, CDD, GDD
+Admin -> Ecran : Accède à la section Graph HDD, CDD, GDD
+Utilisateur -> Ecran : Saisit les coordonnées géographiques
+Admin -> Ecran : Saisit les coordonnées géographiques
+Ecran -> Controleur : Envoie les coordonnées saisies
+Controleur -> Controleur : Vérifie le format et la validité des coordonnées
+alt Coordonnées valides
+    Controleur -> API : Récupère les données climatiques pour la localisation
+    API -> Controleur : Retourne les données climatiques (température, etc.)
+    Controleur -> API : Récupère le nom de la localisation (ex. "Haute Matsiatra, Madagascar")
+    API -> Controleur : Retourne le nom de la localisation
+    Controleur -> Calculateur : Calcule GDD, HDD et CDD pour la localisation
+    Calculateur -> Controleur : Retourne les graphiques GDD, HDD et CDD
+    Controleur -> Ecran : Affiche le nom de la localisation et les graphiques des indices thermiques
+else Coordonnées invalides
+    Controleur -> Ecran : Affiche un message d'erreur (coordonnées invalides)
+end
+
+Utilisateur -> Ecran : Saisit de nouvelles coordonnées pour une autre localisation
+Admin -> Ecran : Saisit de nouvelles coordonnées pour une autre localisation
+Ecran -> Controleur : Envoie les nouvelles coordonnées
+Controleur -> API : Récupère les nouvelles données climatiques pour la localisation
+API -> Controleur : Retourne les nouvelles données climatiques
+Controleur -> Calculateur : Calcule les indices thermiques pour la nouvelle localisation
+Calculateur -> Controleur : Retourne les nouveaux graphiques GDD, HDD et CDD
+Controleur -> Ecran : Met à jour le nom de la localisation et affiche les nouveaux graphiques
+
+alt Données climatiques incomplètes
+    Controleur -> Ecran : Affiche un message d'erreur (données manquantes)
+end
+
+@enduml
