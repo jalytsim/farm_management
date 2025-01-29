@@ -323,3 +323,41 @@ class Pays(db.Model):
 
     def __repr__(self):
         return f"<Pays(id={self.id}, code={self.code}, alpha2={self.alpha2}, alpha3={self.alpha3})>"
+    
+
+class Store(db.Model):
+    __tablename__ = 'store'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    location = db.Column(db.String(255), nullable=False)
+    country = db.Column(db.String(255), nullable=False)
+    district = db.Column(db.String(255), nullable=False)
+    store_type = db.Column(db.String(50), nullable=False, default="agricultural")  # Type de magasin
+    status = db.Column(db.Boolean, default=True)  # Actif/Inactif
+    phone_number = db.Column(db.String(20), nullable=True)
+    email = db.Column(db.String(255), nullable=True)
+    owner_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    farm_id = db.Column(db.Integer, db.ForeignKey('farm.id'), nullable=True)
+    inventory_count = db.Column(db.Integer, default=0)  # Nombre de produits en stock
+    sales_count = db.Column(db.Integer, default=0)  # Nombre total de ventes
+    revenue = db.Column(db.Float, default=0.0)  # Chiffre d'affaires
+    last_stock_update = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    date_created = db.Column(db.DateTime, default=datetime.utcnow)
+    date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+
+    def __repr__(self):
+        return f"<Store {self.name}, {self.district}, {self.country}>"
+    
+class Product(db.Model):
+    __tablename__ = 'product'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    price = db.Column(db.Float, nullable=False)
+    stock = db.Column(db.Integer, default=0)
+    store_id = db.Column(db.Integer, db.ForeignKey('store.id'), nullable=False)
+
+    def __repr__(self):
+        return f"<Product {self.name} - Store {self.store_id}>"
