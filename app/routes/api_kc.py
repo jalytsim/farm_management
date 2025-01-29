@@ -104,4 +104,33 @@ def get_by_crop_id(crop_id):
             'status': 'error',
             'message': 'No data found for the provided farm ID'
         }), 404
+    
+@bp.route('/getbycrop/<int:crop_id>', methods=['GET'])
+def get_by_crop_id(crop_id):
+    coefficients = CropCoefficient.query.filter_by(crop_id=crop_id).all()
+    if coefficients:
+        coefficients_list = [
+            {
+                'id': coefficient.id,
+                'crop_id': coefficient.crop_id,
+                'stage': coefficient.stage,
+                'kc_value': coefficient.kc_value,
+                'date_created': coefficient.date_created.isoformat(),
+                'date_updated': coefficient.date_updated.isoformat(),
+                'created_by': coefficient.created_by,
+                'modified_by': coefficient.modified_by
+            }
+            for coefficient in coefficients
+        ]
+        return jsonify({
+            'status': 'success',
+            'kc_value': coefficients_list,
+        }), 200
+    else:
+        return jsonify({
+            'status': 'error',
+            'message': 'No data found for the provided crop ID.'
+        }), 404
+
+
 
