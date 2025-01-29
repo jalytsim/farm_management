@@ -137,3 +137,43 @@ ADD CONSTRAINT fk_modified_by
     FOREIGN KEY (modified_by) REFERENCES user(id),
 ADD CONSTRAINT fk_created_by 
     FOREIGN KEY (created_by) REFERENCES user(id);
+
+
+
+-- Aty ndray ny maso
+
+CREATE TABLE store (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    location VARCHAR(255) NOT NULL,
+    country VARCHAR(255) NOT NULL,
+    district VARCHAR(255) NOT NULL,
+    store_type VARCHAR(50) NOT NULL DEFAULT 'agricultural',
+    status BOOLEAN DEFAULT TRUE,
+    phone_number VARCHAR(20),
+    email VARCHAR(255),
+    owner_id INT,
+    farm_id INT,
+    inventory_count INT DEFAULT 0,
+    sales_count INT DEFAULT 0,
+    revenue FLOAT DEFAULT 0.0,
+    last_stock_update DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    date_created DATETIME DEFAULT CURRENT_TIMESTAMP,
+    date_updated DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    created_by INT,
+    modified_by INT,
+    FOREIGN KEY (owner_id) REFERENCES user(id) ON DELETE SET NULL,
+    FOREIGN KEY (farm_id) REFERENCES farm(id) ON DELETE SET NULL,
+    FOREIGN KEY (created_by) REFERENCES user(id) ON DELETE SET NULL,
+    FOREIGN KEY (modified_by) REFERENCES user(id) ON DELETE SET NULL
+);
+
+CREATE TABLE product (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    price FLOAT NOT NULL,
+    stock INT DEFAULT 0,
+    store_id INT NOT NULL,
+    FOREIGN KEY (store_id) REFERENCES store(id) ON DELETE CASCADE
+);
