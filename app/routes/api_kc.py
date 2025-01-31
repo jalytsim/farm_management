@@ -3,7 +3,7 @@ from datetime import datetime
 from flask import Blueprint, jsonify, request
 from app.models import CropCoefficient, db
 
-bp = Blueprint('api_crop_coefficient', __name__, url_prefix='/api/cropcoefficient')
+bp = Blueprint('api_kc', __name__, url_prefix='/api/kc')
 
 # Get all crop coefficient records
 @bp.route('/', methods=['GET'])
