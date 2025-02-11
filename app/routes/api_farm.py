@@ -87,7 +87,7 @@ def all():
 @bp.route('/create', methods=['POST'])
 @jwt_required()
 def create_farm():
-    identity = get_jwt_identity()  # Returns {'id': user.id, 'user_type': user.user_type}
+    identity = get_jwt_identity()
     user_id = identity['id']
     
     user = User.query.get(user_id)
@@ -97,12 +97,22 @@ def create_farm():
     
     data = request.json
     logging.info("Form data received: %s", data)
-    print("============================++++++++++++++++++===========================",data)
+
     try:
-        # Ensure geolocation is handled properly
         geolocation = data['geolocation']
         if not geolocation:
             return jsonify({"msg": "Geolocation is required"}), 400
+        
+        # Check if farm already exists based on unique constraints
+        existing_farm = Farm.query.filter_by(
+            name=data['name'],
+            district_id=data['district_id'],
+            geolocation=geolocation,
+            cin=data['cin'],
+        ).first()
+
+        if existing_farm:
+            return jsonify({"msg": "Farm already exists", "farm_id": existing_farm.farm_id}), 409  # 409 Conflict
         
         # Call utility to create farm
         new_farm = farm_utils.create_farm(
@@ -111,9 +121,9 @@ def create_farm():
             subcounty=data['subcounty'],
             farmergroup_id=data['farmergroup_id'],
             district_id=data['district_id'],
-            geolocation=geolocation,  # Expecting 'latitude,longitude' as a string
+            geolocation=geolocation,
             phonenumber1=data.get('phonenumber1'),
-            phonenumber2=data.get('phonenumber2', ''),  # Optional field
+            phonenumber2=data.get('phonenumber2', ''),
             gender=data['gender'], 
             cin=data['cin'],
         )
@@ -123,6 +133,68 @@ def create_farm():
     except Exception as e:
         logging.error(f"Error creating farm: {e}")
         return jsonify({"msg": "Error creating farm", "error": str(e)}), 500
+
+@bp.route('/bulk_create', methods=['POST'])
+@jwt_required()
+def bulk_create_farms():
+    identity = get_jwt_identity()
+    user_id = identity['id']
+    
+    user = User.query.get(user_id)
+    
+    if not user or not user.id_start:
+        return jsonify({"msg": "User id_start is not defined"}), 400
+    
+    data = request.json
+    logging.info("Bulk form data received: %s", data)
+    
+    if not data:
+        return jsonify({"msg": "Invalid data format. Expected a list of farm entries."}), 400
+
+    created_farms = []
+    existing_farms = []
+
+    try:
+        for entry in data:
+            if 'geolocation' not in entry or not entry['geolocation']:
+                return jsonify({"msg": "Geolocation is required for all farm entries"}), 400
+
+            # Check if farm already exists
+            existing_farm = Farm.query.filter_by(
+                name=entry['name'],
+                district_id=entry['district_id'],
+                geolocation=entry['geolocation'],
+                gender=entry['gender'],
+                cin=entry['cin'],
+            ).first()
+
+            print(entry)
+
+            if existing_farm:
+                existing_farms.append({"name": entry['name'], "farm_id": existing_farm.farm_id})
+                continue  # Skip duplicate entries
+
+            # Create new farm
+            new_farm = farm_utils.create_farm(
+                user=user,
+                name=entry['name'],
+                subcounty=entry['subcounty'],
+                farmergroup_id=entry['farmergroup_id'],
+                district_id=entry['district_id'],
+                geolocation=entry['geolocation'],
+                phonenumber1=entry.get('phonenumber1'),
+                phonenumber2=entry.get('phonenumber2', ''),
+                gender=entry['gender'],
+                cin=entry['cin'],
+            )
+
+            created_farms.append(new_farm.farm_id)
+
+        return jsonify({"success": True, "created_farms": created_farms, "existing_farms": existing_farms}), 201
+
+    except Exception as e:
+        logging.error(f"Error creating farms: {e}")
+        return jsonify({"msg": "Error creating farms", "error": str(e)}), 500
 
 
 @bp.route('/<farm_id>/update', methods=['POST'])
