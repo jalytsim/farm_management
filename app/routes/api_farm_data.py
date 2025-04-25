@@ -102,3 +102,21 @@ def delete_farmdata(id):
     farmdata = farmdata_utils.get_farmdata_by_id(id)
     farmdata_utils.delete_farmdata(farmdata)
     return jsonify({"msg": "FarmData deleted successfully."})
+
+@bp.route('/count/total', methods=['GET'])
+def count_total_farmdata():
+    total = FarmData.query.count()
+    return jsonify({
+        'status': 'success',
+        'total_farmdata': total
+    })
+
+
+@bp.route('/count/by-farm/<int:farm_id>', methods=['GET'])
+def count_farmdata_by_farm(farm_id):
+    count = FarmData.query.filter_by(farm_id=farm_id).count()
+    return jsonify({
+        'status': 'success',
+        'farm_id': farm_id,
+        'farmdata_count': count
+    })

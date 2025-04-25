@@ -1,3 +1,4 @@
+from datetime import datetime
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.models import Farm, User
@@ -305,3 +306,53 @@ def get_farm_props(farm_id):
             'status': 'error',
             'message': 'No data found for the provided farm ID'
         }), 404
+    
+
+@bp.route('/count/total', methods=['GET'])
+@jwt_required()
+def count_total_farms():
+    total = Farm.query.count()
+    return jsonify({
+        'status': 'success',
+        'total_farms': total
+    })
+
+
+@bp.route('/count/by-user', methods=['GET'])
+@jwt_required()
+def count_farms_by_user():
+    identity = get_jwt_identity()
+    user_id = identity['id']
+    
+    count = Farm.query.filter_by(created_by=user_id).count()
+    return jsonify({
+        'status': 'success',
+        'user_id': user_id,
+        'farm_count': count
+    })
+
+@bp.route('/count/by-month', methods=['GET'])
+@jwt_required()
+def api_count_farms_by_month():
+    year = request.args.get('year', type=int)
+    district_id = request.args.get('district_id', type=int)
+    farmergroup_id = request.args.get('farmergroup_id', type=int)
+    created_by = request.args.get('created_by', type=int)
+
+    monthly_counts = farm_utils.count_farms_by_month(
+        year=year,
+        district_id=district_id,
+        farmergroup_id=farmergroup_id,
+        created_by=created_by
+    )
+
+    return jsonify({
+        "status": "success",
+        "year": year or datetime.utcnow().year,
+        "filters_applied": {
+            "district_id": district_id,
+            "farmergroup_id": farmergroup_id,
+            "created_by": created_by
+        },
+        "monthly_counts": monthly_counts
+    })

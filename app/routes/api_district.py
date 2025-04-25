@@ -46,3 +46,23 @@ def api_delete_district_route(district_id):
         return jsonify({"msg": "District deleted successfully"})
     else:
         return jsonify({"msg": "District not found"}), 404
+    
+@bp.route('/count/by-region/<string:region>', methods=['GET'])
+def api_count_districts_by_region(region):
+    districts = get_all_districts()
+    filtered = [d for d in districts if d.region.lower() == region.lower()]
+    return jsonify({
+        'status': 'success',
+        'region': region,
+        'district_count': len(filtered)
+    })
+
+
+@bp.route('/count/total', methods=['GET'])
+def api_count_all_districts():
+    districts = get_all_districts()
+    total = len(districts)
+    return jsonify({
+        'status': 'success',
+        'total_districts': total
+    })

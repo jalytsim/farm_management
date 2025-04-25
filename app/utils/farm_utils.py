@@ -1,4 +1,5 @@
 from datetime import datetime
+from sqlalchemy import extract, func, and_
 from flask_login import current_user
 from app import db
 from app.models import Farm, FarmData, District, FarmerGroup
@@ -217,3 +218,32 @@ def delete_farm(farm_id):
         db.session.commit()
     else:
         raise ValueError(f"Farm ID {farm_id} does not exist.")
+    
+def count_farms_by_month(year=None, district_id=None, farmergroup_id=None, created_by=None):
+    if not year:
+        year = datetime.utcnow().year
+
+    filters = [extract('year', Farm.created_at) == year]
+
+    if district_id:
+        filters.append(Farm.district_id == district_id)
+    if farmergroup_id:
+        filters.append(Farm.farmergroup_id == farmergroup_id)
+    if created_by:
+        filters.append(Farm.created_by == created_by)
+
+    farm_counts = (
+        db.session.query(
+            extract('month', Farm.created_at).label('month'),
+            func.count(Farm.farm_id).label('count')
+        )
+        .filter(and_(*filters))
+        .group_by('month')
+        .order_by('month')
+        .all()
+    )
+
+    return [
+        {"month": int(month), "count": count}
+        for month, count in farm_counts
+    ]

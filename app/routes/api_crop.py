@@ -85,6 +85,21 @@ def get_crop_by_id(category_id):
             'message': 'No data found for the provided farm ID'
         }), 404
 
+@api_crop_bp.route('/count/by-user/<int:user_id>', methods=['GET'])
+def count_crops_by_user(user_id):
+    count = Crop.query.filter_by(created_by=user_id).count()
+    return jsonify({
+        'status': 'success',
+        'user_id': user_id,
+        'crop_count': count
+    })
 
 
+@api_crop_bp.route('/count/total', methods=['GET'])
+def count_all_crops():
+    total = Crop.query.count()
+    return jsonify({
+        'status': 'success',
+        'total_crops': total
+    })
 
