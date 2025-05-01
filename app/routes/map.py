@@ -46,13 +46,13 @@ async def gfw_async(owner_type, owner_id):
         'landmark_indigenous_and_community_lands',
         'gfw_soil_carbon',
         'wur_radd_alerts',
+        'tsc_tree_cover_loss_drivers',
     ]
     
     # Define pixels for each dataset
     dataset_pixels = {
         'jrc_global_forest_cover': [
             'wri_tropical_tree_cover_extent__decile',
-            'tsc_tree_cover_loss_drivers__driver'
         ],
         'gfw_soil_carbon': [
             'wdpa_protected_areas__iucn_cat',
@@ -72,6 +72,9 @@ async def gfw_async(owner_type, owner_id):
         'wri_tropical_tree_cover_percent': [
             'SUM(area__ha)',
         ],
+        'tsc_tree_cover_loss_drivers':[
+            'tsc_tree_cover_loss_drivers__driver',
+         ],
     }
     
     # Get coordinates

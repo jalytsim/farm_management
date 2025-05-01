@@ -80,11 +80,23 @@ async def farmerReport(farm_id):
     data, status_code = await gfw_async(owner_type='farmer', owner_id=farm_id)
     if status_code != 200:
         return jsonify(data), status_code
-    print(farm_info)
+
+    # ✅ Regrouper les résultats par dataset
+    report_by_dataset = {}
+    for item in data['dataset_results']:
+        dataset = item['dataset']
+        if dataset not in report_by_dataset:
+            report_by_dataset[dataset] = []
+        report_by_dataset[dataset].append({
+            "pixel": item["pixel"],
+            "data_fields": item["data_fields"],
+            "coordinates": item["coordinates"]
+        })
     return jsonify({
-        "farm_info": farm_info,
-        "report": data['dataset_results']
-    }), 200
+    "farm_info": farm_info,
+    "report": report_by_dataset  # <-- format dict au lieu de liste
+}), 200
+
 
 
 @bp.route('/farm/<string:farm_id>/CarbonReport', methods=['GET'])
