@@ -38,7 +38,7 @@ def register_blueprints(app):
             api_point,api_forest,
             api_qr,api_qr,api_gfw,api_grade,
               api_irrigations,api_kc,api_pays,
-              api_user, api_store, api_product, api_dashboard,
+              api_user, api_store, api_product, api_dashboard,api_eudr,
     )
     
     blueprints = [
@@ -48,7 +48,7 @@ def register_blueprints(app):
         district.bp, tree.bp, graph.bp, solar.bp, stgl.bp, weather.bp, 
         api_farm.bp, api_farm_data.bp,api_producecategory.bp,api_district.bp,
         api_farmer_group.bp,api_point.bp,api_forest.bp,api_qr.bp,api_gfw.bp,api_pays.bp,api_kc.bp,api_irrigations.bp,
-        api_grade.bp,api_user.bp,api_store.api_store_bp, api_product.api_product_bp, api_dashboard.dashboard_api_bp,
+        api_grade.bp,api_user.bp,api_store.api_store_bp, api_product.api_product_bp, api_dashboard.dashboard_api_bp,api_eudr.api_eudr_bp,
 
     ]
     
