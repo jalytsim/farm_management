@@ -12,18 +12,20 @@ class EUDRClient:
         self.username = username
         self.auth_key = auth_key
         self.client_id = client_id
-        self.submission_url = 'https://eudr.webcloud.ec.europa.eu/tracesnt/ws/EUDRSubmissionServiceV1?wsdl'
-        self.retrieval_url = 'https://eudr.webcloud.ec.europa.eu/tracesnt/ws/EUDRRetrievalServiceV1?wsdl'
+        # self.submission_url = 'https://eudr.webcloud.ec.europa.eu/tracesnt/ws/EUDRSubmissionServiceV1?wsdl'
+        # self.retrieval_url = 'https://eudr.webcloud.ec.europa.eu/tracesnt/ws/EUDRRetrievalServiceV1?wsdl'
+        self.submission_url = 'https://acceptance.eudr.webcloud.ec.europa.eu/tracesnt/ws/EUDRSubmissionServiceV1?wsdl'
+        self.retrieval_url = 'https://acceptance.eudr.webcloud.ec.europa.eu/tracesnt/ws/EUDRRetrievalServiceV1?wsdl'
 
     def _generate_security(self):
         nonce_bytes = os.urandom(16)
-        nonce_b64 = base64.b64encode(nonce_bytes).decode()
+        nonce_b64 = base64.b64encode(nonce_bytes).decode('utf-8')
         created_dt = datetime.now(timezone.utc)
         created = created_dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z'
         expires = (created_dt + timedelta(seconds=60)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z'
         password_digest = base64.b64encode(
             hashlib.sha1(nonce_bytes + created.encode('utf-8') + self.auth_key.encode('utf-8')).digest()
-        ).decode()
+        ).decode('utf-8')
         token_id = f"UsernameToken-{uuid.uuid4().hex.upper()}"
         timestamp_id = f"TS-{uuid.uuid4().hex.upper()}"
 
@@ -57,7 +59,23 @@ class EUDRClient:
         return requests.post(url, data=envelope, headers={"Content-Type": "text/xml"}, verify=True)
 
     def submit_statement(self, geojson_data: dict, statement_data: dict):
-        geojson_b64 = base64.b64encode(json.dumps(geojson_data).encode()).decode()
+        geojson_b64 = base64.b64encode(json.dumps(geojson_data).encode('utf-8')).decode('utf-8')
+
+        producers = statement_data.get('producers', [])
+        producer_xml = ""
+        if producers and isinstance(producers, list):
+            for prod in producers:
+                country = prod.get('country', '')
+                name = prod.get('name', '')
+                producer_xml += f"""
+                    <v11:producers>
+                        <v11:country>{country}</v11:country>
+                        <v11:name>{name}</v11:name>
+                        <v11:geometryGeojson>{geojson_b64}</v11:geometryGeojson>
+                    </v11:producers>"""
+        else:
+            raise ValueError("'producers' must be a non-empty list of dictionaries.")
+
         body = f"""<v1:SubmitStatementRequest>
             <v1:operatorType>{statement_data.get('operatorType', 'OPERATOR')}</v1:operatorType>
             <v1:statement>
@@ -80,11 +98,7 @@ class EUDRClient:
                         <v11:scientificName>{statement_data['speciesInfo']['scientificName']}</v11:scientificName>
                         <v11:commonName>{statement_data['speciesInfo']['commonName']}</v11:commonName>
                     </v11:speciesInfo>
-                    <v11:producers>
-                        <v11:country>{statement_data['producers']['country']}</v11:country>
-                        <v11:name>{statement_data['producers']['name']}</v11:name>
-                        <v11:geometryGeojson>{geojson_b64}</v11:geometryGeojson>
-                    </v11:producers>
+                    {producer_xml}
                 </v11:commodities>
                 <v11:geoLocationConfidential>{str(statement_data.get('geoLocationConfidential', False)).lower()}</v11:geoLocationConfidential>
             </v1:statement>
@@ -92,7 +106,23 @@ class EUDRClient:
         return self._post(body, is_submission=True)
 
     def amend_statement(self, geojson_data: dict, ddsIdentifier: str, statement_data: dict):
-        geojson_b64 = base64.b64encode(json.dumps(geojson_data).encode()).decode()
+        geojson_b64 = base64.b64encode(json.dumps(geojson_data).encode('utf-8')).decode('utf-8')
+
+        producers = statement_data.get('producers', [])
+        producer_xml = ""
+        if producers and isinstance(producers, list):
+            for prod in producers:
+                country = prod.get('country', '')
+                name = prod.get('name', '')
+                producer_xml += f"""
+                    <v11:producers>
+                        <v11:country>{country}</v11:country>
+                        <v11:name>{name}</v11:name>
+                        <v11:geometryGeojson>{geojson_b64}</v11:geometryGeojson>
+                    </v11:producers>"""
+        else:
+            raise ValueError("'producers' must be a non-empty list of dictionaries.")
+
         body = f"""<v1:AmendStatementRequest>
             <v1:ddsIdentifier>{ddsIdentifier}</v1:ddsIdentifier>
             <v1:statement>
@@ -128,11 +158,7 @@ class EUDRClient:
                         <v11:scientificName>{statement_data['speciesInfo']['scientificName']}</v11:scientificName>
                         <v11:commonName>{statement_data['speciesInfo']['commonName']}</v11:commonName>
                     </v11:speciesInfo>
-                    <v11:producers>
-                        <v11:country>{statement_data['producers']['country']}</v11:country>
-                        <v11:name>{statement_data['producers']['name']}</v11:name>
-                        <v11:geometryGeojson>{geojson_b64}</v11:geometryGeojson>
-                    </v11:producers>
+                    {producer_xml}
                 </v11:commodities>
                 <v11:geoLocationConfidential>{str(statement_data.get('geoLocationConfidential', False)).lower()}</v11:geoLocationConfidential>
             </v1:statement>
