@@ -8,14 +8,14 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 class EUDRClient:
-    def __init__(self, username, auth_key, client_id='eudr-test'):
+    def __init__(self, username, auth_key, client_id='eudr-repository'):
         self.username = username
         self.auth_key = auth_key
         self.client_id = client_id
-        # self.submission_url = 'https://eudr.webcloud.ec.europa.eu/tracesnt/ws/EUDRSubmissionServiceV1?wsdl'
-        # self.retrieval_url = 'https://eudr.webcloud.ec.europa.eu/tracesnt/ws/EUDRRetrievalServiceV1?wsdl'
-        self.submission_url = 'https://acceptance.eudr.webcloud.ec.europa.eu/tracesnt/ws/EUDRSubmissionServiceV1?wsdl'
-        self.retrieval_url = 'https://acceptance.eudr.webcloud.ec.europa.eu/tracesnt/ws/EUDRRetrievalServiceV1?wsdl'
+        self.submission_url = 'https://eudr.webcloud.ec.europa.eu/tracesnt/ws/EUDRSubmissionServiceV1?wsdl'
+        self.retrieval_url = 'https://eudr.webcloud.ec.europa.eu/tracesnt/ws/EUDRRetrievalServiceV1?wsdl'
+        # self.submission_url = 'https://acceptance.eudr.webcloud.ec.europa.eu/tracesnt/ws/EUDRSubmissionServiceV1?wsdl'
+        # self.retrieval_url = 'https://acceptance.eudr.webcloud.ec.europa.eu/tracesnt/ws/EUDRRetrievalServiceV1?wsdl'
 
     def _generate_security(self):
         nonce_bytes = os.urandom(16)

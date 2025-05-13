@@ -7,7 +7,7 @@ import xml.etree.ElementTree as ET
 api_eudr_bp = Blueprint('api_eudr', __name__, url_prefix='/api/eudr')
 
 # Crée une instance du client EUDR (à adapter pour intégrer à un système de configuration sécurisé)
-eudr_client = EUDRClient(username="n00hsq5u", auth_key="nWy8y9w4HtDOcWMPdjjeGGkDIvoo7j13y3R9qT8j")
+eudr_client = EUDRClient(username="n00hsq5u", auth_key="axtAeJM0216XSNGfI7RCztDKOSh99NkuAjLmXAHR")
 def extract_dds_identifier(xml_text):
     try:
         root = ET.fromstring(xml_text)
