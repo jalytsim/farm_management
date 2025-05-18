@@ -1,5 +1,7 @@
 from flask import Blueprint, request, jsonify
 import requests
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 api_notifications_bp = Blueprint('api_notifications', __name__, url_prefix='/api/notifications')
 
@@ -14,7 +16,8 @@ def send_sms():
 
     try:
         url = f"https://188.166.125.28/nkusu-iot/api/nkusu-iot/sms?msg={message}&msisdns={phone}"
-        res = requests.get(url)
+        res = requests.get(url, verify=False)  # <-- désactive vérif SSL
         return jsonify({"status": res.status_code}), res.status_code
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
