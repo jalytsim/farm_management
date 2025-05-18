@@ -177,3 +177,25 @@ CREATE TABLE product (
     store_id INT NOT NULL,
     FOREIGN KEY (store_id) REFERENCES store(id) ON DELETE CASCADE
 );
+
+
+-- ################ATO NDRAY###############################
+CREATE TABLE `featureprice` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `feature_name` VARCHAR(100) NOT NULL UNIQUE,
+    `price` FLOAT NOT NULL
+);
+
+
+CREATE TABLE `paidfeatureaccess` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `user_id` INT,
+    `guest_phone_number` VARCHAR(20),
+    `feature_name` VARCHAR(100) NOT NULL,
+    `txn_id` VARCHAR(100) NOT NULL UNIQUE,
+    `payment_status` VARCHAR(50) DEFAULT 'pending',
+    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `access_expires_at` DATETIME DEFAULT NULL,
+    `usage_left` INT DEFAULT NULL,
+    FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON DELETE SET NULL
+);

@@ -76,8 +76,8 @@ class Farm(db.Model):
     geolocation = db.Column(db.String(255), nullable=False)
     phonenumber = db.Column(db.String(20), nullable=True)
     phonenumber2 = db.Column(db.String(20), nullable=True)
-    cin = db.Column(db.String, nullable=True)
-    gender = db.Column(db.String, nullable=True) 
+    cin = db.Column(db.String(20), nullable=True)
+    gender = db.Column(db.String(20), nullable=True) 
     date_created = db.Column(db.DateTime, default=datetime.utcnow)
     date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
@@ -130,7 +130,7 @@ class Point(db.Model):
     longitude = db.Column(db.Float, nullable=False)
     latitude = db.Column(db.Float, nullable=False)
     owner_type = db.Column(db.Enum('forest', 'farmer', 'tree'), nullable=False)
-    owner_id = db.Column(db.String, nullable=True)
+    owner_id = db.Column(db.String(100), nullable=True)
     district_id = db.Column(db.Integer, db.ForeignKey('district.id'), nullable=True)
     date_created = db.Column(db.DateTime, default=datetime.utcnow)
     date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -362,4 +362,25 @@ class Product(db.Model):
     def __repr__(self):
         return f"<Product {self.name} - Store {self.store_id}>"
     
+class PaidFeatureAccess(db.Model):
+    __tablename__ = 'paidfeatureaccess'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))  # pour utilisateurs connectés
+    guest_phone_number = db.Column(db.String(20), nullable=True)  # pour les invités
+    feature_name = db.Column(db.String(100), nullable=False)
+    txn_id = db.Column(db.String(100), nullable=False, unique=True)
+    payment_status = db.Column(db.String(50), default="pending")  # ex: pending, success, failed
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    access_expires_at = db.Column(db.DateTime, nullable=True)  # date limite d'accès
+    usage_left = db.Column(db.Integer, nullable=True)  # None = illimité
+
+
+    
+class FeaturePrice(db.Model):
+    __tablename__ = 'featureprice'
+    id = db.Column(db.Integer, primary_key=True)
+    feature_name = db.Column(db.String(100), unique=True, nullable=False)
+    price = db.Column(db.Float, nullable=False)
+
+
 

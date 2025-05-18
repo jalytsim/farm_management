@@ -2,7 +2,6 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_mysqldb import MySQL
 from flask_login import LoginManager
-from flask_migrate import Migrate
 from flask_cors import CORS
 from config import Config
 from flask_jwt_extended import JWTManager
@@ -10,7 +9,6 @@ from flask_jwt_extended import JWTManager
 db = SQLAlchemy()
 mysql = MySQL()
 login_manager = LoginManager()
-migrate = Migrate()
 jwt = JWTManager()
 
 @login_manager.user_loader
@@ -23,7 +21,6 @@ def init_extensions(app):
     db.init_app(app)
     mysql.init_app(app)
     login_manager.init_app(app)
-    migrate.init_app(app, db)
     jwt.init_app(app)
     CORS(app, resources={r"/*": {"origins": "*"}})
 
@@ -38,7 +35,7 @@ def register_blueprints(app):
             api_point,api_forest,
             api_qr,api_qr,api_gfw,api_grade,
               api_irrigations,api_kc,api_pays,
-              api_user, api_store, api_product, api_dashboard,api_eudr,
+              api_user, api_store, api_product, api_dashboard,api_eudr,api_payments,
     )
     
     blueprints = [
@@ -49,6 +46,7 @@ def register_blueprints(app):
         api_farm.bp, api_farm_data.bp,api_producecategory.bp,api_district.bp,
         api_farmer_group.bp,api_point.bp,api_forest.bp,api_qr.bp,api_gfw.bp,api_pays.bp,api_kc.bp,api_irrigations.bp,
         api_grade.bp,api_user.bp,api_store.api_store_bp, api_product.api_product_bp, api_dashboard.dashboard_api_bp,api_eudr.api_eudr_bp,
+        api_payments.api_payments_bp,
 
     ]
     
