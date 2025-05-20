@@ -5,19 +5,19 @@ from app.utils.scheduler import run_weather_check
 app = create_app()
 scheduler = BlockingScheduler()
 
-# @scheduler.scheduled_job('cron', hour=6, minute=0)
-# def scheduled_task():
-#     print("[🕕] Weather task started 6h.")
-#     run_weather_check(app)
-#     print("[✅] Weather task completed.\n")
+@scheduler.scheduled_job('cron', hour=6, minute=0)
+def scheduled_task():
+    print("[🕕] Weather task started 6h.")
+    run_weather_check(app)
+    print("[✅] Weather task completed.\n")
 
 # Run every minute (for testing)
 
-@scheduler.scheduled_job('cron', minute='*/1')
-def scheduled_task():
-    print("[🕕] Weather task started (testing every minute).")
-    run_weather_check(app)
-    print("[✅] Weather task completed.\n")
+# @scheduler.scheduled_job('cron', minute='*/1')
+# def scheduled_task():
+#     print("[🕕] Weather task started (testing every minute).")
+#     run_weather_check(app)
+#     print("[✅] Weather task completed.\n")
 
 if __name__ == '__main__':
     # Run the task immediately for testing

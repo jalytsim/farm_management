@@ -3,9 +3,9 @@ import requests
 from datetime import datetime
 
 # Seuils harmonisés (d’après tes valeurs JS)
-TEMP_THRESHOLD_LOW = 10         # °C, seuil froid
+TEMP_THRESHOLD_LOW = 15        # °C, seuil froid
 TEMP_THRESHOLD_HIGH = 30        # °C, seuil chaud
-HEAVY_RAIN_THRESHOLD = 5        # mm/h, seuil pluie forte
+HEAVY_RAIN_THRESHOLD = 10        # mm/h, seuil pluie forte
 STRONG_WIND_THRESHOLD = 20      # km/h, seuil vent fort
 DRYNESS_HUMIDITY_THRESHOLD = 30 # %, seuil humidité basse => sécheresse
 
