@@ -1,15 +1,18 @@
 from apscheduler.schedulers.blocking import BlockingScheduler
 from app import create_app
 from app.utils.scheduler import run_weather_check
+# from app.utils.schedulerpest import run_gdd_pest_check
+
 
 app = create_app()
 scheduler = BlockingScheduler()
 
 @scheduler.scheduled_job('cron', hour=6, minute=0)
 def scheduled_task():
-    print("[🕕] Weather task started 6h.")
+    print("[🕕] Weather and GDD Pest alert task started 6h.")
     run_weather_check(app)
-    print("[✅] Weather task completed.\n")
+    # run_gdd_pest_check(app)
+    print("[✅] Weather and GDD Pest alert task completed.\n")
 
 # Run every minute (for testing)
 
