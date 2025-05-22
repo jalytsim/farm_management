@@ -221,3 +221,99 @@ async def gfw_async_carbon(owner_type, owner_id):
     
     return {"dataset_results": dataset_results}, 200
 
+
+import asyncio
+
+async def gfw_async_from_geojson(geojson_geometry):
+    datasets = [
+        'gfw_radd_alerts',
+        'umd_tree_cover_loss',
+        'jrc_global_forest_cover',
+        'wri_tropical_tree_cover_extent',
+        'wri_tropical_tree_cover_percent',
+        'landmark_indigenous_and_community_lands',
+        'gfw_soil_carbon',
+        'wur_radd_alerts',
+        'tsc_tree_cover_loss_drivers',
+    ]
+
+    dataset_pixels = {
+        'jrc_global_forest_cover': [
+            'wri_tropical_tree_cover_extent__decile',
+        ],
+        'gfw_soil_carbon': [
+            'wdpa_protected_areas__iucn_cat',
+        ],
+        'umd_tree_cover_loss': [
+            'SUM(area__ha)',
+        ],
+        'landmark_indigenous_and_community_lands': [
+            'name',
+        ],
+        'gfw_radd_alerts': [
+            'SUM(area__ha)',
+        ],
+        'wri_tropical_tree_cover_extent': [
+            'SUM(area__ha)',
+        ],
+        'wri_tropical_tree_cover_percent': [
+            'SUM(area__ha)',
+        ],
+        'tsc_tree_cover_loss_drivers':[
+            'tsc_tree_cover_loss_drivers__driver',
+         ],
+    }
+
+    # Valider que la géométrie est au bon format
+    if not geojson_geometry or not isinstance(geojson_geometry, dict):
+        return {"error": "Invalid or missing GeoJSON geometry"}, 400
+
+    # Extraire le polygon
+    if geojson_geometry.get("type") == "FeatureCollection":
+        features = geojson_geometry.get("features", [])
+        polygon_feature = next((f for f in features if f["geometry"]["type"] == "Polygon"), None)
+        if not polygon_feature:
+            return {"error": "No valid Polygon found in FeatureCollection"}, 400
+        geometry = polygon_feature["geometry"]
+    elif geojson_geometry.get("type") == "Polygon":
+        geometry = geojson_geometry
+    else:
+        return {"error": "Unsupported GeoJSON geometry type"}, 400
+
+    tasks = []
+    for dataset in datasets:
+        pixels = dataset_pixels.get(dataset, [])
+        if not pixels:
+            continue
+
+        for pixel in pixels:
+            sql_query = f"SELECT {pixel} FROM results"
+            tasks.append(query_forest_watch_async(dataset, geometry, sql_query))
+
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    dataset_results = []
+    task_index = 0
+    for dataset in datasets:
+        pixels = dataset_pixels.get(dataset, [])
+        if not pixels:
+            continue
+
+        for pixel in pixels:
+            result = results[task_index]
+            task_index += 1
+
+            if isinstance(result, Exception):
+                data_fields = {"error": str(result)}
+            else:
+                data = result.get("data", [])
+                data_fields = data[0] if len(data) == 1 else data
+
+            dataset_results.append({
+                'dataset': dataset.replace('gfw_', '').replace('umd_', '').replace('_', ' '),
+                'pixel': pixel,
+                'data_fields': data_fields,
+                'coordinates': geometry["coordinates"]
+            })
+
+    return {"dataset_results": dataset_results}, 200

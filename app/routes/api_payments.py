@@ -9,7 +9,7 @@ from app.utils.feature_payment_utils import (
     has_guest_access,
     consume_feature_usage
 )
-from app.models import db
+from app.models import PaidFeatureAccess, db
 
 # Désactive les warnings SSL (utilisation temporaire uniquement)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -57,15 +57,36 @@ def initiate_payment():
         return jsonify({"error": str(e)}), 500
 
 
-# 2️⃣ VÉRIFIER STATUT PAIEMENT PAR txn_id
+from app.models import PaidFeatureAccess
+from app import db
+
 @api_payments_bp.route('/status/<txn_id>', methods=['GET'])
 def check_payment_status(txn_id):
     try:
         url = f"https://188.166.125.28/nkusu-iot/api/nkusu-iot/payments/{txn_id}"
         res = requests.get(url, verify=False)
-        return jsonify({"status": res.text}), 200
+
+        status_text = res.text.strip().lower()  # texte: "pending", "success", etc.
+        print(f"[DEBUG] Status reçu pour {txn_id} : {status_text}")
+
+        # Synchroniser la base de données
+        payment = PaidFeatureAccess.query.filter_by(txn_id=txn_id).first()
+        if payment:
+            if "success" in status_text or "confirmed" in status_text:
+                payment.payment_status = "success"
+            elif "failed" in status_text or "rejected" in status_text:
+                payment.payment_status = "failed"
+            elif "pending" in status_text:
+                payment.payment_status = "pending"
+            else:
+                payment.payment_status = "unknown"
+            db.session.commit()
+
+        return jsonify({"status": status_text}), 200
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 
 # 3️⃣ VÉRIFIER SI ACCÈS EST ACTIF (connecté ou invité)

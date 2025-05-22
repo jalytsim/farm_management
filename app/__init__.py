@@ -5,6 +5,11 @@ from flask_login import LoginManager
 from flask_cors import CORS
 from config import Config
 from flask_jwt_extended import JWTManager
+import tempfile
+from apscheduler.schedulers.background import BackgroundScheduler
+from app.utils.scheduler import run_weather_check
+from app.utils.schedulerpest import run_gdd_pest_check
+import os
 
 db = SQLAlchemy()
 mysql = MySQL()
@@ -15,6 +20,25 @@ jwt = JWTManager()
 def load_user(user_id):
     from app.models import User
     return User.query.get(int(user_id))
+
+def start_scheduler(app):
+    # Utilise un fichier de lock compatible avec tous les OS
+    lock_path = os.path.join(tempfile.gettempdir(), "farm_scheduler.lock")
+
+    if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or os.environ.get("RUN_MAIN") == "true":
+        if not os.path.exists(lock_path):
+            with open(lock_path, "w") as f:
+                f.write("running")
+
+            scheduler = BackgroundScheduler()
+            scheduler.add_job(lambda: run_weather_check(app), 'cron', hour=6, minute=0)
+            scheduler.add_job(lambda: run_gdd_pest_check(app), 'cron', hour=6, minute=5)
+            # scheduler.add_job(lambda: run_weather_check(app), 'cron', minute='*/1')
+            # scheduler.add_job(lambda: run_gdd_pest_check(app), 'cron', minute='*/1')
+            scheduler.start()
+            print("✅ Scheduler lancé dans un seul worker.")
+        else:
+            print("⚠️ Scheduler déjà lancé.")
 
 def init_extensions(app):
     """Initialize Flask extensions."""
@@ -67,6 +91,10 @@ def register_filters(app):
     app.jinja_env.filters['remove_gfw'] = remove_gfw
 
 def create_app():
+    lock_path = os.path.join(tempfile.gettempdir(), "farm_scheduler.lock")
+    if os.path.exists(lock_path):
+        os.remove(lock_path)
+
     app = Flask(__name__)
     app.config.from_object(Config)
     

@@ -1,6 +1,6 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint, json, jsonify, request
 from app.models import Crop, Farm, FarmData, Forest
-from app.routes.map import gfw_async, gfw_async_carbon
+from app.routes.map import gfw_async, gfw_async_carbon, gfw_async_from_geojson
 bp = Blueprint('api_gfw', __name__, url_prefix='/api/gfw')
 
 
@@ -182,3 +182,19 @@ async def CarbonReportforest(forest_id):
         "forest_info": forest_info,
         "report": data['dataset_results']
     }), 200
+    
+    
+@bp.route('/Geojson/ReportFromFile', methods=['POST'])
+async def carbon_report_from_file():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+
+    file = request.files['file']
+    try:
+        geojson_data = json.load(file)
+    except Exception as e:
+        return jsonify({'error': f'Invalid GeoJSON file: {str(e)}'}), 400
+
+    # Appel de la fonction asynchrone avec le GeoJSON
+    report, status_code = await gfw_async_from_geojson(geojson_data)
+    return jsonify(report), status_code

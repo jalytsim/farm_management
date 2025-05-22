@@ -1,5 +1,4 @@
 from alertspest import fetch_weather_data, detect_gdd_and_pest_alerts
-from app.models import db, Farm
 import requests
 
 ADMIN_PHONE = "256783130358"
@@ -11,6 +10,7 @@ PEST_ALERT_DESCRIPTION = {
 }
 
 def run_gdd_pest_check(app):
+    from app.models import db, Farm
     with app.app_context():
         farms = Farm.query.all()
 

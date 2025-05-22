@@ -1,5 +1,4 @@
 from alerts import fetch_weather_data, detect_anomalies
-from app.models import db, Farm
 import requests
 
 ADMIN_PHONE = "256783130358"  # Admin receives all alerts
@@ -14,6 +13,7 @@ ALERT_DESCRIPTIONS = {
 }
 
 def run_weather_check(app):
+    from app.models import db, Farm 
     with app.app_context():
         farms = Farm.query.all()
 
