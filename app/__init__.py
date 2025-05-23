@@ -31,8 +31,8 @@ def start_scheduler(app):
                 f.write("running")
 
             scheduler = BackgroundScheduler()
-            scheduler.add_job(lambda: run_weather_check(app), 'cron', hour=10, minute=30)
-            scheduler.add_job(lambda: run_gdd_pest_check(app), 'cron', hour=10, minute=35)
+            scheduler.add_job(lambda: run_weather_check(app), 'cron', hour=10, minute=45)
+            scheduler.add_job(lambda: run_gdd_pest_check(app), 'cron', hour=10, minute=43)
             # scheduler.add_job(lambda: run_weather_check(app), 'cron', minute='*/1')
             # scheduler.add_job(lambda: run_gdd_pest_check(app), 'cron', minute='*/1')
             scheduler.start()

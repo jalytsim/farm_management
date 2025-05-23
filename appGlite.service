@@ -6,7 +6,7 @@ After=network.target
 User=root
 Group=root
 WorkingDirectory=/root/farm_management
-ExecStart=/root/farm_management/venv/bin/gunicorn -b 0.0.0.0:5000 -w 4 run:app
+ExecStart=/root/farm_management/venv/bin/gunicorn -b 0.0.0.0:5000 -w 4 run:app --config gunicorn_config.py
 
 [Install]
 WantedBy=multi-user.target
