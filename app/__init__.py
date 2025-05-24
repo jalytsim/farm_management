@@ -22,23 +22,20 @@ def load_user(user_id):
     return User.query.get(int(user_id))
 
 def start_scheduler(app):
-    # Utilise un fichier de lock compatible avec tous les OS
     lock_path = os.path.join(tempfile.gettempdir(), "farm_scheduler.lock")
 
-    if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or os.environ.get("RUN_MAIN") == "true":
-        if not os.path.exists(lock_path):
-            with open(lock_path, "w") as f:
-                f.write("running")
+    # ✅ Supprimer la condition qui bloque Gunicorn
+    if not os.path.exists(lock_path):
+        with open(lock_path, "w") as f:
+            f.write("running")
 
-            scheduler = BackgroundScheduler()
-            scheduler.add_job(lambda: run_weather_check(app), 'cron', hour=10, minute=45)
-            scheduler.add_job(lambda: run_gdd_pest_check(app), 'cron', hour=10, minute=43)
-            # scheduler.add_job(lambda: run_weather_check(app), 'cron', minute='*/1')
-            # scheduler.add_job(lambda: run_gdd_pest_check(app), 'cron', minute='*/1')
-            scheduler.start()
-            print("✅ Scheduler lancé dans un seul worker.")
-        else:
-            print("⚠️ Scheduler déjà lancé.")
+        scheduler = BackgroundScheduler()
+        scheduler.add_job(lambda: run_weather_check(app), 'cron', hour=11, minute=20)
+        scheduler.add_job(lambda: run_gdd_pest_check(app), 'cron', hour=11, minute=25)
+        scheduler.start()
+        print("✅ Scheduler lancé dans un seul worker.")
+    else:
+        print("⚠️ Scheduler déjà lancé.")
 
 def init_extensions(app):
     """Initialize Flask extensions."""
