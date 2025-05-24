@@ -102,8 +102,10 @@ def create_app():
     register_blueprints(app)
     register_filters(app)
     
-    # Import models
     with app.app_context():
         from app.models import User
-    
+
+    # ✅ Démarrer le scheduler ici
+    start_scheduler(app)
+
     return app

@@ -199,3 +199,7 @@ CREATE TABLE `paidfeatureaccess` (
     `usage_left` INT DEFAULT NULL,
     FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON DELETE SET NULL
 );
+
+ALTER TABLE featureprice
+ADD COLUMN duration_days INT NULL AFTER price,
+ADD COLUMN usage_limit INT NULL AFTER duration_days;

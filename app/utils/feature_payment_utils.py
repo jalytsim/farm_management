@@ -2,21 +2,30 @@ from datetime import datetime, timedelta
 from app.models import PaidFeatureAccess, FeaturePrice, db
 
 def create_payment_attempt(user_id=None, guest_phone_number=None, feature_name=None, txn_id=None):
-    """Crée une tentative de paiement"""
+    """Crée une tentative de paiement avec configuration automatique"""
     feature = FeaturePrice.query.filter_by(feature_name=feature_name).first()
     if not feature:
         return None, "Unknown feature"
+
+    access_expires_at = (
+        datetime.utcnow() + timedelta(days=feature.duration_days)
+        if feature.duration_days else None
+    )
 
     new_payment = PaidFeatureAccess(
         user_id=user_id,
         guest_phone_number=guest_phone_number,
         feature_name=feature_name,
         txn_id=txn_id,
-        payment_status="pending"
+        payment_status="pending",
+        access_expires_at=access_expires_at,
+        usage_left=feature.usage_limit
     )
+
     db.session.add(new_payment)
     db.session.commit()
     return new_payment, feature.price
+
 
 
 def has_user_access(user_id, feature_name):

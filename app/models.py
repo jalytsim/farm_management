@@ -381,6 +381,9 @@ class FeaturePrice(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     feature_name = db.Column(db.String(100), unique=True, nullable=False)
     price = db.Column(db.Float, nullable=False)
+    duration_days = db.Column(db.Integer, nullable=True)  # Accès en jours (None = permanent)
+    usage_limit = db.Column(db.Integer, nullable=True)    # Nombre d'utilisations (None = illimité)
+
 
 
 

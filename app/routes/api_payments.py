@@ -11,17 +11,16 @@ from app.utils.feature_payment_utils import (
 )
 from app.models import PaidFeatureAccess, db
 
-# Désactive les warnings SSL (utilisation temporaire uniquement)
+# 🔒 Désactive les avertissements SSL (à ne pas faire en prod sans raison valable)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 api_payments_bp = Blueprint('api_payments', __name__, url_prefix='/api/payments')
 
-
-# 1️⃣ INITIER PAIEMENT (utilisateur connecté ou invité)
+# 1️⃣ INITIER UN PAIEMENT
 @api_payments_bp.route('/initiate', methods=['POST'])
 def initiate_payment():
     verify_jwt_in_request(optional=True)
-    identity = get_jwt_identity()  # ex: {'id': 2, 'user_type': 'admin'}
+    identity = get_jwt_identity()
     user_id = identity['id'] if isinstance(identity, dict) else identity
 
     data = request.get_json()
@@ -32,7 +31,6 @@ def initiate_payment():
     if not phone or not txn_id or not feature_name:
         return jsonify({"error": "Missing required fields"}), 400
 
-    # Crée la tentative de paiement
     payment, amount_or_error = create_payment_attempt(
         user_id=user_id if user_id else None,
         guest_phone_number=None if user_id else phone,
@@ -43,7 +41,7 @@ def initiate_payment():
     if not payment:
         return jsonify({"error": amount_or_error}), 400
 
-    # Appel de l'API externe de paiement (avec vérification SSL désactivée)
+    # 🔁 Appel à l'API de paiement externe
     url = f"https://188.166.125.28/nkusu-iot/api/nkusu-iot/payments?amount={amount_or_error}&msisdn={phone}&txnId={txn_id}"
     try:
         res = requests.post(url, verify=False)
@@ -57,19 +55,21 @@ def initiate_payment():
         return jsonify({"error": str(e)}), 500
 
 
-from app.models import PaidFeatureAccess
-from app import db
-
+# 2️⃣ VÉRIFIER LE STATUT D’UN PAIEMENT
 @api_payments_bp.route('/status/<txn_id>', methods=['GET'])
 def check_payment_status(txn_id):
     try:
         url = f"https://188.166.125.28/nkusu-iot/api/nkusu-iot/payments/{txn_id}"
         res = requests.get(url, verify=False)
 
-        status_text = res.text.strip().lower()  # texte: "pending", "success", etc.
+        status_text = res.text.strip().lower()
         print(f"[DEBUG] Status reçu pour {txn_id} : {status_text}")
 
-        # Synchroniser la base de données
+        if status_text == "expired":
+            print(f"[INFO] Statut 'expired' ignoré pour {txn_id} (non pris en charge par le fournisseur).")
+            return jsonify({"status": "ignored"}), 200
+
+        # 🔄 Mise à jour en BDD
         payment = PaidFeatureAccess.query.filter_by(txn_id=txn_id).first()
         if payment:
             if "success" in status_text or "confirmed" in status_text:
@@ -80,6 +80,7 @@ def check_payment_status(txn_id):
                 payment.payment_status = "pending"
             else:
                 payment.payment_status = "unknown"
+
             db.session.commit()
 
         return jsonify({"status": status_text}), 200
@@ -88,8 +89,7 @@ def check_payment_status(txn_id):
         return jsonify({"error": str(e)}), 500
 
 
-
-# 3️⃣ VÉRIFIER SI ACCÈS EST ACTIF (connecté ou invité)
+# 3️⃣ VÉRIFIER L’ACCÈS À UNE FONCTIONNALITÉ
 @api_payments_bp.route('/access/<feature_name>', methods=['GET'])
 def check_access(feature_name):
     verify_jwt_in_request(optional=True)
@@ -107,7 +107,7 @@ def check_access(feature_name):
     return jsonify({"access": has_access}), 200
 
 
-# 4️⃣ CONSOMMER UNE UTILISATION D'UNE FONCTIONNALITÉ
+# 4️⃣ CONSOMMER UNE UTILISATION D’UNE FONCTIONNALITÉ
 @api_payments_bp.route('/consume/<feature_name>', methods=['POST'])
 @jwt_required()
 def consume_feature(feature_name):
@@ -120,14 +120,13 @@ def consume_feature(feature_name):
     return jsonify({"success": False, "error": "Access denied or usage exceeded"}), 403
 
 
-# 5️⃣ LISTER LES ACCÈS UTILISATEUR
+# 5️⃣ LISTER LES FONCTIONNALITÉS PAYÉES PAR L’UTILISATEUR
 @api_payments_bp.route('/my-access', methods=['GET'])
 @jwt_required()
 def list_my_payments():
     identity = get_jwt_identity()
     user_id = identity['id'] if isinstance(identity, dict) else identity
 
-    from app.models import PaidFeatureAccess
     results = PaidFeatureAccess.query.filter_by(user_id=user_id).all()
 
     return jsonify([

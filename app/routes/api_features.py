@@ -10,19 +10,24 @@ api_feature_bp = Blueprint('api_feature', __name__, url_prefix='/api/feature')
 def get_all_feature_prices():
     features = FeaturePrice.query.all()
     return jsonify([
-        {
-            "id": f.id,
-            "feature_name": f.feature_name,
-            "price": f.price
-        } for f in features
+    {
+        "id": f.id,
+        "feature_name": f.feature_name,
+        "price": f.price,
+        "duration_days": f.duration_days,
+        "usage_limit": f.usage_limit
+    } for f in features
     ])
+
 
 @api_feature_bp.route('/price/create', methods=['POST'])
 def create_feature_price():
     data = request.json
     new_feature = FeaturePrice(
         feature_name=data['feature_name'],
-        price=data['price']
+        price=data['price'],
+        duration_days=data.get('duration_days'),
+        usage_limit=data.get('usage_limit')
     )
     db.session.add(new_feature)
     db.session.commit()
@@ -34,6 +39,8 @@ def edit_feature_price(id):
     data = request.json
     feature.feature_name = data.get('feature_name', feature.feature_name)
     feature.price = data.get('price', feature.price)
+    feature.duration_days = data.get('duration_days', feature.duration_days)
+    feature.usage_limit = data.get('usage_limit', feature.usage_limit)
     db.session.commit()
     return jsonify({"msg": "Feature price updated successfully."})
 
@@ -43,7 +50,9 @@ def get_feature_price(id):
     return jsonify({
         "id": feature.id,
         "feature_name": feature.feature_name,
-        "price": feature.price
+        "price": feature.price,
+        "duration_days": feature.duration_days,
+        "usage_limit": feature.usage_limit
     })
 
 @api_feature_bp.route('/price/<int:id>/delete', methods=['DELETE'])
