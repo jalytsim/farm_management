@@ -16,7 +16,7 @@ def run_weather_check(app):
     from app.models import db, Farm 
     with app.app_context():
         farms = Farm.query.all()
-
+        print("✅ Scheduler WeatherCheck.")
         for farm in farms:
             try:
                 lat, lon = map(float, farm.geolocation.split(','))
