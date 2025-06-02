@@ -317,3 +317,79 @@ async def gfw_async_from_geojson(geojson_geometry):
             })
 
     return {"dataset_results": dataset_results}, 200
+
+async def gfw_async_carbon_from_geojson(geojson_data):
+    print("tonga atoa minny utils")
+    print(geojson_data)
+
+    datasets = [
+        'gfw_forest_carbon_gross_emissions',
+        'gfw_forest_carbon_gross_removals',
+        'gfw_forest_carbon_net_flux',
+        'gfw_full_extent_aboveground_carbon_potential_sequestration',
+    ]
+
+    dataset_pixels = {
+        'gfw_forest_carbon_gross_emissions': [
+            'SUM(gfw_forest_carbon_gross_emissions__Mg_CO2e)',
+        ],
+        'gfw_forest_carbon_gross_removals': [
+            'SUM(gfw_forest_carbon_gross_removals__Mg_CO2e)',
+        ],
+        'gfw_forest_carbon_net_flux': [
+            'SUM(gfw_forest_carbon_net_flux__Mg_CO2e)',
+        ],
+        'gfw_full_extent_aboveground_carbon_potential_sequestration': [
+            'SUM(gfw_reforestable_extent_belowground_carbon_potential_sequestration__Mg_C)',
+            'SUM(gfw_reforestable_extent_aboveground_carbon_potential_sequestration__Mg_C)',
+        ],
+    }
+
+    # Extraction géométrie
+    if geojson_data.get("type") == "FeatureCollection":
+        features = geojson_data.get("features", [])
+        if not features or "geometry" not in features[0]:
+            return {"error": "Invalid or missing geometry in GeoJSON"}, 400
+        geometry = features[0]["geometry"]
+    elif geojson_data.get("type") == "Feature":
+        geometry = geojson_data.get("geometry")
+    else:
+        geometry = geojson_data  # Peut déjà être une géométrie directe
+
+    if not geometry or geometry.get("type") != "Polygon" or not geometry.get("coordinates"):
+        return {"error": "Invalid or missing geometry in GeoJSON"}, 400
+
+    # Lancer les requêtes asynchrones
+    tasks = []
+    for dataset in datasets:
+        pixels = dataset_pixels.get(dataset, [])
+        for pixel in pixels:
+            sql_query = f"SELECT {pixel} FROM results"
+            tasks.append(query_forest_watch_async(dataset, geometry, sql_query))
+
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    dataset_results = []
+    task_index = 0
+    for dataset in datasets:
+        pixels = dataset_pixels.get(dataset, [])
+        for pixel in pixels:
+            result = results[task_index]
+            task_index += 1
+
+            if isinstance(result, Exception):
+                data_fields = {"error": str(result)}
+            else:
+                data = result.get("data", [])
+                data_fields = data[0] if len(data) == 1 else data
+
+            dataset_results.append({
+                'dataset': dataset.replace('gfw_', '').replace('umd_', '').replace('_', ' ').strip(),
+                'pixel': pixel,
+                'data_fields': data_fields,
+                'coordinates': geometry.get("coordinates", [])
+            })
+
+    print("ato amin'ny utils", dataset_results)
+
+    return {"dataset_results": dataset_results}, 200

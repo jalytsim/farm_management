@@ -30,8 +30,8 @@ def start_scheduler(app):
             f.write("running")
 
         scheduler = BackgroundScheduler()
-        scheduler.add_job(lambda: run_weather_check(app), 'cron', hour=11, minute=20)
-        scheduler.add_job(lambda: run_gdd_pest_check(app), 'cron', hour=11, minute=25)
+        # scheduler.add_job(lambda: run_weather_check(app), 'cron', hour=11, minute=20)
+        # scheduler.add_job(lambda: run_gdd_pest_check(app), 'cron', hour=11, minute=25)
         scheduler.start()
         print("✅ Scheduler lancé dans un seul worker.")
     else:

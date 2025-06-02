@@ -1,8 +1,40 @@
 from flask import Blueprint, json, jsonify, request
 from app.models import Crop, Farm, FarmData, Forest
-from app.routes.map import gfw_async, gfw_async_carbon, gfw_async_from_geojson
+from app.routes.map import gfw_async, gfw_async_carbon, gfw_async_carbon_from_geojson, gfw_async_from_geojson
+import os
+import hashlib
+from datetime import datetime
+from werkzeug.utils import secure_filename
+UPLOAD_FOLDER = 'uploads/geojsons'
+LOG_FILE = 'logs/geojson_uploads.log'
+ALLOWED_EXTENSIONS = {'geojson'}
+
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
 bp = Blueprint('api_gfw', __name__, url_prefix='/api/gfw')
 
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def file_hash(file_stream):
+    hasher = hashlib.sha256()
+    for chunk in iter(lambda: file_stream.read(4096), b""):
+        hasher.update(chunk)
+    file_stream.seek(0)
+    return hasher.hexdigest()
+
+def is_valid_geojson(file_stream):
+    try:
+        data = json.load(file_stream)
+        file_stream.seek(0)
+        return "type" in data and data["type"] in {"FeatureCollection", "Feature", "GeometryCollection"}
+    except Exception:
+        file_stream.seek(0)
+        return False
+
+def log_upload(ip, user_agent, filename, filehash, guest_id):
+    with open(LOG_FILE, "a") as log_file:
+        log_file.write(f"{datetime.utcnow().isoformat()} | GuestID: {guest_id} | IP: {ip} | UA: {user_agent} | File: {filename} | Hash: {filehash}\n")
 
 
 
@@ -185,16 +217,167 @@ async def CarbonReportforest(forest_id):
     
     
 @bp.route('/Geojson/ReportFromFile', methods=['POST'])
-async def carbon_report_from_file():
+async def report_from_file():
     if 'file' not in request.files:
         return jsonify({'error': 'No file provided'}), 400
 
     file = request.files['file']
-    try:
-        geojson_data = json.load(file)
-    except Exception as e:
-        return jsonify({'error': f'Invalid GeoJSON file: {str(e)}'}), 400
+    if file.filename == '':
+        return jsonify({'error': 'Empty filename'}), 400
 
-    # Appel de la fonction asynchrone avec le GeoJSON
-    report, status_code = await gfw_async_from_geojson(geojson_data)
-    return jsonify(report), status_code
+    if not allowed_file(file.filename):
+        return jsonify({'error': 'Only .geojson files are allowed'}), 400
+
+    if not is_valid_geojson(file.stream):
+        return jsonify({'error': 'Invalid GeoJSON content'}), 400
+
+    filehash = file_hash(file.stream)
+    guest_id = request.headers.get('X-Guest-ID', 'unknown_guest')
+    ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+    user_agent = request.headers.get('User-Agent', 'Unknown')
+    filename = secure_filename(file.filename)
+    saved_path = os.path.join(UPLOAD_FOLDER, f"{filehash}.geojson")
+
+    if os.path.exists(saved_path):
+    # Le fichier existe déjà : on lit son contenu
+        try:
+            with open(saved_path, 'r', encoding='utf-8') as f:
+                geojson_data = json.load(f)
+        except Exception as e:
+            return jsonify({'error': f'Error reading existing file: {str(e)}'}), 500
+
+        # On appelle l’analyse comme d’habitude
+        data, status_code = await gfw_async_from_geojson(geojson_data)
+        if status_code != 200:
+            return jsonify(data), status_code
+        
+        report_by_dataset = {}
+        for item in data['dataset_results']:
+            dataset = item['dataset']
+            if dataset not in report_by_dataset:
+                report_by_dataset[dataset] = []
+            report_by_dataset[dataset].append({
+                "pixel": item["pixel"],
+                "data_fields": item["data_fields"],
+                "coordinates": item["coordinates"]
+            })
+        
+        
+        return jsonify({
+            "message": "Duplicate file, using cached content",
+            "report": report_by_dataset,
+            "hash": filehash
+        }), 200
+
+
+    file.save(saved_path)
+    log_upload(ip, user_agent, filename, filehash, guest_id)
+
+    try:
+        geojson_data = json.load(open(saved_path))
+    except Exception as e:
+        return jsonify({'error': f'Could not parse saved file: {str(e)}'}), 400
+
+    data, status_code = await gfw_async_from_geojson(geojson_data)
+    if status_code != 200:
+            return jsonify(data), status_code
+        
+    report_by_dataset = {}
+    for item in data['dataset_results']:
+        dataset = item['dataset']
+        if dataset not in report_by_dataset:
+            report_by_dataset[dataset] = []
+        report_by_dataset[dataset].append({
+            "pixel": item["pixel"],
+            "data_fields": item["data_fields"],
+            "coordinates": item["coordinates"]
+        })
+    
+    
+    return jsonify({
+        "message": "file OK ",
+        "report": report_by_dataset,
+    }), 200
+    
+
+@bp.route('/Geojson/CarbonReportFromFile', methods=['POST'])
+async def carbon_report_from_file():
+    print("tonga ato amin'ny route ")
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'Empty filename'}), 400
+
+    if not allowed_file(file.filename):
+        return jsonify({'error': 'Only .geojson files are allowed'}), 400
+
+    if not is_valid_geojson(file.stream):
+        return jsonify({'error': 'Invalid GeoJSON content'}), 400
+
+    filehash = file_hash(file.stream)
+    guest_id = request.headers.get('X-Guest-ID', 'unknown_guest')
+    ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+    user_agent = request.headers.get('User-Agent', 'Unknown')
+    filename = secure_filename(file.filename)
+    saved_path = os.path.join(UPLOAD_FOLDER, f"{filehash}.geojson")
+
+    if os.path.exists(saved_path):
+        try:
+            with open(saved_path, 'r', encoding='utf-8') as f:
+                geojson_data = json.load(f)
+        except Exception as e:
+            return jsonify({'error': f'Error reading existing file: {str(e)}'}), 500
+
+        data, status_code = await gfw_async_carbon_from_geojson(geojson_data)
+        if status_code != 200:
+            return jsonify(data), status_code
+        
+        report_by_dataset = {}
+        for item in data['dataset_results']:
+            dataset = item['dataset']
+            if dataset not in report_by_dataset:
+                report_by_dataset[dataset] = []
+            report_by_dataset[dataset].append({
+                "pixel": item["pixel"],
+                "data_fields": item["data_fields"],
+                "coordinates": item["coordinates"]
+            })
+        
+        
+        return jsonify({
+            "message": "Duplicate file, using cached content",
+            "report": report_by_dataset,
+            "hash": filehash
+        }), 200
+        
+
+    file.save(saved_path)
+    log_upload(ip, user_agent, filename, filehash, guest_id)
+
+    try:
+        geojson_data = json.load(open(saved_path))
+    except Exception as e:
+        return jsonify({'error': f'Could not parse saved file: {str(e)}'}), 400
+
+    report, status_code = await gfw_async_carbon_from_geojson(geojson_data)
+    if status_code != 200:
+            return jsonify(data), status_code
+        
+    report_by_dataset = {}
+    for item in data['dataset_results']:
+        dataset = item['dataset']
+        if dataset not in report_by_dataset:
+            report_by_dataset[dataset] = []
+        report_by_dataset[dataset].append({
+            "pixel": item["pixel"],
+            "data_fields": item["data_fields"],
+            "coordinates": item["coordinates"]
+        })
+    
+    
+    return jsonify({
+        "message": "file OK ",
+        "report": report_by_dataset,
+    }), 200
