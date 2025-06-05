@@ -27,6 +27,7 @@ def initiate_payment():
     phone = data.get("phone_number")
     txn_id = data.get("txn_id")
     feature_name = data.get("feature_name")
+    print("FeatureName:",feature_name)
 
     if not phone or not txn_id or not feature_name:
         return jsonify({"error": "Missing required fields"}), 400
@@ -39,6 +40,7 @@ def initiate_payment():
     )
 
     if not payment:
+        print("[DEBUG] Échec création paiement :", amount_or_error)
         return jsonify({"error": amount_or_error}), 400
 
     # 🔁 Appel à l'API de paiement externe
