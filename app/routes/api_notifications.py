@@ -24,7 +24,7 @@ def send_sms():
     try:
         url = f"https://188.166.125.28/nkusu-iot/api/nkusu-iot/sms?msg={message}&msisdns={phone}"
         res = requests.get(url, verify=False)
-        return jsonify({"status": res.status_code}), res.status_code
+        return jsonify({"status message is sent to ": res.status_code}), res.status_code
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
