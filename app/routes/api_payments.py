@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request, jwt_required
 import requests
+import traceback
 import urllib3
 
 from app.utils.feature_payment_utils import (
@@ -19,42 +20,67 @@ api_payments_bp = Blueprint('api_payments', __name__, url_prefix='/api/payments'
 # 1️⃣ INITIER UN PAIEMENT
 @api_payments_bp.route('/initiate', methods=['POST'])
 def initiate_payment():
-    verify_jwt_in_request(optional=True)
-    identity = get_jwt_identity()
-    user_id = identity['id'] if isinstance(identity, dict) else identity
-
-    data = request.get_json()
-    phone = data.get("phone_number")
-    txn_id = data.get("txn_id")
-    feature_name = data.get("feature_name")
-    print("FeatureName:",feature_name)
-
-    if not phone or not txn_id or not feature_name:
-        return jsonify({"error": "Missing required fields"}), 400
-
-    payment, amount_or_error = create_payment_attempt(
-        user_id=user_id if user_id else None,
-        guest_phone_number=None if user_id else phone,
-        feature_name=feature_name,
-        txn_id=txn_id
-    )
-
-    if not payment:
-        print("[DEBUG] Échec création paiement :", amount_or_error)
-        return jsonify({"error": amount_or_error}), 400
-
-    # 🔁 Appel à l'API de paiement externe
-    url = f"https://188.166.125.28/nkusu-iot/api/nkusu-iot/payments?amount={amount_or_error}&msisdn={phone}&txnId={txn_id}"
     try:
-        res = requests.post(url, verify=False)
-        return jsonify({
-            "status": res.status_code,
-            "msg": res.text,
-            "amount": amount_or_error,
-            "user_type": "logged_in" if user_id else "guest"
-        }), res.status_code
+        # 🔒 JWT facultatif (utilisateur connecté ou invité)
+        verify_jwt_in_request(optional=True)
+        identity = get_jwt_identity()
+        user_id = identity['id'] if isinstance(identity, dict) else identity
+
+        # ✅ Lecture et validation du corps JSON
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Invalid or missing JSON body"}), 400
+
+        phone = data.get("phone_number")
+        txn_id = data.get("txn_id")
+        feature_name = data.get("feature_name")
+
+        print("✅ Reçu:", {"phone": phone, "txn_id": txn_id, "feature_name": feature_name})
+
+        if not phone or not txn_id or not feature_name:
+            return jsonify({"error": "Missing required fields"}), 400
+
+        # 🧾 Création du paiement
+        try:
+            payment, amount_or_error = create_payment_attempt(
+                user_id=user_id if user_id else None,
+                guest_phone_number=None if user_id else phone,
+                feature_name=feature_name,
+                txn_id=txn_id
+            )
+        except Exception as e:
+            print("[ERROR] create_payment_attempt:", str(e))
+            traceback.print_exc()
+            return jsonify({"error": "Internal server error (create_payment_attempt)"}), 500
+
+        if not payment:
+            print("[DEBUG] Échec création paiement:", amount_or_error)
+            return jsonify({"error": amount_or_error}), 400
+
+        # 🔁 Appel à l’API de paiement externe
+        url = f"https://188.166.125.28/nkusu-iot/api/nkusu-iot/payments?amount={amount_or_error}&msisdn={phone}&txnId={txn_id}"
+        print("🌐 Appel API paiement:", url)
+
+        try:
+            res = requests.post(url, verify=False)
+            print("📨 Réponse API externe:", res.status_code, res.text)
+
+            return jsonify({
+                "status": res.status_code,
+                "msg": res.text,
+                "amount": amount_or_error,
+                "user_type": "logged_in" if user_id else "guest"
+            }), res.status_code
+
+        except Exception as e:
+            print("[ERROR] API externe paiement:", str(e))
+            traceback.print_exc()
+            return jsonify({"error": f"Payment API call failed: {str(e)}"}), 500
+
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print("[ERROR] initiate_payment global:", str(e))
+        traceback.print_exc()
+        return jsonify({"error": "Unexpected server error"}), 500
 
 
 # 2️⃣ VÉRIFIER LE STATUT D’UN PAIEMENT

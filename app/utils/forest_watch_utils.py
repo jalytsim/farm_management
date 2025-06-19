@@ -3,7 +3,7 @@ import requests
 import aiohttp
 
 # Replace with your actual API key
-api_key = '2a63c69c-ab85-49c3-ba2c-f7456277fc6e'
+api_key = 'a7edcdb2-338e-4d67-a665-83da1c5fa7d0'
 
 
 async def query_forest_watch_async(dataset, geometry, sql_query):
