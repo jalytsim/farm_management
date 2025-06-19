@@ -5,7 +5,6 @@ from flask_login import LoginManager
 from flask_cors import CORS
 from config import Config
 from flask_jwt_extended import JWTManager
-import tempfile
 from apscheduler.schedulers.background import BackgroundScheduler
 from app.utils.scheduler import run_weather_check
 from app.utils.schedulerpest import run_gdd_pest_check
@@ -22,20 +21,15 @@ def load_user(user_id):
     return User.query.get(int(user_id))
 
 def start_scheduler(app):
-    lock_path = os.path.join(tempfile.gettempdir(), "farm_scheduler.lock")
-
-    # ✅ Supprimer la condition qui bloque Gunicorn
-    if not os.path.exists(lock_path):
-        with open(lock_path, "w") as f:
-            f.write("running")
-
+    # ✅ Lancer le scheduler uniquement dans le processus principal Gunicorn
+    if os.environ.get("RUN_MAIN") == "true":
         scheduler = BackgroundScheduler()
         # scheduler.add_job(lambda: run_weather_check(app), 'cron', hour=11, minute=20)
         # scheduler.add_job(lambda: run_gdd_pest_check(app), 'cron', hour=11, minute=25)
         scheduler.start()
-        print("✅ Scheduler lancé dans un seul worker.")
+        print("✅ Scheduler lancé dans le process principal.")
     else:
-        print("⚠️ Scheduler déjà lancé.")
+        print("⚠️ Ce n'est pas le process principal, scheduler ignoré.")
 
 def init_extensions(app):
     """Initialize Flask extensions."""
@@ -51,12 +45,10 @@ def register_blueprints(app):
         auth, farm, qr, map, main, forest, point, admin, 
         farmdata, tree, crop, farmergroup, producecategory, 
         district, weather, stgl, solar, graph, api_crop ,
-          api_farm, api_farm_data,api_producecategory,api_district,
-          api_farmer_group,
-            api_point,api_forest,
-            api_qr,api_qr,api_gfw,api_grade,
-              api_irrigations,api_kc,api_pays,
-              api_user, api_store, api_product, api_dashboard,api_eudr,api_payments,api_features,api_notifications,
+        api_farm, api_farm_data, api_producecategory, api_district,
+        api_farmer_group, api_point, api_forest, api_qr, api_gfw, api_grade,
+        api_irrigations, api_kc, api_pays,
+        api_user, api_store, api_product, api_dashboard, api_eudr, api_payments, api_features, api_notifications,
     )
     
     blueprints = [
@@ -64,11 +56,10 @@ def register_blueprints(app):
         point.bp, admin.admin_bp, farmdata.bp, crop.crop_bp, 
         api_crop.api_crop_bp, farmergroup.bp, producecategory.bp, 
         district.bp, tree.bp, graph.bp, solar.bp, stgl.bp, weather.bp, 
-        api_farm.bp, api_farm_data.bp,api_producecategory.bp,api_district.bp,
-        api_farmer_group.bp,api_point.bp,api_forest.bp,api_qr.bp,api_gfw.bp,api_pays.bp,api_kc.bp,api_irrigations.bp,
-        api_grade.bp,api_user.bp,api_store.api_store_bp, api_product.api_product_bp, api_dashboard.dashboard_api_bp,api_eudr.api_eudr_bp,
-        api_payments.api_payments_bp,api_features.api_feature_bp,api_notifications.api_notifications_bp,
-
+        api_farm.bp, api_farm_data.bp, api_producecategory.bp, api_district.bp,
+        api_farmer_group.bp, api_point.bp, api_forest.bp, api_qr.bp, api_gfw.bp, api_pays.bp, api_kc.bp, api_irrigations.bp,
+        api_grade.bp, api_user.bp, api_store.api_store_bp, api_product.api_product_bp, api_dashboard.dashboard_api_bp, api_eudr.api_eudr_bp,
+        api_payments.api_payments_bp, api_features.api_feature_bp, api_notifications.api_notifications_bp,
     ]
     
     for blueprint in blueprints:
@@ -88,7 +79,8 @@ def register_filters(app):
     app.jinja_env.filters['remove_gfw'] = remove_gfw
 
 def create_app():
-    lock_path = os.path.join(tempfile.gettempdir(), "farm_scheduler.lock")
+    # 🔁 Supprimer un éventuel ancien verrou (optionnel)
+    lock_path = os.path.join("/tmp", "farm_scheduler.lock")
     if os.path.exists(lock_path):
         os.remove(lock_path)
 
@@ -102,7 +94,7 @@ def create_app():
     with app.app_context():
         from app.models import User
 
-    # ✅ Démarrer le scheduler ici
+    # ✅ Lancer le scheduler de façon sécurisée
     start_scheduler(app)
 
     return app
