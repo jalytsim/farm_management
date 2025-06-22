@@ -123,10 +123,16 @@ def get_latest_planting_date(farm_id):
 
     if not latest: 
         return jsonify({'msg': 'Aucun enregistrement trouvé'}), 404
+    # 🔥 Récupération de la culture plantée
+    crop = Crop.query.get(latest.crop_id)
+    crop_name = crop.name if crop else None
 
     return jsonify({
         'farm_id': farm_id,
-        'planting_date': latest.planting_date.isoformat()
+        'planting_date': latest.planting_date.isoformat(),
+        'crop_name': crop_name     # ✅ ajouté ici
+    
+        
     }), 200
 
 @bp.route('/save-planting-date', methods=['GET'])
