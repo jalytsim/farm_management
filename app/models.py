@@ -384,6 +384,57 @@ class FeaturePrice(db.Model):
     duration_days = db.Column(db.Integer, nullable=True)  # Accès en jours (None = permanent)
     usage_limit = db.Column(db.Integer, nullable=True)    # Nombre d'utilisations (None = illimité)
 
+class EUDRStatement(db.Model):
+    __tablename__ = 'eudr_statements'
 
+    id = db.Column(db.Integer, primary_key=True)
 
+    # Identifiants
+    internal_reference_number = db.Column(db.String(255), nullable=False)  # <-- unique=True retiré
+    dds_identifier = db.Column(db.String(255), unique=True, nullable=True)
 
+    # Informations générales
+    activity_type = db.Column(db.String(50), nullable=True)
+    border_cross_country = db.Column(db.String(10), nullable=True)
+    country_of_activity = db.Column(db.String(100), nullable=True)
+    comment = db.Column(db.Text, nullable=True)
+    geo_location_confidential = db.Column(db.Boolean, default=False)
+
+    # Informations opérateur
+    operator_identifier_type = db.Column(db.String(100), nullable=True)
+    operator_identifier_value = db.Column(db.String(255), nullable=True)
+    operator_name = db.Column(db.String(255), nullable=True)
+    operator_country = db.Column(db.String(100), nullable=True)
+    operator_address = db.Column(db.String(255), nullable=True)
+    operator_email = db.Column(db.String(255), nullable=True)
+    operator_phone = db.Column(db.String(50), nullable=True)
+
+    # Informations produit
+    description_of_goods = db.Column(db.String(255), nullable=True)
+    hs_heading = db.Column(db.String(50), nullable=True)
+    scientific_name = db.Column(db.String(255), nullable=True)
+    common_name = db.Column(db.String(255), nullable=True)
+
+    # Mesures du produit
+    volume = db.Column(db.Float, nullable=True)
+    net_weight = db.Column(db.Float, nullable=True)
+    supplementary_unit = db.Column(db.String(50), nullable=True)
+    supplementary_unit_qualifier = db.Column(db.String(50), nullable=True)
+
+    # Producteurs (GeoJSON encodé en base64 ou brut)
+    producers_json = db.Column(db.Text, nullable=True)
+
+    # Logs de la dernière réponse SOAP
+    last_response_code = db.Column(db.Integer, nullable=True)
+    last_response_text = db.Column(db.Text, nullable=True)
+
+    reference_number = db.Column(db.String(255), nullable=True)
+    verification_code = db.Column(db.String(255), nullable=True)
+    status = db.Column(db.String(100), nullable=True)
+    status_date = db.Column(db.DateTime, nullable=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+
+    # Horodatage
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

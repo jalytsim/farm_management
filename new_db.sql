@@ -203,3 +203,55 @@ CREATE TABLE `paidfeatureaccess` (
 ALTER TABLE featureprice
 ADD COLUMN duration_days INT NULL AFTER price,
 ADD COLUMN usage_limit INT NULL AFTER duration_days;
+
+
+
+CREATE TABLE eudr_statements (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    -- Identifiants
+    internal_reference_number VARCHAR(255) NOT NULL,
+    dds_identifier VARCHAR(255) UNIQUE,
+    verification_number VARCHAR(255),
+
+    -- Informations générales
+    activity_type VARCHAR(50),
+    border_cross_country VARCHAR(10),
+    country_of_activity VARCHAR(100),
+    comment TEXT,
+    geo_location_confidential BOOLEAN DEFAULT FALSE,
+
+    -- Informations opérateur
+    operator_identifier_type VARCHAR(100),
+    operator_identifier_value VARCHAR(255),
+    operator_name VARCHAR(255),
+    operator_country VARCHAR(100),
+    operator_address VARCHAR(255),
+    operator_email VARCHAR(255),
+    operator_phone VARCHAR(50),
+
+    -- Informations produit
+    description_of_goods VARCHAR(255),
+    hs_heading VARCHAR(50),
+    scientific_name VARCHAR(255),
+    common_name VARCHAR(255),
+
+    -- Mesures du produit
+    volume FLOAT,
+    net_weight FLOAT,
+    supplementary_unit VARCHAR(50),
+    supplementary_unit_qualifier VARCHAR(50),
+
+    -- Producteurs (GeoJSON ou base64 encodé)
+    producers_json LONGTEXT,
+
+    -- Logs de dernière réponse (optionnel)
+    last_response_code INT,
+    last_response_text LONGTEXT,
+
+    -- Dates de création et de mise à jour
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+

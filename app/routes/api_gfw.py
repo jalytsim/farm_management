@@ -23,6 +23,23 @@ def file_hash(file_stream):
     file_stream.seek(0)
     return hasher.hexdigest()
 
+
+import requests
+from urllib.parse import urlencode
+
+def send_sms(phone, message):
+    if not phone or not message:
+        return
+
+    query = urlencode({"msg": message, "msisdns": phone})
+    url = f"https://188.166.125.28/nkusu-iot/api/nkusu-iot/sms?{query}"
+
+    try:
+        res = requests.get(url, verify=False)
+        print(f"✅ SMS envoyé à {phone} : {res.status_code}")
+    except Exception as e:
+        print(f"❌ Erreur SMS : {e}")
+
 def is_valid_geojson(file_stream):
     try:
         data = json.load(file_stream)

@@ -6,11 +6,11 @@ import base64
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
 from email.mime.text import MIMEText
+from urllib.parse import urlencode
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 api_notifications_bp = Blueprint('api_notifications', __name__, url_prefix='/api/notifications')
-
 
 @api_notifications_bp.route('/sms', methods=['POST'])
 def send_sms():
@@ -22,12 +22,16 @@ def send_sms():
         return jsonify({"error": "Missing phone or message"}), 400
 
     try:
-        url = f"https://188.166.125.28/nkusu-iot/api/nkusu-iot/sms?msg={message}&msisdns={phone}"
+        query = urlencode({
+            "msg": message,
+            "msisdns": phone
+        })
+
+        url = f"https://188.166.125.28/nkusu-iot/api/nkusu-iot/sms?{query}"
         res = requests.get(url, verify=False)
-        return jsonify({"status message is sent to ": res.status_code}), res.status_code
+        return jsonify({"status": f"Message sent to {phone}", "remote_status": res.status_code}), res.status_code
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 
 @api_notifications_bp.route('/email', methods=['POST'])
 def send_email_with_attachment():
