@@ -3,10 +3,36 @@ import requests
 
 ADMIN_PHONE = "256783130358"
 
+# Updated pest alert descriptions and messages
 PEST_ALERT_DESCRIPTION = {
-    "Fall Armyworm": "Risk of Fall Armyworm. Monitor your crops for leaf damage.",
-    "Aphids": "Aphid activity possible. Check for sticky residue and treat accordingly.",
-    "Stem Borers": "Stem Borer risk. Inspect stems for holes or damage.",
+    "Fall Armyworm": (
+        "Fall Armyworm development due to environmental conditions at your farm. "
+        "Monitor your crops for leaf damage and/or pest eggs emergence and take preventive actions."
+    ),
+    "Aphids": (
+        "Aphid activity possible due to environmental conditions at your farm. "
+        "Inspect for sticky residue on leaves and consider appropriate treatment measures."
+    ),
+    "Stem Borers": (
+        "Stem borer risk occurrence due to environmental conditions at your farm. "
+        "Inspect stems for holes or damage and implement remedial actions as needed."
+    ),
+    "Corn Earworm": (
+        "Corn earworm risk occurrence due to environmental conditions at your farm. "
+        "Make spot inspections to check for tunnels in kernels, premature fruit ripening, damage to corn silk, and take remedial action."
+    ),
+    "Black Cutworm": (
+        "Black cutworm risk occurrence due to environmental conditions at your farm. "
+        "Check for feeding holes in leaves, cut stems, wilting plants, and take remedial action."
+    ),
+    "Peach Twig Borer": (
+        "Peach twig borer risk occurrence due to environmental conditions at your farm. "
+        "Make spot inspections for wilting of young plants and take remedial action."
+    ),
+    "Coffee Berry Borer": (
+        "Coffee Berry Borer development due to environmental conditions at your farm. "
+        "Check for fruit drop of young green cherries, dark brown spots, and inspect cherries on branches for small holes or damaged beans."
+    ),
 }
 
 def run_gdd_pest_check(app):
@@ -29,36 +55,32 @@ def run_gdd_pest_check(app):
 
                 if pest_alerts:
                     print(f"[ALERT] Pest risk detected for '{farm.name}'")
-                    messages = [f"PEST ALERT for your farm: {farm.name}"]
+                    messages = []
 
                     for alert in pest_alerts:
-                        pest_names = ", ".join(alert["alerts"])
-                        message = f"\nTime: {alert['time']}\nRisk: {pest_names}"
-                        message += f"\nTemp: {alert['temperature']}°C"
-                        message += f"\nGDD Cumulative: {alert['gdd']}"
-
                         for pest in alert["alerts"]:
-                            if pest in PEST_ALERT_DESCRIPTION:
-                                message += f"\nAdvice: {PEST_ALERT_DESCRIPTION[pest]}"
+                            desc = PEST_ALERT_DESCRIPTION.get(pest)
+                            if desc:
+                                message = (
+                                    f"PEST Alert for your Farm: {farm.name}. {desc}"
+                                )
+                                messages.append(message)
+                                print(f"[MESSAGE] {message}")
 
-                        messages.append(message)
-                        print(message)
+                    final_msg = "\n\n".join(messages)
 
-                    final_msg = "\n".join(messages).strip()
-
-                    recipients = []
+                    recipients = [ADMIN_PHONE]
                     if farm.phonenumber:
-                        recipients.append(farm.phonenumber)
+                        recipients.insert(0, farm.phonenumber)
                     if farm.phonenumber2:
-                        recipients.append(farm.phonenumber2)
-                    recipients.append(ADMIN_PHONE)
+                        recipients.insert(1, farm.phonenumber2)
 
                     for phone in recipients:
                         try:
-                            response = requests.post("http://localhost:5000/api/notifications/sms", json={
-                                "phone": phone,
-                                "message": final_msg
-                            })
+                            response = requests.post(
+                                "http://localhost:5000/api/notifications/sms",
+                                json={"phone": phone, "message": final_msg}
+                            )
                             if response.status_code == 200:
                                 print(f"[SENT] Pest alert SMS sent to {phone}")
                             else:
