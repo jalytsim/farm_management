@@ -184,12 +184,13 @@ def get_by_internal_reference(reference):
         print("🧪 DEBUG - Statements reçus :", statements)
         try:
             for stmt_data in statements:
+                # 🛑 Ignore les entrées invalides ou WITHDRAWN
+                if not stmt_data.get("identifier") or stmt_data.get("status") == "WITHDRAWN":
+                    continue
+
                 print("📄 Traitement de l'entrée DDS :", stmt_data)
 
-                identifier = stmt_data.get("identifier")
-                if not identifier:
-                    continue  # Ignore les entrées invalides
-
+                identifier = stmt_data["identifier"]
                 record = EUDRStatement.query.filter_by(dds_identifier=identifier).first()
 
                 try:
@@ -220,11 +221,11 @@ def get_by_internal_reference(reference):
                     )
                     db.session.add(new_stmt)
 
-            # ✅ Ceci manquait
             db.session.commit()
 
         except Exception as e:
             db.session.rollback()
+            print("🔥 Exception attrapée :", traceback.format_exc())
             return jsonify({
                 "status": 500,
                 "error": "Exception raised during internal-ref sync.",
