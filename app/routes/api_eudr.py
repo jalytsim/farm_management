@@ -187,35 +187,33 @@ def get_by_internal_reference(reference):
                 print("📄 Traitement de l'entrée DDS :", stmt_data)
 
                 identifier = stmt_data.get("identifier")
+                if not identifier:
+                    continue  # ignore les entrées invalides
+
+                # Récupérer ou créer un enregistrement
                 record = EUDRStatement.query.filter_by(dds_identifier=identifier).first()
+
+                try:
+                    # Date parsing protégé
+                    raw_date = stmt_data.get("date")
+                    status_date = parser.isoparse(raw_date) if raw_date else None
+                except Exception as e:
+                    print("❌ Erreur parsing date :", raw_date, str(e))
+                    status_date = None
 
                 if record:
                     record.status = stmt_data.get("status", record.status)
-                    record.reference_number = stmt_data.get("referenceNumber", record.reference_number)
-                    record.verification_code = stmt_data.get("verificationNumber", record.verification_code)
-
-                    try:
-                        raw_date = stmt_data.get("date")
-                        if raw_date:
-                            record.status_date = parser.isoparse(raw_date)
-                    except Exception as e:
-                        print("❌ Erreur parsing date (update):", raw_date, str(e))
-
+                    record.reference_number = stmt_data.get("referenceNumber") or record.reference_number
+                    record.verification_code = stmt_data.get("verificationNumber") or record.verification_code
+                    record.status_date = status_date
                     record.modified_by = user_id
                     record.updated_at = datetime.utcnow()
                 else:
-                    try:
-                        raw_date = stmt_data.get("date")
-                        status_date = parser.isoparse(raw_date) if raw_date else None
-                    except Exception as e:
-                        print("❌ Erreur parsing date (nouveau):", raw_date, str(e))
-                        status_date = None
-
                     new_stmt = EUDRStatement(
                         dds_identifier=identifier,
                         internal_reference_number=stmt_data.get("internalReferenceNumber"),
-                        reference_number=stmt_data.get("referenceNumber"),
-                        verification_code=stmt_data.get("verificationNumber"),
+                        reference_number=stmt_data.get("referenceNumber") or None,
+                        verification_code=stmt_data.get("verificationNumber") or None,
                         status=stmt_data.get("status"),
                         status_date=status_date,
                         created_by=user_id,
@@ -224,7 +222,6 @@ def get_by_internal_reference(reference):
                     )
                     db.session.add(new_stmt)
 
-            db.session.commit()
 
         except Exception as e:
             db.session.rollback()
