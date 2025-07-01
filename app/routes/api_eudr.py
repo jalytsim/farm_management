@@ -188,13 +188,11 @@ def get_by_internal_reference(reference):
 
                 identifier = stmt_data.get("identifier")
                 if not identifier:
-                    continue  # ignore les entrées invalides
+                    continue  # Ignore les entrées invalides
 
-                # Récupérer ou créer un enregistrement
                 record = EUDRStatement.query.filter_by(dds_identifier=identifier).first()
 
                 try:
-                    # Date parsing protégé
                     raw_date = stmt_data.get("date")
                     status_date = parser.isoparse(raw_date) if raw_date else None
                 except Exception as e:
@@ -222,6 +220,8 @@ def get_by_internal_reference(reference):
                     )
                     db.session.add(new_stmt)
 
+            # ✅ Ceci manquait
+            db.session.commit()
 
         except Exception as e:
             db.session.rollback()
@@ -242,6 +242,7 @@ def get_by_internal_reference(reference):
             "error": "Unable to parse XML",
             "raw": response.text
         })
+
 
 
 @api_eudr_bp.route('/info/by-dds-id/<dds_id>', methods=['GET'])
