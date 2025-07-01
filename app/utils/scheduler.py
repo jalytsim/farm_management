@@ -58,13 +58,14 @@ def run_weather_check(app):
 
                     final_message = "\n".join(messages).strip()
 
-                    # Recipients: farmer(s) and admin
-                    recipients = []
-                    if farm.phonenumber:
-                        recipients.append(farm.phonenumber)
-                    if farm.phonenumber2:
-                        recipients.append(farm.phonenumber2)
-                    recipients.append(ADMIN_PHONE)
+                    # Recipients: only admin
+                    recipients = [ADMIN_PHONE]
+
+                    # Commented out: no sending to farmers
+                    # if farm.phonenumber:
+                    #     recipients.append(farm.phonenumber)
+                    # if farm.phonenumber2:
+                    #     recipients.append(farm.phonenumber2)
 
                     for phone in recipients:
                         try:
