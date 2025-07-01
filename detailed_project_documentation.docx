@@ -1,0 +1,57 @@
+# Farm Management Project Documentation
+
+## Overview
+
+This document provides a comprehensive overview of the directory structure, individual files, and their roles within the farm management project.
+
+## Directories and Files
+
+### app
+
+#### `__init__.py`
+Initializes the Flask application, integrating components such as the database, login management, and JWT. It registers blueprints for different routes and sets up scheduled tasks for background processes like weather and pest checks.
+
+#### `models.py`
+Defines SQLAlchemy models representing entities within the application. Key models include:
+- **`User`**: Manages user accounts, including fields for username, email, password, and user type.
+- **`District`**: Represents geographic areas, with details on region and administrative creators.
+- **`Farm`**: Model for farm-related data, linking with elements like `FarmerGroup` and `District`.
+- **`FarmData`**: Details specific data on farms, such as crop yield, planting dates, and more.
+
+### app/routes
+
+#### `__init__.py`
+Acts as the initializer for the routes package.
+
+#### `admin.py`
+Handles the admin dashboard and user management through protected routes. Admin has features to create, update, fetch, and delete users. Supports integration with React for API-based operations.
+
+#### `auth.py`
+Manages authentication procedures, providing JWT-based login and signup endpoints. Handles user sessions and dashboard redirection based on user type.
+
+#### `api_crop.py`
+Contains endpoints for managing crops, including operations to create, update, delete, and list crops, along with querying by category or user.
+
+### app/utils
+
+#### `scheduler.py`
+Executes regular weather checks for farms. Alerts are sent based on weather anomalies detected via APIs.
+
+#### `crop_utils.py`
+Provides utility functions for crop operations, including creation, updating, and deletion of crop records in the database.
+
+### app/static
+Includes static files such as CSS and JS files that support frontend operations for the application.
+
+### app/templates
+Contains HTML templates for rendering dynamic web pages, organized by their function, such as admin interfaces and crop management.
+
+### database
+Comprises SQL dump files used for initializing and creating backups of the application database.
+
+### UML
+Contains UML diagrams that offer visual representations of the application's architecture and process flows, aiding in understanding design and relationships.
+
+## Conclusion
+The document provides a detailed overview of the project, explaining the purpose and function of each file and directory within the farm management application.
+
