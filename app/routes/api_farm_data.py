@@ -54,13 +54,22 @@ def create_farmdata():
     return jsonify({"msg": "FarmData created successfully."}), 201
 
 @bp.route('/<int:id>/edit', methods=['PUT'])
+@jwt_required()
 def edit_farmdata(id):
+    identity = get_jwt_identity()
+    user = User.query.get(identity['id'])
+
     farmdata = farmdata_utils.get_farmdata_by_id(id)
-    data = request.json
-    if 'hs_code' in data:
-        farmdata.hs_code = data['hs_code']
-    farmdata_utils.update_farmdata(farmdata, data)
+    data = request.json or {}
+
+    # Évite de modifier les champs sensibles depuis le frontend
+    data.pop('timestamp', None)
+    data.pop('date_created', None)
+    data.pop('created_by', None)
+
+    farmdata_utils.update_farmdata(farmdata, data, user)
     return jsonify({"msg": "FarmData updated successfully."})
+
 
 @bp.route('/<int:id>', methods=['GET'])
 def get_farmdata(id):
@@ -89,9 +98,9 @@ def get_farmdata(id):
 
 @bp.route('/<int:id>/delete', methods=['DELETE'])
 def delete_farmdata(id):
-    farmdata = farmdata_utils.get_farmdata_by_id(id)
-    farmdata_utils.delete_farmdata(farmdata)
+    farmdata_utils.delete_farmdata(id)  # 👈 Passe l'ID au lieu de l'objet
     return jsonify({"msg": "FarmData deleted successfully."})
+
 
 @bp.route('/count/total', methods=['GET'])
 def count_total_farmdata():
