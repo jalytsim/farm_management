@@ -1,5 +1,5 @@
 from flask import Blueprint, json, jsonify, request
-from app.models import Crop, Farm, FarmData, Forest
+from app.models import Crop, District, Farm, FarmData, Forest
 from app.routes.map import gfw_async, gfw_async_carbon, gfw_async_carbon_from_geojson, gfw_async_from_geojson
 import os
 import hashlib
@@ -78,31 +78,33 @@ async def forestReport(forest_id):
         "report": data['dataset_results']
     }), 200
 
-
 @bp.route('/farm/<string:farm_id>/report', methods=['GET'])
 async def farmerReport(farm_id):
-    # Fetch farm information synchronously
+    # Fetch farm information
     print(farm_id)
     farm = Farm.query.filter_by(farm_id=farm_id).first()
     if farm is None:
         return jsonify({"error": "Farm not found"}), 404
+
+    # Fetch district by ID (jointure manuelle)
+    district = District.query.get(farm.district_id)
 
     # Create farm info dictionary
     farm_info = {
         'farm_id': farm.farm_id,
         'name': farm.name,
         'subcounty': farm.subcounty,
-        'district_name': 'N/A',
-        'district_region': 'N/A',
+        'district_name': district.name if district else 'N/A',
+        'district_region': district.region if district else 'N/A',
         'geolocation': farm.geolocation,
         'phonenumber': farm.phonenumber,
         'phonenumber2': farm.phonenumber2,
-        'date_created': farm.date_created.strftime('%Y-%m-%d %H:%M:%S'),
-        'date_updated': farm.date_updated.strftime('%Y-%m-%d %H:%M:%S'),
+        'date_created': farm.date_created.strftime('%Y-%m-%d %H:%M:%S') if farm.date_created else 'N/A',
+        'date_updated': farm.date_updated.strftime('%Y-%m-%d %H:%M:%S') if farm.date_updated else 'N/A',
         'crops': []
     }
 
-    # Fetch crops data synchronously
+    # Fetch crops data
     crops_data = FarmData.query.filter_by(farm_id=farm_id).all()
 
     # Populate crops information
@@ -119,7 +121,7 @@ async def farmerReport(farm_id):
             'harvest_date': data.harvest_date.strftime('%Y-%m-%d') if data.harvest_date else 'N/A',
             'expected_yield': data.expected_yield,
             'actual_yield': data.actual_yield,
-            'timestamp': data.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+            'timestamp': data.timestamp.strftime('%Y-%m-%d %H:%M:%S') if data.timestamp else 'N/A',
             'channel_partner': data.channel_partner,
             'destination_country': data.destination_country,
             'customer_name': data.customer_name
@@ -130,7 +132,7 @@ async def farmerReport(farm_id):
     if status_code != 200:
         return jsonify(data), status_code
 
-    # ✅ Regrouper les résultats par dataset
+    # Group results by dataset
     report_by_dataset = {}
     for item in data['dataset_results']:
         dataset = item['dataset']
@@ -141,10 +143,11 @@ async def farmerReport(farm_id):
             "data_fields": item["data_fields"],
             "coordinates": item["coordinates"]
         })
+
     return jsonify({
-    "farm_info": farm_info,
-    "report": report_by_dataset  # <-- format dict au lieu de liste
-}), 200
+        "farm_info": farm_info,
+        "report": report_by_dataset
+    }), 200
 
 
 

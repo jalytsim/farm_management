@@ -277,7 +277,9 @@ def get_farm_props(farm_id):
                 'subcounty': row[2],
                 'geolocation': row[3],
                 'farmergroup_name': row[4],
-                'district_name': row[5],
+                # 'district_name': row[5],
+                'district_name': row[6],
+
                 'district_region': row[6],
                 'crop_name': row[7],
                 'tilled_land_size': row[8],
