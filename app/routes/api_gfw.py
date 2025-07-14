@@ -5,6 +5,10 @@ import os
 import hashlib
 from datetime import datetime
 from werkzeug.utils import secure_filename
+from flask import Blueprint, request, send_file
+from weasyprint import HTML
+import tempfile
+
 UPLOAD_FOLDER = 'uploads/geojsons'
 LOG_FILE = 'logs/geojson_uploads.log'
 ALLOWED_EXTENSIONS = {'geojson'}
@@ -401,3 +405,18 @@ async def carbon_report_from_file():
         "message": "file OK ",
         "report": report_by_dataset,
     }), 200
+
+
+@bp.route('/generate-pdf', methods=['POST'])
+def generate_pdf():
+    data = request.json
+    html_content = data.get('html')
+
+    if not html_content:
+        return {"error": "No HTML provided"}, 400
+
+    # Crée un fichier temporaire pour le PDF
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_pdf:
+        HTML(string=html_content).write_pdf(temp_pdf.name)
+
+    return send_file(temp_pdf.name, mimetype='application/pdf', as_attachment=True, download_name='report.pdf')
