@@ -26,8 +26,8 @@ def start_scheduler(app):
     # ✅ Lancer le scheduler uniquement dans le processus principal Gunicorn
     if os.environ.get("RUN_MAIN") == "true":
         scheduler = BackgroundScheduler()
-        scheduler.add_job(lambda: run_weather_check(app), 'cron', hour=8, minute=30)
-        scheduler.add_job(lambda: run_gdd_pest_check(app), 'cron', hour=8, minute=35)
+        scheduler.add_job(lambda: run_weather_check(app), 'cron', hour=22, minute=59)
+        scheduler.add_job(lambda: run_gdd_pest_check(app), 'cron', hour=23, minute=00)
         scheduler.start()
         print("✅ Scheduler lancé dans le process principal.")
     else:

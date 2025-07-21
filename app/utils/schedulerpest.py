@@ -72,11 +72,11 @@ def run_gdd_pest_check(app):
                     # Send only to admin
                     recipients = [ADMIN_PHONE]
 
-                    # Commented out: no need to send to farmer phone numbers
-                    # if farm.phonenumber:
-                    #     recipients.insert(0, farm.phonenumber)
-                    # if farm.phonenumber2:
-                    #     recipients.insert(1, farm.phonenumber2)
+                    # Include farmer numbers if available
+                    if farm.phonenumber:
+                        recipients.insert(0, farm.phonenumber)
+                    if farm.phonenumber2:
+                        recipients.insert(1, farm.phonenumber2)
 
                     for phone in recipients:
                         try:
