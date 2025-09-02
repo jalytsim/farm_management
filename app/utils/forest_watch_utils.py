@@ -32,7 +32,7 @@ async def query_forest_watch_async(dataset, geometry, sql_query):
     # print(f"Dataset: {dataset}")
     # print(f"URL: {url}")
     # print(f"SQL Query: {sql_query}")
-    # print(f"Payload: {json.dumps(payload, indent=4)}")
+    print(f"Payload: {json.dumps(payload, indent=4)}")
     # print(f"Generated CURL command:\n{curl_command}")
 
     try:

@@ -236,11 +236,13 @@ async def gfw_async_from_geojson(geojson_geometry):
         'gfw_soil_carbon',
         'wur_radd_alerts',
         'tsc_tree_cover_loss_drivers',
+        'gfw_soil_carbon_stocks',
     ]
 
     dataset_pixels = {
         'jrc_global_forest_cover': [
-            'wri_tropical_tree_cover_extent__decile',
+            'is__jrc_global_forest_cover',
+            
         ],
         'gfw_soil_carbon': [
             'wdpa_protected_areas__iucn_cat',
@@ -263,6 +265,9 @@ async def gfw_async_from_geojson(geojson_geometry):
         'tsc_tree_cover_loss_drivers':[
             'tsc_tree_cover_loss_drivers__driver',
          ],
+         'gfw_soil_carbon_stocks': [
+            'SUM(area__ha)',
+        ],
     }
 
     # Valider que la géométrie est au bon format

@@ -2,12 +2,30 @@ from datetime import datetime
 from flask import Blueprint, jsonify, request
 from app.models import Store, Product, db
 
+from flask_jwt_extended import jwt_required, get_jwt_identity
+from app.models import Store, User
+
 api_store_bp = Blueprint('api_store', __name__, url_prefix='/api/store')
 
 # Récupérer tous les magasins
+
 @api_store_bp.route('/', methods=['GET'])
+@jwt_required()
 def get_stores():
-    stores = Store.query.all()
+    identity = get_jwt_identity()  # {'id': user.id, 'user_type': ...}
+    user_id = identity['id']
+
+    user = User.query.get(user_id)
+
+    # Pagination (optionnel)
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+
+    if user.is_admin:
+        stores = Store.query.paginate(page=page, per_page=per_page)
+    else:
+        stores = Store.query.filter_by(created_by=user_id).paginate(page=page, per_page=per_page)
+
     stores_list = [
         {
             "id": store.id,
@@ -23,9 +41,15 @@ def get_stores():
             "sales_count": store.sales_count,
             "revenue": store.revenue
         }
-        for store in stores
+        for store in stores.items
     ]
-    return jsonify(stores=stores_list)
+
+    return jsonify(
+        stores=stores_list,
+        total_pages=stores.pages,
+        current_page=stores.page,
+    )
+
 
 # Créer un magasin
 @api_store_bp.route('/create', methods=['POST'])

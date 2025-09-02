@@ -4,6 +4,9 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.models import Farm, User
 from app.utils import farm_utils
 import logging
+from datetime import datetime, date
+import datetime
+
 
 bp = Blueprint('api_farm', __name__, url_prefix='/api/farm')
 
@@ -260,15 +263,13 @@ def get_farm_by_id(farm_id):
             'status': 'error',
             'message': 'No data found for the provided farm ID'
         }), 404
+    
 
 @bp.route('/<farm_id>/allprop', methods=['GET'])
 def get_farm_props(farm_id):
-    # Retrieve farm properties using the utility function
     data = farm_utils.get_all_farm_properties(farm_id)
 
-    # Check if data is found
     if data:
-        # Manually construct the list of dictionaries
         result = []
         for row in data:
             result.append({
@@ -277,38 +278,27 @@ def get_farm_props(farm_id):
                 'subcounty': row[2],
                 'geolocation': row[3],
                 'farmergroup_name': row[4],
-                # 'district_name': row[5],
                 'district_name': row[6],
-
                 'district_region': row[6],
                 'crop_name': row[7],
                 'tilled_land_size': row[8],
                 'land_type': row[9],
-                'planting_date': row[10].isoformat() if row[10] else None,
+                'planting_date': row[10] if row[10] else None,
                 'season': row[11],
                 'quality': row[12],
                 'produce_weight': row[13],
-                'harvest_date': row[14].isoformat() if row[14] else None,
+                'harvest_date': row[14] if row[14] else None,
                 'expected_yield': row[15],
                 'actual_yield': row[16],
-                'timestamp': row[17].isoformat() if row[17] else None,
+                'timestamp': row[17].isoformat() if isinstance(row[17], (datetime.datetime, datetime.date)) else row[17],
                 'channel_partner': row[18],
                 'destination_country': row[19],
                 'customer_name': row[20],
             })
-
-        # Return the data as JSON
-        return jsonify({
-            'status': 'success',
-            'data': result
-        })
+        return jsonify({'status': 'success', 'data': result})
     else:
-        # Return an error message if no data is found
-        return jsonify({
-            'status': 'error',
-            'message': 'No data found for the provided farm ID'
-        }), 404
-    
+        return jsonify({'status': 'error', 'message': 'No data found for the provided farm ID'}), 404
+
 
 @bp.route('/count/total', methods=['GET'])
 @jwt_required()

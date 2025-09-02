@@ -420,3 +420,19 @@ def generate_pdf():
         HTML(string=html_content).write_pdf(temp_pdf.name)
 
     return send_file(temp_pdf.name, mimetype='application/pdf', as_attachment=True, download_name='report.pdf')
+
+
+@bp.route('/generate-receipt', methods=['POST'])
+def generate_receipt():
+    data = request.json
+    html_content = data.get('html')
+
+    if not html_content:
+        return {"error": "No HTML provided"}, 400
+
+    # CSS déjà inclus dans le HTML envoyé
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_pdf:
+        HTML(string=html_content).write_pdf(temp_pdf.name)
+
+    return send_file(temp_pdf.name, mimetype='application/pdf',
+                     as_attachment=True, download_name='receipt.pdf')
