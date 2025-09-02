@@ -1,13 +1,20 @@
 # alerts.py
 import requests
 from datetime import datetime
+from flask import Flask, request, jsonify
+from flask import Blueprint, flash, jsonify, render_template, redirect, request, url_for, send_file
 
-# Seuils harmonisés (d’après tes valeurs JS)
-TEMP_THRESHOLD_LOW = 15        # °C, seuil froid
-TEMP_THRESHOLD_HIGH = 30        # °C, seuil chaud
-HEAVY_RAIN_THRESHOLD = 10        # mm/h, seuil pluie forte
-STRONG_WIND_THRESHOLD = 20      # km/h, seuil vent fort
-DRYNESS_HUMIDITY_THRESHOLD = 30 # %, seuil humidité basse => sécheresse
+
+# Flask app
+app = Flask(__name__)
+bp = Blueprint('lesalerte', __name__)
+
+# Seuils météo
+TEMP_THRESHOLD_LOW = 15
+TEMP_THRESHOLD_HIGH = 30
+HEAVY_RAIN_THRESHOLD = 10
+STRONG_WIND_THRESHOLD = 20
+DRYNESS_HUMIDITY_THRESHOLD = 30
 
 def fetch_weather_data(lat, lon):
     url = (

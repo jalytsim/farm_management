@@ -1,6 +1,8 @@
 from datetime import datetime
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from alertspest import fetch_weather_data, detect_gdd_and_pest_alerts
+from alerts import detect_anomalies
 from app.models import Farm, User
 from app.utils import farm_utils
 import logging
@@ -348,3 +350,60 @@ def api_count_farms_by_month():
         },
         "monthly_counts": monthly_counts
     })
+@bp.route('/alerts', methods=['GET'])
+@jwt_required()
+def get_alerts():
+    from alertspest import fetch_weather_data, detect_gdd_and_pest_alerts
+    from alerts import detect_anomalies
+
+    farms = Farm.query.all()
+    results = []
+
+    for farm in farms:
+        try:
+            # Vérification géolocalisation
+            if not farm.geolocation or ',' not in farm.geolocation:
+                raise ValueError("Invalid geolocation format")
+
+            parts = farm.geolocation.split(',')
+            if len(parts) != 2:
+                raise ValueError("Geolocation must contain exactly 2 parts")
+
+            lat, lon = map(float, parts)
+            print(f"[INFO] Processing farm: {farm.name} at ({lat}, {lon})")
+
+            # Récupération des données météo
+            weather_data = fetch_weather_data(lat, lon)
+
+            # Vérification que les données sont bien une liste avec du contenu
+            if not weather_data or not isinstance(weather_data, list):
+                raise ValueError(f"Empty or invalid weather data for farm '{farm.name}'")
+
+            # Affiche un aperçu des 3 premières données pour déboguer
+            print(f"[DEBUG] {farm.name} weather data sample:", weather_data[:3])
+
+            # Détection des alertes
+            weather_alerts = detect_anomalies(weather_data)
+            pest_alerts = detect_gdd_and_pest_alerts(weather_data)
+
+            # Ajout au résultat
+            results.append({
+                "farm": {
+                    "id": farm.farm_id,
+                    "name": farm.name,
+                    "geolocation": farm.geolocation,
+                    "phonenumber": farm.phonenumber,
+                },
+                "weather_alerts": weather_alerts,
+                "pest_alerts": pest_alerts
+            })
+
+        except ValueError as ve:
+            print(f"[WARNING] {farm.name}: {ve}")
+        except IndexError as ie:
+            print(f"[ERROR] Index error with farm {farm.name}: {ie}")
+        except Exception as e:
+            print(f"[ERROR] Problem with farm {farm.name}: {e}")
+
+    print("[DEBUG] Final results:", results)
+    return jsonify(results)

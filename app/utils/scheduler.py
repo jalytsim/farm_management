@@ -62,10 +62,10 @@ def run_weather_check(app):
                     recipients = [ADMIN_PHONE]
 
                     # Commented out: no sending to farmers
-                    # if farm.phonenumber:
-                    #     recipients.append(farm.phonenumber)
-                    # if farm.phonenumber2:
-                    #     recipients.append(farm.phonenumber2)
+                    if farm.phonenumber:
+                        recipients.append(farm.phonenumber)
+                    if farm.phonenumber2:
+                        recipients.append(farm.phonenumber2)
 
                     for phone in recipients:
                         try:
