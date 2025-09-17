@@ -53,7 +53,7 @@ async def gfw_async(owner_type, owner_id):
     dataset_pixels = {
         'jrc_global_forest_cover': [
             'wri_tropical_tree_cover_extent__decile',
-            'is__jrc_global_forest_cover',
+            'SELECT SUM(area__ha) FROM results WHERE is__jrc_global_forest_cover > 0',
         ],
         'gfw_soil_carbon': [
             'wdpa_protected_areas__iucn_cat',

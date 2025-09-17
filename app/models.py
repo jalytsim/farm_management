@@ -440,3 +440,22 @@ class EUDRStatement(db.Model):
     # Horodatage
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class QRCode(db.Model):
+    __tablename__ = 'qrcode'
+    id = db.Column(db.Integer, primary_key=True)
+    hash_md5 = db.Column(db.String(32), unique=True, nullable=False)
+    data_base64 = db.Column(db.Text, nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    qr_type = db.Column(db.String(50), nullable=True)
+
+    # qui a créé et modifié
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+
+    # timestamps
+    date_created = db.Column(db.DateTime, default=datetime.utcnow)
+    date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<QRCode(id={self.id}, hash={self.hash_md5}, user={self.created_by})>"

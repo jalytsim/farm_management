@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Dynamic Receipt</title>
+  <style>
+    :root {
+      --bg: #f3f4f6;
+      --paper: #ffffff;
+      --primary: #0d9488;
+      --ink: #111111;
+      --muted: #555;
+      --border: #e5e7eb;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: var(--bg);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans";
+      color: var(--ink);
+    }
+
+    .receipt {
+      width: min(440px, 92vw);
+      background: var(--paper);
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, .08);
+      padding: 32px 28px;
+      text-align: center;
+      border: 1px solid var(--border);
+    }
+
+    .receipt .logo {
+      width: 70px;
+      height: auto;
+      margin: 0 auto 12px;
+      display: block;
+    }
+
+    .receipt .title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+      color: var(--primary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .receipt .subtitle {
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: var(--muted);
+      margin-bottom: 20px;
+    }
+
+    .desc {
+      color: var(--ink);
+      font-size: 0.95rem;
+      line-height: 1.45;
+      margin: 0 auto 24px;
+      max-width: 340px;
+    }
+
+    .qr-wrap {
+      display: grid;
+      place-items: center;
+      margin: 20px 0 22px; 
+    }
+
+    .qr {
+      width: min(65vw, 210px);
+      border-radius: 12px;
+      overflow: hidden;
+      background: #fff;
+      padding: 8px;
+      border: 2px solid var(--primary);
+    }
+
+    .qr img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .footer {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 18px;
+    }
+
+    /* Print styling */
+    @media print {
+      body {
+        display: block;
+        min-height: auto;
+        background: none;
+        padding: 0;
+      }
+
+      .receipt {
+        width: 100%;
+        max-width: none;
+        box-shadow: none;
+        border-radius: 0;
+        padding: 0;
+        border: none;
+      }
+
+      .row {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <article class="receipt" role="document" aria-label="Receipt with QR code">
+    <img class="logo" src="https://www.nkusu.com/parrotlogo.png" alt="Logo">
+    <h1 class="title">Nkusu Digital Stamps</h1>
+    <p class="subtitle">Official Receipt</p>
+
+    <p class="desc">{{ description }}</p>
+
+    <div class="qr-wrap">
+      <div class="qr">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data={{ qr_data }}" alt="QR code">
+      </div>
+    </div>
+
+    <p class="footer">Thank you for your trust • www.nkusu.com</p>
+  </article>
+</body>
+</html>

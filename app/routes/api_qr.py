@@ -1,208 +1,270 @@
-from flask import Blueprint, request, jsonify
-from flask_login import login_required
-from app.utils.qr_generator import generate_farm_data_json, generate_qr_codes_dynamic
-from flask import Blueprint, request, send_file, jsonify
-from io import BytesIO
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
-from reportlab.lib.units import mm
-from reportlab.lib.utils import ImageReader
-import qrcode as qrcode_lib
-
+from flask import Blueprint, request, jsonify, send_file, render_template
+from flask_jwt_extended import jwt_required, get_jwt_identity
+from app.models import QRCode
+from app import db
+import hashlib, base64, tempfile, json
+from playwright.sync_api import sync_playwright
+from sqlalchemy import func
+from datetime import datetime
 
 
 bp = Blueprint('api_qr', __name__, url_prefix='/api/qrcode')
 
-@bp.route('/')
-def qrcode2():
-    farm_id = 'WAK0002'
-    qr_data = generate_farm_data_json(farm_id)
-    # Here we would generate the QR code and return its data, but now we'll return JSON
-    return jsonify({
-        "farm_id": farm_id,
-        "qr_data": qr_data,
-        "message": "QR code data generated successfully"
-    }), 200
 
-@bp.route('/test')
-def test():
-    return jsonify({"message": "Test endpoint"}), 200
+# -----------------------------------------------------------
+# 🔹 UTILS : Préparer HTML multi-reçus pour le PDF
+# -----------------------------------------------------------
+def prepare_multi_receipt_html(receipts):
+    pages_html = ""
+    for start in range(0, len(receipts), 4):
+        batch = receipts[start:start+4]
+        while len(batch) < 4:
+            batch.append("<div class='empty'></div>")
+        slots_html = "".join([f"<div class='slot'>{r}</div>" for r in batch])
+        pages_html += f"<div class='page'>{slots_html}</div>"
 
-@bp.route('/generate_qr', methods=['POST'])
-def generate_qr():
-    if request.method == 'POST':
-        # farm_id = request.form['farm_id']
-        farm_id = 'WAK0002'
-        qr_data = generate_farm_data_json(farm_id)
-        # Here we would generate the QR code and return its data, but now we'll return JSON
-        return jsonify({
-            "farm_id": farm_id,
-            "qr_data": qr_data,
-            "message": "QR code data generated successfully"
-        }), 200
-
-@bp.route('/generate_tree_qr', methods=['POST'])
-def generate_tree_qr():
-    if request.method == 'POST':
-        forest_name = request.form['forest_name']
-        forest_id = request.form['forest_id']
-        tree_type = request.form['tree_type']
-        date_cutting = request.form['date_cutting']
-        gps_coordinates = request.form['gps_coordinates']
-        height = request.form['height']
-        diameter = request.form['diameter']
-        export = request.form.get('export')
-        export_name = request.form.get('export_name')
-
-        data = {
-            "Forest Name": forest_name,
-            "Forest ID": forest_id,
-            "Tree Type": tree_type,
-            "Date of Cutting": date_cutting,
-            "GPS Coordinates": gps_coordinates,
-            "Height": f"{height} m",
-            "Diameter": f"{diameter} cm"
-        }
-
-        if export and export_name:
-            data["Export Name"] = export_name
-
-        return jsonify({
-            "tree_data": data,
-            "message": "Tree QR code data generated successfully"
-        }), 200
-
-@bp.route('/generate_farmer_qr', methods=['POST'])
-def generate_farmer_qr():
-    if request.method == 'POST':
-        farm_id = request.form['farm_id']
-        weight = request.form['weight']
-        price_per_kg = request.form['price_per_kg']
-        total_value = request.form['total_value']
-        store_id = request.form['store_id']
-        warehouse = request.form['warehouse']
-        export = request.form.get('export')
-        export_name = request.form.get('export_name')
-
-        data = {
-            "Farm ID": farm_id,
-            "Weight": f"{weight} kgs",
-            "Price per Kg": f"{price_per_kg} Ugshs",
-            "Total Value": f"{total_value} Ugshs",
-            "Store ID": store_id,
-            "Warehouse": warehouse
-        }
-
-        if export and export_name:
-            data["Export Name"] = export_name
-
-        return jsonify({
-            "farmer_data": data,
-            "message": "Farmer QR code data generated successfully"
-        }), 200
-
-@bp.route('/generate_qr_static', methods=['POST'])
-def generate_qr_static():
-    if request.method == 'POST':
-        # Extract form data
-        data = {
-            "Country": request.form['country'],
-            "Farm ID": request.form['farm_id'],
-            "Group ID": request.form['group_id'],
-            "Geolocation": request.form['geolocation'],
-            "Land Boundaries": request.form['land_boundaries'],
-            "District": request.form['district'],
-            "Crop": request.form['crop'],
-            "Grade": request.form['grade'],
-            "Tilled Land Size": request.form['tilled_land_size'],
-            "Season": request.form['season'],
-            "Quality": request.form['quality'],
-            "Produce Weight": request.form['produce_weight'],
-            "Harvest Date": request.form['harvest_date'],
-            "Timestamp": request.form['timestamp'],
-            "District Region": request.form['district_region'],
-            "Batch Number": request.form['batch_number'],
-            "Channel Partner": request.form['channel_partner'],
-            "Destination Country": request.form['destination_country'],
-            "Customer Name": request.form['customer_name'],
-            "Serial Number": request.form['serial_number'],
-        }
-
-        return jsonify({
-            "qr_static_data": data,
-            "message": "Static QR code data generated successfully"
-        }), 200
-
-from flask import Blueprint, request, send_file, jsonify
-from io import BytesIO
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
-from reportlab.lib.units import mm
-from reportlab.lib.utils import ImageReader
-import qrcode as qrcode_lib
+    return f"""
+    <html>
+    <head>
+      <style>
+        @page {{ size: A4; margin: 0; }}
+        body {{ margin: 0; padding: 0; }}
+        .page {{
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          grid-template-rows: 1fr 1fr;
+          width: 100%;
+          height: 100vh;
+          page-break-after: always;
+        }}
+        .slot {{
+          border: 1px dashed #ccc;
+          padding: 5px;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          overflow: hidden;
+          box-sizing: border-box;
+        }}
+        .slot > * {{ max-width: 100%; max-height: 100%; }}
+        .empty {{ background: #f9f9f9; }}
+      </style>
+    </head>
+    <body>
+      {pages_html}
+    </body>
+    </html>
+    """
 
 
-@bp.route("/generate-pdf", methods=["POST"])
-def generate_pdf():
+def generate_pdf_with_playwright(html_content):
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+        page.set_content(html_content, wait_until='networkidle')
+
+        pdf_buffer = page.pdf(
+            format='A4',
+            print_background=True,
+            margin={'top': '1cm', 'right': '1cm', 'bottom': '1cm', 'left': '1cm'},
+            display_header_footer=True,
+            header_template="<div style='font-size:10px;text-align:center;width:100%;'>www.nkusu.com</div>",
+            footer_template="<div style='font-size:10px;text-align:center;width:100%;'>Page <span class='pageNumber'></span> sur <span class='totalPages'></span></div>"
+        )
+
+        browser.close()
+        return pdf_buffer
+
+
+# -----------------------------------------------------------
+# 🔹 Sauvegarde du QR en DB avec suivi
+# -----------------------------------------------------------
+def save_qr_in_db(data: dict, user_id: int, description: str = None, qr_type: str = "default"):
+    # Convert dict → JSON string stable
+    data_str = json.dumps(data, sort_keys=True)
+
+    # Hash MD5 sur la string
+    hash_md5 = hashlib.md5(data_str.encode()).hexdigest()
+
+    # Encodage en base64
+    data_b64 = base64.b64encode(data_str.encode()).decode()
+
+    # Vérifie si déjà existant
+    qr = QRCode.query.filter_by(hash_md5=hash_md5, created_by=user_id).first()
+    if not qr:
+        qr = QRCode(
+            hash_md5=hash_md5,
+            data_base64=data_b64,
+            description=description,
+            qr_type=qr_type,
+            created_by=user_id
+        )
+        db.session.add(qr)
+        db.session.commit()
+
+    return qr
+
+
+# -----------------------------------------------------------
+# 🔹 API : Génération PDF de QR Codes
+# -----------------------------------------------------------
+@bp.route('/generate_pdf', methods=['POST'])
+@jwt_required()
+def generate_pdfs():
     try:
-        data = request.json
-        formData = data.get("formData", {})
-        qrData = data.get("qrData", "")
+        identity = get_jwt_identity()
+        user_id = identity['id']
 
-        buffer = BytesIO()
-        p = canvas.Canvas(buffer, pagesize=A4)
+        data = request.get_json()
+        if not data or 'qr_data_list' not in data:
+            return jsonify({"error": "Invalid JSON payload. 'qr_data_list' is required."}), 400
 
-        # Taille page
-        width, height = A4
+        qr_data_list = data['qr_data_list']
+        description = data.get('description', "Automatically generated receipt by Nkusu.")
+        qr_type = data.get('qr_type', "default")
 
-        # 🧾 Encadré type "ticket"
-        p.setLineWidth(1)
-        p.setDash(3, 2)  # bordure pointillée
-        margin_x = 40
-        margin_y = 100
-        p.rect(
-            margin_x,
-            margin_y,
-            width - 2 * margin_x,
-            height - 2 * margin_y,
-        )
-        p.setDash()  # reset dash
+        receipts = []
+        for qr_data in qr_data_list:
+            save_qr_in_db(qr_data, user_id, description, qr_type=qr_type)
+            receipt_html = render_template('qrcode.html', description=description, qr_data=qr_data)
+            receipts.append(receipt_html)
 
-        # Titre centré
-        p.setFont("Helvetica-Bold", 18)
-        p.drawCentredString(width / 2, height - 120, "NKUSU DIGITAL STAMPS")
+        html_content = prepare_multi_receipt_html(receipts)
+        pdf_buffer = generate_pdf_with_playwright(html_content)
 
-        # Sous-titre
-        p.setFont("Helvetica", 12)
-        p.drawCentredString(width / 2, height - 140, "Digital receipt for produce transaction")
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
+        temp_file.write(pdf_buffer)
+        temp_file.close()
 
-        # 📌 QR code à droite
-        if qrData:
-            qr = qrcode_lib.make(qrData)
-            qr_buffer = BytesIO()
-            qr.save(qr_buffer, format="PNG")
-            qr_buffer.seek(0)
-
-            qr_image = ImageReader(qr_buffer)
-            p.drawImage(qr_image, width - 200, height - 280, width=120, height=120)
-
-        # 📌 Champs à gauche
-        y = height - 180
-        for label, value in formData.items():
-            p.setFont("Helvetica", 11)
-            p.drawString(60, y, f"{label}: {value}")
-            y -= 20
-
-        p.showPage()
-        p.save()
-        buffer.seek(0)
-
-        return send_file(
-            buffer,
-            as_attachment=True,
-            download_name="receipt.pdf",
-            mimetype="application/pdf"
-        )
+        return send_file(temp_file.name, as_attachment=True, download_name='receipts.pdf', mimetype='application/pdf')
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": f"Error generating PDF: {str(e)}"}), 500
+
+
+# -----------------------------------------------------------
+# 🔹 API : Stats & Suivi des QR Codes
+# -----------------------------------------------------------
+@bp.route('/stats/count', methods=['GET'])
+@jwt_required()
+def qr_count():
+    identity = get_jwt_identity()
+    user_id = identity['id']
+    count = QRCode.query.filter_by(created_by=user_id).count()
+    return jsonify({"user_id": user_id, "count": count})
+
+
+@bp.route('/stats/list', methods=['GET'])
+@jwt_required()
+def qr_list():
+    identity = get_jwt_identity()
+    user_id = identity['id']
+    qrs = QRCode.query.filter_by(created_by=user_id).all()
+    return jsonify([
+        {
+            "hash": qr.hash_md5,
+            "type": qr.qr_type,
+            "description": qr.description,
+            "batch_number": qr.data_dict.get("batch_number"),  # 🔹 Ajout du batch
+            "created_at": qr.date_created.isoformat()
+        }
+        for qr in qrs
+    ])
+
+
+@bp.route('/stats/by_type', methods=['GET'])
+@jwt_required()
+def qr_by_type():
+    identity = get_jwt_identity()
+    user_id = identity['id']
+    stats = db.session.query(QRCode.qr_type, func.count(QRCode.id)) \
+        .filter(QRCode.created_by == user_id) \
+        .group_by(QRCode.qr_type).all()
+    return jsonify({t or "unknown": c for t, c in stats})
+
+
+# -----------------------------------------------------------
+# 🔹 API : Vérification d’un QR existant
+# -----------------------------------------------------------
+@bp.route('/check_qr', methods=['POST'])
+@jwt_required()
+def check_qr():
+    data = request.get_json()
+    qr_data = data.get("qr_data")
+    if not qr_data:
+        return jsonify({"error": "qr_data is required"}), 400
+
+    # Assurer la conversion dict -> JSON
+    if isinstance(qr_data, dict):
+        qr_str = json.dumps(qr_data, sort_keys=True)
+    else:
+        qr_str = str(qr_data)
+
+    hash_md5 = hashlib.md5(qr_str.encode()).hexdigest()
+    qr = QRCode.query.filter_by(hash_md5=hash_md5).first()
+
+    if not qr:
+        return jsonify({"exists": False}), 404
+
+    return jsonify({
+        "exists": True,
+        "hash": qr.hash_md5,
+        "type": qr.qr_type,
+        "description": qr.description,
+        "batch_number": qr.data_dict.get("batch_number"),  # 🔹 Renvoi du lot
+        "created_by": qr.created_by,
+        "created_at": qr.date_created.isoformat()
+    })
+
+
+# -----------------------------------------------------------
+# 🔹 API : QR Codes par description (= lot)
+# -----------------------------------------------------------
+@bp.route('/stats/by_description', methods=['GET'])
+@jwt_required()
+def qr_by_description():
+    identity = get_jwt_identity()
+    user_id = identity['id']
+    description = request.args.get("description")
+
+    if not description:
+        return jsonify({"error": "description is required"}), 400
+
+    qrs = QRCode.query.filter_by(created_by=user_id, description=description).all()
+
+    return jsonify([
+        {
+            "hash": qr.hash_md5,
+            "batch_number": qr.data_dict.get("batch_number"),
+            "created_at": qr.date_created.isoformat()
+        }
+        for qr in sorted(qrs, key=lambda x: int(x.data_dict.get("batch_number") or 0))
+    ])
+
+
+# -----------------------------------------------------------
+# 🔹 API : QR spécifique d’un lot (description + batch_number)
+# -----------------------------------------------------------
+@bp.route('/stats/by_batch', methods=['GET'])
+@jwt_required()
+def qr_by_batch():
+    identity = get_jwt_identity()
+    user_id = identity['id']
+    description = request.args.get("description")
+    batch_number = request.args.get("batch_number")
+
+    if not description or not batch_number:
+        return jsonify({"error": "description and batch_number are required"}), 400
+
+    qrs = QRCode.query.filter_by(created_by=user_id, description=description).all()
+
+    for qr in qrs:
+        if qr.data_dict.get("batch_number") == str(batch_number):
+            return jsonify({
+                "hash": qr.hash_md5,
+                "description": qr.description,
+                "batch_number": batch_number,
+                "created_at": qr.date_created.isoformat()
+            })
+
+    return jsonify({"error": "QR not found"}), 404
