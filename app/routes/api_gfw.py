@@ -137,6 +137,8 @@ async def farmerReport(farm_id):
         return jsonify(data), status_code
 
     # Group results by dataset
+    
+    print("azo ny data===============")
     report_by_dataset = {}
     for item in data['dataset_results']:
         dataset = item['dataset']

@@ -42,43 +42,44 @@ async def gfw_async(owner_type, owner_id):
         'umd_tree_cover_loss',
         'jrc_global_forest_cover',
         'wri_tropical_tree_cover_extent',
-        'wri_tropical_tree_cover_percent',
+        'wri_tropical_tree_cover',
         'landmark_indigenous_and_community_lands',
         'gfw_soil_carbon',
         'wur_radd_alerts',
         'tsc_tree_cover_loss_drivers',
     ]
     
-    # Define pixels for each dataset
+    # Définition des pixels pour chaque dataset
     dataset_pixels = {
         'jrc_global_forest_cover': [
-            'wri_tropical_tree_cover_extent__decile',
-            'SELECT SUM(area__ha) FROM results WHERE is__jrc_global_forest_cover > 0',
+            {'select': 'SUM(area__ha)', 'where': 'is__jrc_global_forest_cover > 0'},
         ],
         'gfw_soil_carbon': [
-            'wdpa_protected_areas__iucn_cat',
+            # Fixed: Complete SQL query structure for GROUP BY
+            {'select': 'wdpa_protected_areas__iucn_cat, COUNT(*) as count', 'group_by':'wdpa_protected_areas__iucn_cat'},
         ],
         'umd_tree_cover_loss': [
-            'SUM(area__ha)',
+            {'select': 'SUM(area__ha)'},
         ],
         'landmark_indigenous_and_community_lands': [
-            'name',
+            {'select': 'name'},
         ],
-        'gfw_radd_alerts': [
-            'SUM(area__ha)',
+        'wur_radd_alerts': [
+            {'select': 'SUM(area__ha)'},
         ],
         'wri_tropical_tree_cover_extent': [
-            'SUM(area__ha)',
+            {'select': 'wri_tropical_tree_cover_extent__decile, COUNT(*) as pixel_count', 'group_by': 'wri_tropical_tree_cover_extent__decile'},
+            {'select': 'AVG(wri_tropical_tree_cover_extent__decile) as overall_avg'},
         ],
-        'wri_tropical_tree_cover_percent': [
-            'SUM(area__ha)',
+        'wri_tropical_tree_cover': [
+            {'select': 'AVG(wri_tropical_tree_cover__percent) as avg_cover, SUM(area__ha)'},
         ],
-        'tsc_tree_cover_loss_drivers':[
-            'tsc_tree_cover_loss_drivers__driver',
-         ],
+        'tsc_tree_cover_loss_drivers': [
+            {'select': 'tsc_tree_cover_loss_drivers__driver', 'group_by': 'tsc_tree_cover_loss_drivers__driver'},
+        ],
     }
     
-    # Get coordinates
+    # Récupère les coordonnées
     coordinates = get_coordinates(owner_type, owner_id)
     if not coordinates:
         return {"error": "No points found for the specified owner"}, 400
@@ -90,22 +91,49 @@ async def gfw_async(owner_type, owner_id):
     
     tasks = []
     for dataset in datasets:
-        # Get the pixels for the current dataset
+        # Récupère les pixels pour le dataset courant
         pixels = dataset_pixels.get(dataset, [])
         if not pixels:
-            continue  # Skip datasets without defined pixels
+            continue  # Ignore les datasets sans définition de pixels
         
         for pixel in pixels:
-            # Construct the SQL query for each pixel
-            sql_query = f"SELECT {pixel} FROM results"
+            if isinstance(pixel, dict):
+                select_expr = pixel.get("select")
+                where_expr = pixel.get("where")
+                group_by_expr = pixel.get("group_by")
+                having_expr = pixel.get("having")
+                order_by_expr = pixel.get("order_by")
+                limit_expr = pixel.get("limit")
+                
+                # Construction de la requête SQL
+                sql_parts = [f"SELECT {select_expr} FROM results"]
+                
+                if where_expr:
+                    sql_parts.append(f"WHERE {where_expr}")
+                
+                if group_by_expr:
+                    sql_parts.append(f"GROUP BY {group_by_expr}")
+                
+                if having_expr:
+                    sql_parts.append(f"HAVING {having_expr}")
+                
+                if order_by_expr:
+                    sql_parts.append(f"ORDER BY {order_by_expr}")
+                
+                if limit_expr:
+                    sql_parts.append(f"LIMIT {limit_expr}")
+                
+                sql_query = " ".join(sql_parts)
+            else:
+                sql_query = f"SELECT {pixel} FROM results"
             
-            # Schedule the async request
+            # Planifie la requête async
             tasks.append(query_forest_watch_async(dataset, geometry, sql_query))
     
-    # Execute all tasks concurrently
+    # Exécute toutes les tâches en parallèle
     results = await asyncio.gather(*tasks, return_exceptions=True)
     
-    # Collect and structure results
+    # Collecte et structure les résultats
     dataset_results = []
     task_index = 0
     for dataset in datasets:
@@ -118,21 +146,39 @@ async def gfw_async(owner_type, owner_id):
             task_index += 1
             
             if isinstance(result, Exception):
-                # Handle any exceptions that occurred during requests
+                # Gestion des erreurs pendant les requêtes
                 data_fields = {"error": str(result)}
+                is_grouped = False
             else:
-                # Extract fields from the response
+                # Extraction des données de la réponse
                 data = result.get("data", [])
-                if len(data) == 1:
-                    data_fields = data[0]  # Single record
+                
+                # Détermine si c'est un résultat groupé
+                is_grouped = isinstance(pixel, dict) and pixel.get("group_by") is not None
+                
+                if is_grouped:
+                    # Résultats groupés - garde tous les enregistrements
+                    data_fields = data
+                elif len(data) == 1:
+                    data_fields = data[0]  # Un seul enregistrement
                 else:
-                    data_fields = data      # Multiple records
+                    data_fields = data     # Plusieurs enregistrements
+            
+            # Création du label pour identifier le type de requête
+            if isinstance(pixel, dict):
+                pixel_label = pixel.get("select")
+                if pixel.get("group_by"):
+                    pixel_label += f" (grouped by {pixel.get('group_by')})"
+            else:
+                pixel_label = pixel
             
             dataset_results.append({
                 'dataset': dataset.replace('gfw_', '').replace('umd_', '').replace('_', ' '),
-                'pixel': pixel,
+                'pixel': pixel_label,
                 'data_fields': data_fields,
-                'coordinates': geometry["coordinates"]
+                'is_grouped_result': is_grouped,
+                'coordinates': geometry["coordinates"],
+                'sql_query': sql_query if 'sql_query' in locals() else None  # Pour debug
             })
     
     return {"dataset_results": dataset_results}, 200
