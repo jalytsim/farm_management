@@ -24,7 +24,7 @@ def get_stores():
     if user.is_admin:
         stores = Store.query.paginate(page=page, per_page=per_page)
     else:
-        stores = Store.query.filter_by(created_by=user_id).paginate(page=page, per_page=per_page)
+        stores = Store.query.paginate(page=page, per_page=per_page)
 
     stores_list = [
         {

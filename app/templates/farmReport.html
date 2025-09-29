@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EUDR Compliance Report</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @media print {
+            .page-break {
+                page-break-before: always;
+            }
+        }
+        .report-map {
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="carbon-report-a4 w-full max-w-4xl mx-auto bg-white text-gray-900 font-sans leading-relaxed space-y-8 shadow-lg">
+        
+        <!-- Header -->
+        <div class="flex items-center justify-between border-b-4 border-green-700 pb-6 px-8 pt-8">
+            <div class="w-24 h-24 bg-white rounded-lg flex items-center justify-center shadow-sm">
+                <img src="https://www.nkusu.com/parrotlogo.png" alt="Parrot" class="object-contain w-full h-full rounded-md">
+            </div>
+            <div class="flex-1 text-center px-4">
+                <h1 class="text-3xl font-bold text-green-800 mb-1">EUDR COMPLIANCE REPORT</h1>
+                <p class="text-sm text-gray-600">Rapport généré selon le Règlement (UE) 2023/1115 sur les produits sans déforestation.</p>
+            </div>
+            <div class="w-24 h-24 flex justify-end">
+                <img src="https://www.nkusu.com/logo.jpg" alt="Logo" class="object-contain w-full h-full rounded-md shadow-sm">
+            </div>
+        </div>
+
+        <!-- Farm Summary -->
+        <div class="px-8 py-4 bg-gray-100 border-y border-gray-300 text-sm">
+            <p>
+                Ce rapport fournit un aperçu de la Ferme ID <strong>B0001</strong>, détenue par <strong>Isiah Namanya</strong>, 
+                située à <strong>Abim</strong>. La ferme est membre du groupe 1 et joue un rôle significatif dans le paysage 
+                agricole local. Avec les coordonnées géographiques <strong>0.38551, 33.3421</strong>, la ferme se spécialise 
+                dans le <strong>Cacao</strong> et opère dans une région caractérisée par un type de terrain : <strong>Titré</strong>. 
+                Ce rapport présente les activités, défis et opportunités de la ferme pour soutenir sa croissance et durabilité continues.
+            </p>
+        </div>
+
+        <!-- Report Body -->
+        <div class="report-body space-y-6 bg-gray-50 px-8 py-6">
+            <div class="space-y-6">
+                <p class="text-base">
+                    Ce rapport fournit une évaluation de conformité selon le Règlement de l'Union Européenne 2023/1115, 
+                    qui régit l'importation et l'exportation de produits associés à la déforestation et à la dégradation.
+                </p>
+
+                <!-- Section 1: RADD Alert -->
+                <div class="report-section border-l-4 border-green-700 pl-5 space-y-2">
+                    <h2 class="text-xl font-semibold text-green-700">1. Alerte RADD (Article 2 EUDR)</h2>
+                    <p class="text-gray-700">Applicable à la plupart des régions d'Ouganda, uniquement certaines parties de la région du Lac Albert voisine de la RD Congo</p>
+                </div>
+
+                <!-- Section 2: Tree Cover Loss -->
+                <div class="report-section border-l-4 border-green-700 pl-5 space-y-2">
+                    <h2 class="text-xl font-semibold text-green-700">2. Perte de Couverture Forestière (Article 2 EUDR)</h2>
+                    <div class="text-gray-700">
+                        <p>Zone où la perte d'arbres a été identifiée depuis décembre 2020 :</p>
+                        <ul class="list-disc list-inside text-gray-700 mt-2 ml-4">
+                            <li><strong>Zéro :</strong> La parcelle/ferme est entièrement conforme à la loi EUDR.</li>
+                            <li><strong>Non-zéro :</strong> La parcelle/ferme n'est probablement pas conforme à la loi EUDR.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Section 3: Forest Cover -->
+                <div class="report-section border-l-4 border-green-700 pl-5 space-y-2">
+                    <h2 class="text-xl font-semibold text-green-700">3. Couverture Forestière (Article 2 EUDR)</h2>
+                    <div class="text-gray-700">
+                        <p>Centre de recherche conjoint de l'UE Geostore pour vérifier l'existence ou non de couverture forestière en 2020</p>
+                        <ul class="list-disc list-inside text-gray-700 mt-2 ml-4">
+                            <li><strong>Aucune détectée :</strong> La parcelle/ferme est entièrement conforme à la loi EUDR.</li>
+                            <li><strong>Forêt détectée :</strong> La ferme nécessite une évaluation minutieuse pour la conformité EUDR.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Section 4: Tree Cover Extent -->
+                <div class="report-section border-l-4 border-green-700 pl-5 space-y-2">
+                    <h2 class="text-xl font-semibold text-green-700">4. Étendue de la Couverture Forestière (Article 2 EUDR)</h2>
+                    <p class="text-gray-700">
+                        Analyse de la couverture forestière, exprimée en déciles (allant de <strong>0-100</strong>), 
+                        pour évaluer la couverture forestière.
+                    </p>
+                </div>
+
+                <!-- Section 5: Tree Cover Loss Drivers -->
+                <div class="report-section border-l-4 border-green-700 pl-5 space-y-2">
+                    <h2 class="text-xl font-semibold text-green-700">5. Facteurs de Perte de Couverture Forestière (Article 10 EUDR)</h2>
+                    <p class="text-gray-700">Identifie les causes principales de déforestation ou de dégradation.</p>
+                </div>
+
+                <!-- Section 6: Protected Area -->
+                <div class="report-section border-l-4 border-green-700 pl-5 space-y-2">
+                    <h2 class="text-xl font-semibold text-green-700">6. Zone Protégée (Article 10 EUDR)</h2>
+                    <p class="text-gray-700">Indique si la parcelle est située dans une zone protégée officiellement reconnue (parc national, zone humide, etc.).</p>
+                </div>
+
+                <!-- Section 7: Indigenous Lands -->
+                <div class="report-section border-l-4 border-green-700 pl-5 space-y-2">
+                    <h2 class="text-xl font-semibold text-green-700">7. Terres Indigènes et Communautaires (Article 10 EUDR)</h2>
+                    <p class="text-gray-700">Détermine si la terre chevauche avec des terres indigènes ou communautaires reconnues.</p>
+                </div>
+
+                <!-- Page Break -->
+                <div class="page-break"></div>
+
+                <!-- Summary Table -->
+                <div class="report-section border-l-4 border-green-700 pl-5 space-y-2">
+                    <h2 class="text-xl font-semibold text-green-700">Tableau Récapitulatif de Conformité</h2>
+                    <div class="overflow-x-auto">
+                        <table class="table-auto w-full mt-4 border-collapse border border-gray-400">
+                            <thead>
+                                <tr class="bg-gray-200">
+                                    <th class="border border-gray-400 px-4 py-2 text-left">Métrique</th>
+                                    <th class="border border-gray-400 px-4 py-2 text-left">Valeur</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="border border-gray-400 px-4 py-2">Zone du Projet</td>
+                                    <td class="border border-gray-400 px-4 py-2">
+                                        <p>278 520,07 m²</p>
+                                        <p>27,85 ha</p>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="border border-gray-400 px-4 py-2">Niveau de Risque de Déforestation du Pays</td>
+                                    <td class="border border-gray-400 px-4 py-2">STANDARD, <strong>Pourcentage :</strong> 26,24%</td>
+                                </tr>
+                                <tr>
+                                    <td class="border border-gray-400 px-4 py-2">Alerte RADD</td>
+                                    <td class="border border-gray-400 px-4 py-2">0 ha (aucune alerte RADD)</td>
+                                </tr>
+                                <tr>
+                                    <td class="border border-gray-400 px-4 py-2">Perte de Couverture Forestière</td>
+                                    <td class="border border-gray-400 px-4 py-2">
+                                        <p class="text-red-600 font-semibold">7,30809 ha de perte de couverture forestière</p>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="border border-gray-400 px-4 py-2">Couverture Forestière (2020)</td>
+                                    <td class="border border-gray-400 px-4 py-2">
+                                        <span class="text-orange-600 font-semibold">Couverture forestière détectée : 1,44 hectares</span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="border border-gray-400 px-4 py-2">Évaluation de Conformité EUDR</td>
+                                    <td class="border border-gray-400 px-4 py-2">
+                                        <div class="bg-red-100 p-3 rounded">
+                                            <div class="text-red-700 font-semibold mb-2">
+                                                <span class="px-3 py-1 bg-red-200 rounded-full text-sm">Non Conforme</span>
+                                            </div>
+                                            <div class="text-xs space-y-1 text-red-600">
+                                                <p><strong>Perte de Couverture Forestière :</strong> 7,30809 ha</p>
+                                                <p><strong>Couverture Forestière :</strong> Détectée</p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="border border-gray-400 px-4 py-2">Statut de Zone Protégée</td>
+                                    <td class="border border-gray-400 px-4 py-2">
+                                        <ul class="space-y-1">
+                                            <li>Pas dans une zone protégée WDPA : 92,24%</li>
+                                            <li>Dans une zone vulnérable IUCN : 7,76%</li>
+                                        </ul>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="border border-gray-400 px-4 py-2">Résumé de l'Étendue de Couverture</td>
+                                    <td class="border border-gray-400 px-4 py-2">
+                                        <ul class="space-y-1 text-sm">
+                                            <li>Nombre Non-Zéro : 2 212</li>
+                                            <li>Couverture : 98,31%</li>
+                                            <li><strong>Détails :</strong></li>
+                                            <ul class="ml-4 mt-2 space-y-1">
+                                                <li>Décile 0 : 38</li>
+                                                <li>Décile 20 : 23</li>
+                                                <li>Décile 30 : 23</li>
+                                                <li>Décile 40 : 47</li>
+                                                <li>Décile 50 : 48</li>
+                                                <li>Décile 60 : 58</li>
+                                                <li>Décile 70 : 122</li>
+                                                <li>Décile 80 : 174</li>
+                                                <li>Décile 90 : 517</li>
+                                                <li>Décile 100 : 1 200</li>
+                                            </ul>
+                                        </ul>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="border border-gray-400 px-4 py-2">Facteurs de Couverture Forestière</td>
+                                    <td class="border border-gray-400 px-4 py-2">Agriculture itinérante</td>
+                                </tr>
+                                <tr>
+                                    <td class="border border-gray-400 px-4 py-2">Zone d'Étendue de Couverture</td>
+                                    <td class="border border-gray-400 px-4 py-2">
+                                        <p>88,8144% (ÉLEVÉ)</p>
+                                        <p>27,77074 ha</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Risk Assessment Section -->
+                <div class="report-section border-l-4 border-green-700 pl-5 space-y-4 page-break">
+                    <h2 class="text-2xl font-bold text-green-800">Analyse de l'Évaluation des Risques</h2>
+                    <p class="text-gray-700">L'analyse montre :</p>
+                    <ul class="list-disc list-inside ml-4 space-y-1 text-gray-700">
+                        <li>Superficie : 27,85 hectares</li>
+                        <li>Perte de couverture forestière : 7,30809 hectares</li>
+                        <li>Couverture forestière moyenne : 88,8%</li>
+                        <li>Principal facteur de déforestation : Agriculture itinérante</li>
+                        <li>Alertes RADD : 0 hectares</li>
+                        <li><strong class="text-red-600">Statut de conformité : Non Conforme</strong></li>
+                    </ul>
+
+                    <!-- Map -->
+                    <div class="mt-6">
+                        <img 
+                            src="https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/static/geojson(%7B%22type%22%3A%22FeatureCollection%22%2C%22features%22%3A%5B%7B%22type%22%3A%22Feature%22%2C%22geometry%22%3A%7B%22type%22%3A%22Polygon%22%2C%22coordinates%22%3A%5B%5B%5B32.9176%2C0.196132%5D%2C%5B32.916%2C0.199405%5D%2C%5B32.9172%2C0.199922%5D%2C%5B32.9171%2C0.200423%5D%2C%5B32.9181%2C0.200094%5D%2C%5B32.9191%2C0.200329%5D%2C%5B32.9223%2C0.197573%5D%2C%5B32.9219%2C0.195082%5D%2C%5B32.9195%2C0.194503%5D%2C%5B32.9181%2C0.196335%5D%2C%5B32.9176%2C0.196132%5D%5D%5D%7D%2C%22properties%22%3A%7B%22stroke%22%3A%22%2300FF00%22%2C%22stroke-width%22%3A4%2C%22stroke-opacity%22%3A1%2C%22fill%22%3A%22%2300FF00%22%2C%22fill-opacity%22%3A0.2%7D%7D%5D%7D)/auto/1200x1000?access_token=pk.eyJ1IjoidHNpbWlqYWx5IiwiYSI6ImNsejdjNXpqdDA1ZzMybHM1YnU4aWpyaDcifQ.CSQsCZwMF2CYgE-idCz08Q" 
+                            alt="Carte de la ferme avec délimitation des parcelles" 
+                            class="report-map w-full rounded-lg shadow-md"
+                        >
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="report-footer border-t-2 border-gray-300 px-8 pt-6 pb-6 text-xs text-gray-500 text-center">
+            <p>&copy; 2025 Agriyields. Contact : nkusu@agriyields.com</p>
+        </div>
+    </div>
+</body>
+</html>
