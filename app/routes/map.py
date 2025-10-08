@@ -40,12 +40,14 @@ DATASET_CONFIG = {
             'wri_tropical_tree_cover_extent': [
                 {'select': 'wri_tropical_tree_cover_extent__decile, COUNT(*) as pixel_count', 'group_by': 'wri_tropical_tree_cover_extent__decile'},
                 {'select': 'AVG(wri_tropical_tree_cover_extent__decile) as overall_avg'},
+                {'select' : 'wri_tropical_tree_cover_extent__decile, longitude, latitude'},
             ],
             'wri_tropical_tree_cover': [
                 {'select': 'AVG(wri_tropical_tree_cover__percent) as avg_cover, SUM(area__ha)'},
             ],
             'tsc_tree_cover_loss_drivers': [
                 {'select': 'tsc_tree_cover_loss_drivers__driver', 'group_by': 'tsc_tree_cover_loss_drivers__driver'},
+                {'select': 'tsc_tree_cover_loss_drivers__driver,longitude, latitude'},
             ],
             'gfw_soil_carbon_stocks': [
                 {'select': 'SUM(area__ha)'},
