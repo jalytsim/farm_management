@@ -1,7 +1,8 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from datetime import datetime
-from app import db
+from base64 import b64encode, b64decode
+from app import db  # ou l'import de ton instance SQLAlchemy selon ton projet
 
 class User(UserMixin, db.Model):
     __tablename__ = 'user'
@@ -65,6 +66,7 @@ class SoilData(db.Model):
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
 
 
+
 class Farm(db.Model):
     __tablename__ = 'farm'
     id = db.Column(db.Integer, primary_key=True)
@@ -82,10 +84,45 @@ class Farm(db.Model):
     date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+
     farm_data = db.relationship('FarmData', backref='farm', lazy=True)
+    farm_report = db.relationship('FarmReport', backref='farm', uselist=False, lazy=True)
 
     def __repr__(self):
         return f"<Farm(id={self.id}, farm_id={self.farm_id})>"
+    
+
+class FarmReport(db.Model):
+    __tablename__ = 'farmreport'
+    id = db.Column(db.Integer, primary_key=True)
+    farm_id = db.Column(db.Integer, db.ForeignKey('farm.id'), nullable=False)
+
+    project_area = db.Column(db.String(255), nullable=True)
+    country_deforestation_risk_level = db.Column(db.String(255), nullable=True)
+    radd_alert = db.Column(db.String(255), nullable=True)
+    tree_cover_loss = db.Column(db.String(255), nullable=True)
+    forest_cover_2020 = db.Column(db.String(255), nullable=True)
+    eudr_compliance_assessment = db.Column(db.String(255), nullable=True)
+    protected_area_status = db.Column(db.String(255), nullable=True)
+    cover_extent_summary_b64 = db.Column(db.Text, nullable=True)
+    tree_cover_drivers = db.Column(db.String(255), nullable=True)
+    cover_extent_area = db.Column(db.String(255), nullable=True)
+
+    date_created = db.Column(db.DateTime, default=datetime.utcnow)
+    date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def set_cover_extent_summary(self, summary_text: str):
+        """Encode le champ CoverExtentSummary en base64 avant stockage"""
+        if summary_text:
+            self.cover_extent_summary_b64 = b64encode(summary_text.encode('utf-8')).decode('utf-8')
+
+    def get_cover_extent_summary(self) -> str:
+        """Décode le champ CoverExtentSummary depuis base64"""
+        if self.cover_extent_summary_b64:
+            return b64decode(self.cover_extent_summary_b64.encode('utf-8')).decode('utf-8')
+        return None
+
+
     
     # ovana any @BD
 class FarmData(db.Model):

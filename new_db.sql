@@ -255,3 +255,30 @@ CREATE TABLE eudr_statements (
 );
 
 
+
+
+-- 1️⃣ Création de la nouvelle table farmreport
+CREATE TABLE farmreport (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    farm_id INT NOT NULL,
+    project_area VARCHAR(255),
+    country_deforestation_risk_level VARCHAR(255),
+    radd_alert VARCHAR(255),
+    tree_cover_loss VARCHAR(255),
+    forest_cover_2020 VARCHAR(255),
+    eudr_compliance_assessment VARCHAR(255),
+    protected_area_status VARCHAR(255),
+    cover_extent_summary_b64 LONGTEXT,
+    tree_cover_drivers VARCHAR(255),
+    cover_extent_area VARCHAR(255),
+    date_created DATETIME DEFAULT CURRENT_TIMESTAMP,
+    date_updated DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_farmreport_farm FOREIGN KEY (farm_id)
+        REFERENCES farm(id)
+        ON DELETE CASCADE
+);
+
+-- 2️⃣ (Optionnel) Si tu veux t’assurer que chaque ferme n’a qu’un seul rapport :
+ALTER TABLE farmreport
+ADD UNIQUE KEY unique_farm_report (farm_id);
