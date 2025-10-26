@@ -496,3 +496,85 @@ class QRCode(db.Model):
 
     def __repr__(self):
         return f"<QRCode(id={self.id}, hash={self.hash_md5}, user={self.created_by})>"
+    
+    
+    
+class Certificate(db.Model):
+    __tablename__ = 'certificate'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    
+    # Informations de base
+    certificate_id = db.Column(db.String(100), unique=True, nullable=False)  # Ex: USER123-2025
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    certificate_type = db.Column(db.String(50), nullable=False)  # 'all', 'compliant', 'likely_compliant', 'not_compliant'
+    
+    # Statistiques au moment de la génération
+    total_farms = db.Column(db.Integer, nullable=False)
+    compliant_100_count = db.Column(db.Integer, default=0)
+    likely_compliant_count = db.Column(db.Integer, default=0)
+    not_compliant_count = db.Column(db.Integer, default=0)
+    
+    # Pourcentages
+    compliant_100_percent = db.Column(db.Float, default=0.0)
+    likely_compliant_percent = db.Column(db.Float, default=0.0)
+    not_compliant_percent = db.Column(db.Float, default=0.0)
+    overall_compliance_rate = db.Column(db.Float, default=0.0)
+    
+    # Informations du certificat
+    title = db.Column(db.String(255), nullable=False)
+    issue_date = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    valid_until = db.Column(db.DateTime, nullable=False)
+    
+    # PDF stocké en base64 (optionnel)
+    pdf_data_base64 = db.Column(db.Text, nullable=True)
+    
+    # QR Code pour vérification
+    qr_code_data = db.Column(db.Text, nullable=True)
+    
+    # Statut du certificat
+    status = db.Column(db.String(50), default='active')  # 'active', 'expired', 'revoked'
+    
+    # Métadonnées
+    download_count = db.Column(db.Integer, default=0)
+    last_downloaded = db.Column(db.DateTime, nullable=True)
+    ip_address = db.Column(db.String(50), nullable=True)
+    user_agent = db.Column(db.String(255), nullable=True)
+    
+    # Timestamps
+    date_created = db.Column(db.DateTime, default=datetime.utcnow)
+    date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    
+    # Relations
+    user = db.relationship('User', foreign_keys=[user_id], backref='certificates')
+    
+    def __repr__(self):
+        return f"<Certificate(id={self.certificate_id}, user_id={self.user_id}, type={self.certificate_type})>"
+    
+    def to_dict(self):
+        """Convertir en dictionnaire pour API"""
+        return {
+            'id': self.id,
+            'certificate_id': self.certificate_id,
+            'user_id': self.user_id,
+            'certificate_type': self.certificate_type,
+            'total_farms': self.total_farms,
+            'compliance_status': {
+                'compliant_100': self.compliant_100_count,
+                'likely_compliant': self.likely_compliant_count,
+                'not_compliant': self.not_compliant_count
+            },
+            'compliance_percentages': {
+                'compliant_100_percent': self.compliant_100_percent,
+                'likely_compliant_percent': self.likely_compliant_percent,
+                'not_compliant_percent': self.not_compliant_percent,
+                'overall_rate': self.overall_compliance_rate
+            },
+            'title': self.title,
+            'issue_date': self.issue_date.isoformat() if self.issue_date else None,
+            'valid_until': self.valid_until.isoformat() if self.valid_until else None,
+            'status': self.status,
+            'download_count': self.download_count
+        }

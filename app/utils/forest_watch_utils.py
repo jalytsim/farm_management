@@ -32,7 +32,7 @@ async def query_forest_watch_async(dataset, geometry, sql_query):
     # print(f"Dataset: {dataset}")
     # print(f"URL: {url}")
     # print(f"SQL Query: {sql_query}")
-    print(f"Payload: {json.dumps(payload, indent=4)}")
+   # print(f"Payload: {json.dumps(payload, indent=4)}")
     # print(f"Generated CURL command:\n{curl_command}")
 
     try:
@@ -48,8 +48,8 @@ async def query_forest_watch_async(dataset, geometry, sql_query):
                 print(f"HTTP Status Code: {response.status}")
                 response_data = await response.json()
                 if dataset == "gfw_soil_carbon":
-                    print("hello",response_data)
-                print(response_data)
+                   print("ok report",response_data)
+                #print(response_data)
                 return response_data
     except Exception as e:
         # Log errors explicitly

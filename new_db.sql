@@ -282,3 +282,40 @@ CREATE TABLE farmreport (
 -- 2️⃣ (Optionnel) Si tu veux t’assurer que chaque ferme n’a qu’un seul rapport :
 ALTER TABLE farmreport
 ADD UNIQUE KEY unique_farm_report (farm_id);
+
+CREATE TABLE certificate (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    certificate_id VARCHAR(100) UNIQUE NOT NULL,
+    user_id INT NOT NULL,
+    certificate_type VARCHAR(50) NOT NULL,
+    total_farms INT NOT NULL,
+    compliant_100_count INT DEFAULT 0,
+    likely_compliant_count INT DEFAULT 0,
+    not_compliant_count INT DEFAULT 0,
+    compliant_100_percent FLOAT DEFAULT 0.0,
+    likely_compliant_percent FLOAT DEFAULT 0.0,
+    not_compliant_percent FLOAT DEFAULT 0.0,
+    overall_compliance_rate FLOAT DEFAULT 0.0,
+    title VARCHAR(255) NOT NULL,
+    issue_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    valid_until DATETIME NOT NULL,
+    pdf_data_base64 LONGTEXT,
+    qr_code_data TEXT,
+    status VARCHAR(50) DEFAULT 'active',
+    download_count INT DEFAULT 0,
+    last_downloaded DATETIME,
+    ip_address VARCHAR(50),
+    user_agent VARCHAR(255),
+    date_created DATETIME DEFAULT CURRENT_TIMESTAMP,
+    date_updated DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    created_by INT,
+    modified_by INT,
+    FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by) REFERENCES user(id) ON DELETE SET NULL,
+    FOREIGN KEY (modified_by) REFERENCES user(id) ON DELETE SET NULL,
+    INDEX idx_user_id (user_id),
+    INDEX idx_certificate_id (certificate_id),
+    INDEX idx_status (status),
+    INDEX idx_issue_date (issue_date),
+    INDEX idx_certificate_type (certificate_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
