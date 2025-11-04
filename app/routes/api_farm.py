@@ -439,91 +439,103 @@ def get_user_farm_statistics():
     # Déterminer le filtre utilisateur
     target_user_id = None
     if user.is_admin:
-        # Admin peut voir tous les utilisateurs ou un utilisateur spécifique
         if request.args.get('all_users') == 'true':
-            target_user_id = None  # Tous
+            target_user_id = None
         elif request.args.get('user_id'):
             target_user_id = int(request.args.get('user_id'))
         else:
-            target_user_id = user_id  # Ses propres stats par défaut
+            target_user_id = user_id
     else:
-        # Utilisateur normal : uniquement ses propres stats
         target_user_id = user_id
     
-    # Requête principale avec jointure
+    # Requête principale
     query = db.session.query(
         User.id.label('user_id'),
         User.username.label('username'),
         User.email.label('email'),
         User.user_type.label('user_type'),
         func.count(Farm.id).label('total_farms'),
-        
-        # Comptage par statut EUDR compliance
         func.sum(
-            case(
-                (FarmReport.eudr_compliance_assessment == '100% Compliant', 1),
-                else_=0
-            )
+            case((FarmReport.eudr_compliance_assessment == '100% Compliant', 1), else_=0)
         ).label('compliant_count'),
-        
         func.sum(
-            case(
-                (FarmReport.eudr_compliance_assessment == 'Not Compliant', 1),
-                else_=0
-            )
+            case((FarmReport.eudr_compliance_assessment == 'Not Compliant', 1), else_=0)
         ).label('not_compliant_count'),
-        
         func.sum(
-            case(
-                (FarmReport.eudr_compliance_assessment == 'Likely Compliant', 1),
-                else_=0
-            )
+            case((FarmReport.eudr_compliance_assessment == 'Likely Compliant', 1), else_=0)
         ).label('likely_compliant_count'),
-        
-        # Farms sans rapport
         func.sum(
-            case(
-                (FarmReport.id.is_(None), 1),
-                else_=0
-            )
+            case((FarmReport.id.is_(None), 1), else_=0)
         ).label('no_report_count'),
-        
-        # Somme des project areas
         func.sum(
             case(
-                (FarmReport.project_area.isnot(None), 
+                (FarmReport.project_area.isnot(None),
                  func.cast(func.replace(FarmReport.project_area, ',', ''), db.Float)),
                 else_=0
             )
         ).label('total_project_area'),
-        
-        # Somme des tree cover loss
         func.sum(
             case(
-                (FarmReport.tree_cover_loss.isnot(None), 
+                (FarmReport.tree_cover_loss.isnot(None),
                  func.cast(func.replace(FarmReport.tree_cover_loss, ',', ''), db.Float)),
                 else_=0
             )
         ).label('total_tree_cover_loss')
-        
-    ).select_from(User)\
-     .join(Farm, Farm.created_by == User.id)\
+    ).select_from(User) \
+     .join(Farm, Farm.created_by == User.id) \
      .outerjoin(FarmReport, FarmReport.farm_id == Farm.id)
     
-    # Filtrer par utilisateur si nécessaire
     if target_user_id:
         query = query.filter(User.id == target_user_id)
     
-    # Grouper par utilisateur
     query = query.group_by(User.id, User.username, User.email, User.user_type)
-    
     results = query.all()
     
-    # Formater les résultats
     statistics = []
     for result in results:
         total_farms = result.total_farms or 0
-        
+        total_area = float(result.total_project_area or 0)
+
+        # ✅ Calculs basés sur area
+        # Récupérer la surface par catégorie
+        compliant_area = db.session.query(
+            func.sum(func.cast(func.replace(FarmReport.project_area, ',', ''), db.Float))
+        ).join(Farm).filter(
+            Farm.created_by == result.user_id,
+            FarmReport.eudr_compliance_assessment == '100% Compliant'
+        ).scalar() or 0
+
+        likely_area = db.session.query(
+            func.sum(func.cast(func.replace(FarmReport.project_area, ',', ''), db.Float))
+        ).join(Farm).filter(
+            Farm.created_by == result.user_id,
+            FarmReport.eudr_compliance_assessment == 'Likely Compliant'
+        ).scalar() or 0
+
+        not_area = db.session.query(
+            func.sum(func.cast(func.replace(FarmReport.project_area, ',', ''), db.Float))
+        ).join(Farm).filter(
+            Farm.created_by == result.user_id,
+            FarmReport.eudr_compliance_assessment == 'Not Compliant'
+        ).scalar() or 0
+
+        total_known = compliant_area + likely_area + not_area
+
+        if total_area > 0:
+            compliance_percentages = {
+                'compliant_100_percent': round(compliant_area / total_area * 100, 2),
+                'likely_compliant_percent': round(likely_area / total_area * 100, 2),
+                'not_compliant_percent': round(not_area / total_area * 100, 2),
+                'no_report_percent': round(max(0, 100 - (total_known / total_area * 100)), 2)
+            }
+        else:
+            compliance_percentages = {
+                'compliant_100_percent': 0,
+                'likely_compliant_percent': 0,
+                'not_compliant_percent': 0,
+                'no_report_percent': 0
+            }
+
         statistics.append({
             'user_id': result.user_id,
             'username': result.username,
@@ -536,16 +548,11 @@ def get_user_farm_statistics():
                 'likely_compliant': result.likely_compliant_count or 0,
                 'no_report': result.no_report_count or 0
             },
-            'compliance_percentages': {
-                'compliant_100_percent': round((result.compliant_count or 0) / total_farms * 100, 2) if total_farms > 0 else 0,
-                'not_compliant_percent': round((result.not_compliant_count or 0) / total_farms * 100, 2) if total_farms > 0 else 0,
-                'likely_compliant_percent': round((result.likely_compliant_count or 0) / total_farms * 100, 2) if total_farms > 0 else 0,
-                'no_report_percent': round((result.no_report_count or 0) / total_farms * 100, 2) if total_farms > 0 else 0
-            },
+            'compliance_percentages': compliance_percentages,
             'environmental_metrics': {
-                'total_project_area': round(result.total_project_area or 0, 2),
+                'total_project_area': round(total_area, 2),
                 'total_tree_cover_loss': round(result.total_tree_cover_loss or 0, 2),
-                'average_project_area_per_farm': round((result.total_project_area or 0) / total_farms, 2) if total_farms > 0 else 0,
+                'average_project_area_per_farm': round(total_area / total_farms, 2) if total_farms > 0 else 0,
                 'average_tree_cover_loss_per_farm': round((result.total_tree_cover_loss or 0) / total_farms, 2) if total_farms > 0 else 0
             }
         })
@@ -556,32 +563,22 @@ def get_user_farm_statistics():
         'total_users': len(statistics)
     })
 
-
 @bp.route('/stats/by-user/<int:target_user_id>', methods=['GET'])
 @jwt_required()
 def get_specific_user_farm_statistics(target_user_id):
-    """
-    Retourne les statistiques détaillées pour un utilisateur spécifique
-    avec la liste complète de ses fermes
-    """
     identity = get_jwt_identity()
     user_id = identity['id']
-    
     user = User.query.get(user_id)
-    
-    # Vérifier les permissions
+
     if not user.is_admin and user_id != target_user_id:
         return jsonify({
             'status': 'error',
             'message': 'Unauthorized: You can only access your own statistics'
         }), 403
-    
-    # Récupérer l'utilisateur cible
+
     target_user = User.query.get_or_404(target_user_id)
-    
-    # Récupérer toutes les fermes de l'utilisateur
     farms = Farm.query.filter_by(created_by=target_user_id).all()
-    
+
     result = {
         'user_id': target_user.id,
         'username': target_user.username,
@@ -601,15 +598,12 @@ def get_specific_user_farm_statistics(target_user_id):
             'total_tree_cover_loss': 0
         }
     }
-    
-    # Parcourir toutes les fermes et leurs rapports
+
     for farm in farms:
         report = FarmReport.query.filter_by(farm_id=farm.id).first()
-        
-        # Récupérer district et farmer group
         district = District.query.get(farm.district_id) if farm.district_id else None
         farmer_group = FarmerGroup.query.get(farm.farmergroup_id) if farm.farmergroup_id else None
-        
+
         farm_info = {
             'farm_id': farm.farm_id,
             'name': farm.name,
@@ -624,7 +618,7 @@ def get_specific_user_farm_statistics(target_user_id):
             'forest_cover_2020': None,
             'radd_alert': None
         }
-        
+
         if report:
             compliance = report.eudr_compliance_assessment
             farm_info['compliance_status'] = compliance
@@ -633,60 +627,74 @@ def get_specific_user_farm_statistics(target_user_id):
             farm_info['forest_cover_2020'] = report.forest_cover_2020
             farm_info['radd_alert'] = report.radd_alert
             farm_info['protected_area_status'] = report.protected_area_status
-            
-            # Comptage par statut
+
             if compliance == '100% Compliant':
                 result['compliance_status']['compliant_100'] += 1
             elif compliance == 'Not Compliant':
                 result['compliance_status']['not_compliant'] += 1
             elif compliance == 'Likely Compliant':
                 result['compliance_status']['likely_compliant'] += 1
-            
-            # Sommes des métriques (gérer les virgules comme séparateurs décimaux)
-            try:
-                if report.project_area:
-                    area_str = str(report.project_area).replace(',', '')
-                    result['environmental_metrics']['total_project_area'] += float(area_str)
-            except (ValueError, TypeError) as e:
-                print(f"Error converting project_area for farm {farm.farm_id}: {e}")
-            
-            try:
-                if report.tree_cover_loss:
-                    loss_str = str(report.tree_cover_loss).replace(',', '')
-                    result['environmental_metrics']['total_tree_cover_loss'] += float(loss_str)
-            except (ValueError, TypeError) as e:
-                print(f"Error converting tree_cover_loss for farm {farm.farm_id}: {e}")
         else:
             result['compliance_status']['no_report'] += 1
-        
+
+        try:
+            if report and report.project_area:
+                area_str = str(report.project_area).replace(',', '')
+                result['environmental_metrics']['total_project_area'] += float(area_str)
+            if report and report.tree_cover_loss:
+                loss_str = str(report.tree_cover_loss).replace(',', '')
+                result['environmental_metrics']['total_tree_cover_loss'] += float(loss_str)
+        except Exception as e:
+            print(f"Conversion error for farm {farm.farm_id}: {e}")
+
         result['farms_detail'].append(farm_info)
-    
-    # Calculer les pourcentages
-    total = result['total_farms']
-    result['compliance_percentages'] = {
-        'compliant_100_percent': round(result['compliance_status']['compliant_100'] / total * 100, 2) if total > 0 else 0,
-        'not_compliant_percent': round(result['compliance_status']['not_compliant'] / total * 100, 2) if total > 0 else 0,
-        'likely_compliant_percent': round(result['compliance_status']['likely_compliant'] / total * 100, 2) if total > 0 else 0,
-        'no_report_percent': round(result['compliance_status']['no_report'] / total * 100, 2) if total > 0 else 0
-    }
-    
-    # Arrondir les totaux
-    result['environmental_metrics']['total_project_area'] = round(
-        result['environmental_metrics']['total_project_area'], 2
-    )
+
+    total_area = result['environmental_metrics']['total_project_area']
+    if total_area > 0:
+        compliant_area = sum(
+            float(str(f['project_area']).replace(',', ''))
+            for f in result['farms_detail']
+            if f['compliance_status'] == '100% Compliant' and f['project_area']
+        )
+        likely_area = sum(
+            float(str(f['project_area']).replace(',', ''))
+            for f in result['farms_detail']
+            if f['compliance_status'] == 'Likely Compliant' and f['project_area']
+        )
+        not_area = sum(
+            float(str(f['project_area']).replace(',', ''))
+            for f in result['farms_detail']
+            if f['compliance_status'] == 'Not Compliant' and f['project_area']
+        )
+        total_known = compliant_area + likely_area + not_area
+
+        result['compliance_percentages'] = {
+            'compliant_100_percent': round(compliant_area / total_area * 100, 2),
+            'likely_compliant_percent': round(likely_area / total_area * 100, 2),
+            'not_compliant_percent': round(not_area / total_area * 100, 2),
+            'no_report_percent': round(max(0, 100 - (total_known / total_area * 100)), 2)
+        }
+    else:
+        result['compliance_percentages'] = {
+            'compliant_100_percent': 0,
+            'likely_compliant_percent': 0,
+            'not_compliant_percent': 0,
+            'no_report_percent': 0
+        }
+
+    result['environmental_metrics']['total_project_area'] = round(total_area, 2)
     result['environmental_metrics']['total_tree_cover_loss'] = round(
         result['environmental_metrics']['total_tree_cover_loss'], 2
     )
-    
-    # Ajouter les moyennes
+
+    total = result['total_farms']
     result['environmental_metrics']['average_project_area_per_farm'] = round(
-        result['environmental_metrics']['total_project_area'] / total, 2
+        total_area / total, 2
     ) if total > 0 else 0
-    
     result['environmental_metrics']['average_tree_cover_loss_per_farm'] = round(
         result['environmental_metrics']['total_tree_cover_loss'] / total, 2
     ) if total > 0 else 0
-    
+
     return jsonify({
         'status': 'success',
         'data': result
@@ -950,4 +958,49 @@ def get_user_comparison():
     return jsonify({
         'status': 'success',
         'data': comparison
+    })
+
+
+@bp.route('/area/by-compliance', methods=['GET'])
+@jwt_required()
+def get_area_by_compliance():
+    """
+    Retourne la somme totale de project_area groupée par eudr_compliance_assessment.
+    """
+    identity = get_jwt_identity()
+    user_id = identity['id']
+
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'status': 'error', 'message': 'User not found'}), 404
+
+    # Si admin → toutes les fermes, sinon seulement ses fermes
+    query = db.session.query(
+        FarmReport.eudr_compliance_assessment.label('compliance_status'),
+        func.sum(
+            case(
+                (FarmReport.project_area.isnot(None),
+                 func.cast(func.replace(FarmReport.project_area, ',', ''), db.Float)),
+                else_=0
+            )
+        ).label('total_area')
+    ).join(Farm, Farm.id == FarmReport.farm_id)
+
+    if not user.is_admin:
+        query = query.filter(Farm.created_by == user_id)
+
+    query = query.group_by(FarmReport.eudr_compliance_assessment)
+
+    results = query.all()
+
+    data = []
+    for row in results:
+        data.append({
+            'compliance_status': row.compliance_status or 'Unknown',
+            'total_area': round(row.total_area or 0, 2)
+        })
+
+    return jsonify({
+        'status': 'success',
+        'data': data
     })

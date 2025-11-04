@@ -115,3 +115,4 @@ def display_all_points():
     # Generate map displaying all points
     choropleth_map = generate_choropleth_map()
     return render_template('index.html', choropleth_map=choropleth_map)
+
