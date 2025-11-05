@@ -25,6 +25,7 @@ def get_users():
             'username': user.username,
             'email': user.email,
             'phonenumber': user.phonenumber,
+            'company_name': user.company_name,
             'user_type': user.user_type,
             'is_admin': user.is_admin,
             'date_created': user.date_created,
@@ -37,6 +38,7 @@ def get_users():
             'username': user.username,
             'email': user.email,
             'phonenumber': user.phonenumber,
+            'company_name': user.company_name,
             'user_type': user.user_type,
             'is_admin': user.is_admin,
             'date_created': user.date_created,
@@ -52,11 +54,12 @@ def create_user():
     email = data.get('email')
     password = data.get('password')
     phonenumber = data.get('phonenumber')
+    company_name = data.get('company_name')
     user_type = data.get('user_type')
     is_admin = data.get('is_admin', False)
     id_start = re.sub(r'[^A-Za-z]', 'A', username)[:4]
 
-# Ensure id_start is in uppercase
+    # Ensure id_start is in uppercase
     id_start = id_start.upper()
 
     # Example result
@@ -73,6 +76,7 @@ def create_user():
         email=email,
         password=hashed_password,
         phonenumber=phonenumber,
+        company_name=company_name,
         user_type=user_type,
         is_admin=is_admin,
         id_start=id_start
@@ -97,6 +101,7 @@ def edit_user(id):
     if 'password' in data:
         user.password = generate_password_hash(data['password'], method='pbkdf2:sha256')
     user.phonenumber = data.get('phonenumber', user.phonenumber)
+    user.company_name = data.get('company_name', user.company_name)
     user.user_type = data.get('user_type', user.user_type)
     user.is_admin = data.get('is_admin', user.is_admin)
 
@@ -117,6 +122,7 @@ def get_user(id):
         'username': user.username,
         'email': user.email,
         'phonenumber': user.phonenumber,
+        'company_name': user.company_name,
         'user_type': user.user_type,
         'is_admin': user.is_admin,
         'date_created': user.date_created,

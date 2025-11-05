@@ -11,6 +11,7 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(150), unique=True, nullable=False)
     password = db.Column(db.String(150), nullable=False)
     phonenumber = db.Column(db.String(20), nullable=True)
+    company_name = db.Column(db.String(255), nullable=True)  # Nouvelle colonne
     user_type = db.Column(db.String(50), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
     date_created = db.Column(db.DateTime, default=datetime.utcnow)
