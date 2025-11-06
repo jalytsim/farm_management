@@ -820,7 +820,8 @@ def get_global_summary():
 @jwt_required()
 def get_area_by_compliance():
     """
-    Retourne la somme totale de project_area groupée par eudr_compliance_assessment.
+    Retourne la somme totale de project_area ET tree_cover_loss 
+    groupée par eudr_compliance_assessment.
     """
     identity = get_jwt_identity()
     user_id = identity['id']
@@ -838,7 +839,14 @@ def get_area_by_compliance():
                  func.cast(func.replace(FarmReport.project_area, ',', ''), db.Float)),
                 else_=0
             )
-        ).label('total_area')
+        ).label('total_area'),
+        func.sum(
+            case(
+                (FarmReport.tree_cover_loss.isnot(None),
+                 func.cast(func.replace(FarmReport.tree_cover_loss, ',', ''), db.Float)),
+                else_=0
+            )
+        ).label('total_tree_cover_loss')
     ).join(Farm, Farm.id == FarmReport.farm_id)
 
     if not user.is_admin:
@@ -852,7 +860,8 @@ def get_area_by_compliance():
     for row in results:
         data.append({
             'compliance_status': row.compliance_status or 'Unknown',
-            'total_area': round(row.total_area or 0, 2)
+            'total_area': round(row.total_area or 0, 2),
+            'total_tree_cover_loss': round(row.total_tree_cover_loss or 0, 2)
         })
 
     return jsonify({
