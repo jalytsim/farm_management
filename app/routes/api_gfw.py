@@ -1,5 +1,5 @@
 from flask import Blueprint, json, jsonify, request
-from app.models import Crop, District, Farm, FarmData, Forest
+from app.models import Crop, District, Farm, FarmData, Forest, ForestReport
 from app.routes.map import gfw_async, gfw_async_carbon, gfw_async_carbon_from_geojson, gfw_async_from_geojson
 import os
 import hashlib
@@ -58,9 +58,13 @@ def log_upload(ip, user_agent, filename, filehash, guest_id):
         log_file.write(f"{datetime.utcnow().isoformat()} | GuestID: {guest_id} | IP: {ip} | UA: {user_agent} | File: {filename} | Hash: {filehash}\n")
 
 
+# ============================================
+# FOREST ENDPOINTS
+# ============================================
 
 @bp.route('/forests/<int:forest_id>/report', methods=['GET'])
 async def forestReport(forest_id):
+    """Récupérer le rapport d'une forêt (format groupé par dataset)"""
     forest = Forest.query.filter_by(id=forest_id).first()
     if forest is None:
         return jsonify({"error": "Forest not found"}), 404
@@ -78,6 +82,7 @@ async def forestReport(forest_id):
         return jsonify(data), status_code
 
     # ✅ GROUPER PAR DATASET (comme Farm) au lieu de retourner l'array brut
+    print("📊 Grouping forest report data by dataset...")
     report_by_dataset = {}
     for item in data['dataset_results']:
         dataset = item['dataset']
@@ -94,9 +99,14 @@ async def forestReport(forest_id):
         "report": report_by_dataset  # ✅ Maintenant c'est un Object groupé par dataset
     }), 200
 
+
+# ============================================
+# FARM ENDPOINTS
+# ============================================
+
 @bp.route('/farm/<string:farm_id>/report', methods=['GET'])
 async def farmerReport(farm_id):
-    # Fetch farm information
+    """Récupérer le rapport d'une ferme"""
     print(farm_id)
     farm = Farm.query.filter_by(farm_id=farm_id).first()
     if farm is None:
@@ -149,8 +159,7 @@ async def farmerReport(farm_id):
         return jsonify(data), status_code
 
     # Group results by dataset
-    
-    print("azo ny data===============")
+    print("📊 Grouping farm report data by dataset...")
     report_by_dataset = {}
     for item in data['dataset_results']:
         dataset = item['dataset']
@@ -168,10 +177,13 @@ async def farmerReport(farm_id):
     }), 200
 
 
+# ============================================
+# CARBON REPORT ENDPOINTS
+# ============================================
 
 @bp.route('/farm/<string:farm_id>/CarbonReport', methods=['GET'])
 async def CarbonReport(farm_id):
-    # Fetch farm information synchronously
+    """Rapport carbone pour une ferme"""
     print(farm_id)
     farm = Farm.query.filter_by(farm_id=farm_id).first()
     if farm is None:
@@ -219,6 +231,7 @@ async def CarbonReport(farm_id):
     data, status_code = await gfw_async_carbon(owner_type='farmer', owner_id=farm_id)
     if status_code != 200:
         return jsonify(data), status_code
+    
     print(farm_info)
     return jsonify({
         "farm_info": farm_info,
@@ -228,12 +241,12 @@ async def CarbonReport(farm_id):
 
 @bp.route('/forest/<string:forest_id>/CarbonReport', methods=['GET'])
 async def CarbonReportforest(forest_id):
-    # Fetch farm information synchronously
+    """Rapport carbone pour une forêt"""
     forest = Forest.query.filter_by(id=forest_id).first()
     if forest is None:
         return jsonify({"error": "Forest not found"}), 404
 
-    # Create farm info dictionary
+    # Create forest info dictionary
     forest_info = {
         'name': forest.name,
         'tree_type': forest.tree_type,
@@ -241,21 +254,25 @@ async def CarbonReportforest(forest_id):
         'date_updated': forest.date_updated.strftime('%Y-%m-%d %H:%M:%S'),
     }
 
-
-    
     # Fetch additional data asynchronously
     data, status_code = await gfw_async_carbon(owner_type='forest', owner_id=forest_id)
     if status_code != 200:
         return jsonify(data), status_code
+    
     print(forest_info)
     return jsonify({
         "forest_info": forest_info,
         "report": data['dataset_results']
     }), 200
-    
-    
+
+
+# ============================================
+# GEOJSON FILE UPLOAD ENDPOINTS
+# ============================================
+
 @bp.route('/Geojson/ReportFromFile', methods=['POST'])
 async def report_from_file():
+    """Générer un rapport à partir d'un fichier GeoJSON"""
     if 'file' not in request.files:
         return jsonify({'error': 'No file provided'}), 400
 
@@ -277,14 +294,14 @@ async def report_from_file():
     saved_path = os.path.join(UPLOAD_FOLDER, f"{filehash}.geojson")
 
     if os.path.exists(saved_path):
-    # Le fichier existe déjà : on lit son contenu
+        # Le fichier existe déjà : on lit son contenu
         try:
             with open(saved_path, 'r', encoding='utf-8') as f:
                 geojson_data = json.load(f)
         except Exception as e:
             return jsonify({'error': f'Error reading existing file: {str(e)}'}), 500
 
-        # On appelle l’analyse comme d’habitude
+        # On appelle l'analyse comme d'habitude
         data, status_code = await gfw_async_from_geojson(geojson_data)
         if status_code != 200:
             return jsonify(data), status_code
@@ -300,13 +317,11 @@ async def report_from_file():
                 "coordinates": item["coordinates"]
             })
         
-        
         return jsonify({
             "message": "Duplicate file, using cached content",
             "report": report_by_dataset,
             "hash": filehash
         }), 200
-
 
     file.save(saved_path)
     log_upload(ip, user_agent, filename, filehash, guest_id)
@@ -318,7 +333,7 @@ async def report_from_file():
 
     data, status_code = await gfw_async_from_geojson(geojson_data)
     if status_code != 200:
-            return jsonify(data), status_code
+        return jsonify(data), status_code
         
     report_by_dataset = {}
     for item in data['dataset_results']:
@@ -331,16 +346,17 @@ async def report_from_file():
             "coordinates": item["coordinates"]
         })
     
-    
     return jsonify({
-        "message": "file OK ",
+        "message": "file OK",
         "report": report_by_dataset,
     }), 200
     
 
 @bp.route('/Geojson/CarbonReportFromFile', methods=['POST'])
 async def carbon_report_from_file():
-    print("tonga ato amin'ny route ")
+    """Générer un rapport carbone à partir d'un fichier GeoJSON"""
+    print("📂 Carbon report from file endpoint called")
+    
     if 'file' not in request.files:
         return jsonify({'error': 'No file provided'}), 400
 
@@ -383,14 +399,12 @@ async def carbon_report_from_file():
                 "coordinates": item["coordinates"]
             })
         
-        
         return jsonify({
             "message": "Duplicate file, using cached content",
             "report": report_by_dataset,
             "hash": filehash
         }), 200
         
-
     file.save(saved_path)
     log_upload(ip, user_agent, filename, filehash, guest_id)
 
@@ -399,9 +413,9 @@ async def carbon_report_from_file():
     except Exception as e:
         return jsonify({'error': f'Could not parse saved file: {str(e)}'}), 400
 
-    report, status_code = await gfw_async_carbon_from_geojson(geojson_data)
+    data, status_code = await gfw_async_carbon_from_geojson(geojson_data)
     if status_code != 200:
-            return jsonify(data), status_code
+        return jsonify(data), status_code
         
     report_by_dataset = {}
     for item in data['dataset_results']:
@@ -414,15 +428,19 @@ async def carbon_report_from_file():
             "coordinates": item["coordinates"]
         })
     
-    
     return jsonify({
-        "message": "file OK ",
+        "message": "file OK",
         "report": report_by_dataset,
     }), 200
 
 
+# ============================================
+# PDF GENERATION ENDPOINTS
+# ============================================
+
 @bp.route('/generate-pdf', methods=['POST'])
 def generate_pdf():
+    """Générer un PDF à partir de HTML"""
     data = request.json
     html_content = data.get('html')
 
@@ -438,6 +456,7 @@ def generate_pdf():
 
 @bp.route('/generate-receipt', methods=['POST'])
 def generate_receipt():
+    """Générer un reçu PDF"""
     data = request.json
     html_content = data.get('html')
 

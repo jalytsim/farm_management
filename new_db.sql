@@ -319,3 +319,24 @@ CREATE TABLE certificate (
     INDEX idx_issue_date (issue_date),
     INDEX idx_certificate_type (certificate_type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+
+CREATE TABLE forestreport (
+    id SERIAL PRIMARY KEY,
+    forest_id INTEGER NOT NULL REFERENCES forest(id) ON DELETE CASCADE,
+    project_area VARCHAR(255),
+    country_deforestation_risk_level VARCHAR(255),
+    radd_alert VARCHAR(255),
+    tree_cover_loss VARCHAR(255),
+    forest_cover_2020 VARCHAR(255),
+    eudr_compliance_assessment VARCHAR(255),
+    protected_area_status VARCHAR(255),
+    cover_extent_summary_b64 TEXT,
+    tree_cover_drivers VARCHAR(255),
+    cover_extent_area VARCHAR(255),
+    date_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    date_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_forestreport_forest_id ON forestreport(forest_id);

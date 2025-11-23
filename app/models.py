@@ -124,6 +124,43 @@ class FarmReport(db.Model):
         return None
 
 
+class ForestReport(db.Model):
+    __tablename__ = 'forestreport'
+    id = db.Column(db.Integer, primary_key=True)
+    forest_id = db.Column(db.Integer, db.ForeignKey('forest.id'), nullable=False)
+    
+    # Mêmes champs que FarmReport pour compatibilité
+    project_area = db.Column(db.String(255), nullable=True)
+    country_deforestation_risk_level = db.Column(db.String(255), nullable=True)
+    radd_alert = db.Column(db.String(255), nullable=True)
+    tree_cover_loss = db.Column(db.String(255), nullable=True)
+    forest_cover_2020 = db.Column(db.String(255), nullable=True)
+    eudr_compliance_assessment = db.Column(db.String(255), nullable=True)
+    protected_area_status = db.Column(db.String(255), nullable=True)
+    cover_extent_summary_b64 = db.Column(db.Text, nullable=True)
+    tree_cover_drivers = db.Column(db.String(255), nullable=True)
+    cover_extent_area = db.Column(db.String(255), nullable=True)
+    
+    date_created = db.Column(db.DateTime, default=datetime.utcnow)
+    date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relation avec Forest
+    forest = db.relationship('Forest', backref=db.backref('forest_reports', lazy=True))
+
+    def set_cover_extent_summary(self, summary_text: str):
+        """Encode le champ CoverExtentSummary en base64 avant stockage"""
+        if summary_text:
+            self.cover_extent_summary_b64 = b64encode(summary_text.encode('utf-8')).decode('utf-8')
+
+    def get_cover_extent_summary(self) -> str:
+        """Décode le champ CoverExtentSummary depuis base64"""
+        if self.cover_extent_summary_b64:
+            return b64decode(self.cover_extent_summary_b64.encode('utf-8')).decode('utf-8')
+        return None
+
+    def __repr__(self):
+        return f'<ForestReport {self.id} - Forest {self.forest_id}>'
+
     
     # ovana any @BD
 class FarmData(db.Model):
