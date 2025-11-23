@@ -66,6 +66,7 @@ async def forestReport(forest_id):
         return jsonify({"error": "Forest not found"}), 404
 
     forest_info = {
+        'farm_id': forest.id,  # ✅ Ajout pour compatibilité avec EudrReportSection
         'name': forest.name,
         'tree_type': forest.tree_type,
         'date_created': forest.date_created.strftime('%Y-%m-%d %H:%M:%S'),
@@ -76,10 +77,21 @@ async def forestReport(forest_id):
     if status_code != 200:
         return jsonify(data), status_code
 
+    # ✅ GROUPER PAR DATASET (comme Farm) au lieu de retourner l'array brut
+    report_by_dataset = {}
+    for item in data['dataset_results']:
+        dataset = item['dataset']
+        if dataset not in report_by_dataset:
+            report_by_dataset[dataset] = []
+        report_by_dataset[dataset].append({
+            "pixel": item["pixel"],
+            "data_fields": item["data_fields"],
+            "coordinates": item["coordinates"]
+        })
 
     return jsonify({
         "forest_info": forest_info,
-        "report": data['dataset_results']
+        "report": report_by_dataset  # ✅ Maintenant c'est un Object groupé par dataset
     }), 200
 
 @bp.route('/farm/<string:farm_id>/report', methods=['GET'])
