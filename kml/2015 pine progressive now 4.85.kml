@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2" xmlns:kml="http://www.opengis.net/kml/2.2" xmlns:atom="http://www.w3.org/2005/Atom">
+<Document>
+	<name>2015 pine progressive now 4.85.kml</name>
+	<Schema name="progressive" id="S_progressive_IDD">
+		<SimpleField type="int" name="OBJECTID"><displayName>&lt;b&gt;OBJECTID&lt;/b&gt;</displayName>
+</SimpleField>
+		<SimpleField type="double" name="SHAPE_Leng"><displayName>&lt;b&gt;SHAPE_Leng&lt;/b&gt;</displayName>
+</SimpleField>
+		<SimpleField type="double" name="SHAPE_Area"><displayName>&lt;b&gt;SHAPE_Area&lt;/b&gt;</displayName>
+</SimpleField>
+	</Schema>
+	<Style id="falseColor">
+		<IconStyle>
+			<color>fff0f0f0</color>
+		</IconStyle>
+		<BalloonStyle>
+			<text><![CDATA[<table border="0">
+  <tr><td><b>OBJECTID</b></td><td>$[progressive/OBJECTID]</td></tr>
+  <tr><td><b>SHAPE_Leng</b></td><td>$[progressive/SHAPE_Leng]</td></tr>
+  <tr><td><b>SHAPE_Area</b></td><td>$[progressive/SHAPE_Area]</td></tr>
+</table>
+]]></text>
+		</BalloonStyle>
+		<ListStyle>
+		</ListStyle>
+		<LineStyle>
+			<color>ffff5500</color>
+			<width>4</width>
+		</LineStyle>
+		<PolyStyle>
+			<color>00f0f0f0</color>
+		</PolyStyle>
+		<gx:IconStackStyle>
+		</gx:IconStackStyle>
+	</Style>
+	<Style id="falseColor0">
+		<IconStyle>
+			<color>fff0f0f0</color>
+		</IconStyle>
+		<BalloonStyle>
+			<text><![CDATA[<table border="0">
+  <tr><td><b>OBJECTID</b></td><td>$[progressive/OBJECTID]</td></tr>
+  <tr><td><b>SHAPE_Leng</b></td><td>$[progressive/SHAPE_Leng]</td></tr>
+  <tr><td><b>SHAPE_Area</b></td><td>$[progressive/SHAPE_Area]</td></tr>
+</table>
+]]></text>
+		</BalloonStyle>
+		<ListStyle>
+		</ListStyle>
+		<LineStyle>
+			<color>ffff5500</color>
+			<width>4</width>
+		</LineStyle>
+		<PolyStyle>
+			<color>00f0f0f0</color>
+		</PolyStyle>
+		<gx:IconStackStyle>
+		</gx:IconStackStyle>
+	</Style>
+	<StyleMap id="falseColor1">
+		<Pair>
+			<key>normal</key>
+			<styleUrl>#falseColor0</styleUrl>
+		</Pair>
+		<Pair>
+			<key>highlight</key>
+			<styleUrl>#falseColor</styleUrl>
+		</Pair>
+	</StyleMap>
+	<Placemark>
+		<name>2015 pine progressive now 4.85</name>
+		<styleUrl>#falseColor1</styleUrl>
+		<ExtendedData>
+			<SchemaData schemaUrl="#S_progressive_IDD">
+				<SimpleData name="OBJECTID">9</SimpleData>
+				<SimpleData name="SHAPE_Leng">1160.9</SimpleData>
+				<SimpleData name="SHAPE_Area">56275.3</SimpleData>
+			</SchemaData>
+		</ExtendedData>
+		<Polygon>
+			<outerBoundaryIs>
+				<LinearRing>
+					<coordinates>
+						32.30521681747294,0.9838998481825323,0 32.30869810662406,0.9838431299954253,0 32.30869170789077,0.9864265524189377,0 32.3080784271738,0.9859444749882881,0 32.3078613159233,0.9854893193389557,0 32.30758117399179,0.9852652448631035,0 32.30632754633293,0.98452101280492,0 32.30526302653154,0.9839538267438616,0 32.30521681747294,0.9838998481825323,0 
+					</coordinates>
+				</LinearRing>
+			</outerBoundaryIs>
+		</Polygon>
+	</Placemark>
+</Document>
+</kml>
