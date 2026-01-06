@@ -450,16 +450,30 @@ class PaidFeatureAccess(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     access_expires_at = db.Column(db.DateTime, nullable=True)  # date limite d'accès
     usage_left = db.Column(db.Integer, nullable=True)  # None = illimité
+    
+    payment_method = db.Column(db.String(50), default='mobile_money')  # 'mobile_money' ou 'dpo'
+    dpo_trans_token = db.Column(db.String(100), nullable=True, unique=True)
+    dpo_trans_ref = db.Column(db.String(100), nullable=True)
+    currency = db.Column(db.String(10), default='UGX')
+    amount = db.Column(db.Float, nullable=True)
+    
+    def __repr__(self):
+        return f'<PaidFeatureAccess {self.feature_name} - {self.payment_status}>'
 
 
     
 class FeaturePrice(db.Model):
     __tablename__ = 'featureprice'
+    
     id = db.Column(db.Integer, primary_key=True)
     feature_name = db.Column(db.String(100), unique=True, nullable=False)
     price = db.Column(db.Float, nullable=False)
-    duration_days = db.Column(db.Integer, nullable=True)  # Accès en jours (None = permanent)
-    usage_limit = db.Column(db.Integer, nullable=True)    # Nombre d'utilisations (None = illimité)
+    duration_days = db.Column(db.Integer, nullable=True)
+    usage_limit = db.Column(db.Integer, nullable=True)
+    description = db.Column(db.Text, nullable=True)
+    
+    def __repr__(self):
+        return f'<FeaturePrice {self.feature_name} - {self.price}>'
 
 class EUDRStatement(db.Model):
     __tablename__ = 'eudr_statements'

@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta
 from app.models import PaidFeatureAccess, FeaturePrice, db
 
-def create_payment_attempt(user_id=None, guest_phone_number=None, feature_name=None, txn_id=None):
+def create_payment_attempt(user_id=None, guest_phone_number=None, feature_name=None, 
+                          txn_id=None, payment_method='mobile_money', currency='UGX'):
     """Crée une tentative de paiement avec configuration automatique"""
     feature = FeaturePrice.query.filter_by(feature_name=feature_name).first()
     if not feature:
@@ -19,13 +20,15 @@ def create_payment_attempt(user_id=None, guest_phone_number=None, feature_name=N
         txn_id=txn_id,
         payment_status="pending",
         access_expires_at=access_expires_at,
-        usage_left=feature.usage_limit
+        usage_left=feature.usage_limit,
+        payment_method=payment_method,
+        currency=currency,
+        amount=feature.price
     )
 
     db.session.add(new_payment)
     db.session.commit()
     return new_payment, feature.price
-
 
 
 def has_user_access(user_id, feature_name):
@@ -53,7 +56,9 @@ def consume_feature_usage(user_id, feature_name):
     if not access:
         return False
 
-    if access.usage_left:
+    if access.usage_left is not None:
+        if access.usage_left <= 0:
+            return False
         access.usage_left -= 1
         db.session.commit()
 

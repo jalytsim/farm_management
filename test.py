@@ -1,63 +1,49 @@
-import os
-import graphviz
-from app import db  # Adjust import as per your app structure
-from model import User, District, FarmerGroup, SoilData, Farm, FarmData, Forest, Point, Tree, Weather, Solar, ProduceCategory
+import requests
+import xml.etree.ElementTree as ET
 
-def generate_uml():
-    # Create a new Graphviz graph
-    dot = graphviz.Digraph('UML', filename='uml_diagram.gv')
+API_URL = "https://secure.3gdirectpay.com/API/v6/"
 
-    # Define nodes for each model
-    models = {
-        'User': ['id: int', 'username: str', 'email: str', 'password: str', 'phonenumber: str', 'user_type: str', 'is_admin: bool', 'date_created: datetime', 'date_updated: datetime', 'id_start: str'],
-        'District': ['id: int', 'name: str', 'region: str', 'date_created: datetime', 'date_updated: datetime', 'modified_by: int', 'created_by: int'],
-        'FarmerGroup': ['id: int', 'name: str', 'description: str', 'date_created: datetime', 'date_updated: datetime', 'modified_by: int', 'created_by: int'],
-        'SoilData': ['id: int', 'district_id: int', 'internal_id: int', 'device: str', 'owner: str', 'nitrogen: float', 'phosphorus: float', 'potassium: float', 'ph: float', 'temperature: float', 'humidity: float', 'conductivity: float', 'signal_level: float', 'date: date', 'date_created: datetime', 'date_updated: datetime', 'modified_by: int', 'created_by: int'],
-        'Farm': ['id: int', 'farm_id: str', 'name: str', 'subcounty: str', 'farmergroup_id: int', 'district_id: int', 'geolocation: str', 'phonenumber: str', 'phonenumber2: str', 'cin: str', 'gender: str', 'date_created: datetime', 'date_updated: datetime', 'modified_by: int', 'created_by: int'],
-        'FarmData': ['id: int', 'farm_id: str', 'crop_id: int', 'land_type: str', 'tilled_land_size: float', 'planting_date: date', 'season: int', 'quality: str', 'quantity: int', 'harvest_date: date', 'expected_yield: float', 'actual_yield: float', 'timestamp: datetime', 'channel_partner: str', 'destination_country: str', 'customer_name: str', 'date_created: datetime', 'date_updated: datetime', 'modified_by: int', 'created_by: int', 'number_of_tree: int', 'hs_code: str'],
-        'Forest': ['id: int', 'name: str', 'tree_type: str', 'date_created: datetime', 'date_updated: datetime', 'modified_by: int', 'created_by: int'],
-        'Point': ['id: int', 'longitude: float', 'latitude: float', 'owner_type: enum', 'owner_id: str', 'district_id: int', 'date_created: datetime', 'date_updated: datetime', 'modified_by: int', 'created_by: int'],
-        'Tree': ['id: int', 'forest_id: int', 'point_id: int', 'name: str', 'height: float', 'diameter: float', 'date_planted: date', 'date_cut: date', 'created_by: int', 'modified_by: int', 'date_created: datetime', 'date_updated: datetime', 'type: str'],
-        'Weather': ['id: int', 'latitude: float', 'longitude: float', 'timestamp: datetime', 'air_temperature: float', 'humidity: float', 'date_created: datetime', 'date_updated: datetime'],
-        'Solar': ['id: int', 'latitude: str', 'longitude: str', 'timestamp: datetime', 'uv_index: float', 'date_created: datetime', 'date_updated: datetime'],
-        'ProduceCategory': ['id: int', 'name: str', 'description: str', 'date_created: datetime', 'date_updated: datetime']
-    }
+COMPANY_TOKEN = "8D3DA73D-9D7F-4E09-96D4-3D44E7A83EA3"
+SERVICE_ID = "5525"
 
-    for model_name, attributes in models.items():
-        # Create a node for each model
-        dot.node(model_name, shape='record', label='{' + f"{model_name}|{'|'.join(attributes)}" + '}')
+payload = f"""
+<?xml version="1.0" encoding="utf-8"?>
+<API3G>
+    <CompanyToken>{COMPANY_TOKEN}</CompanyToken>
+    <Request>createToken</Request>
+    <Transaction>
+        <PaymentAmount>4.00</PaymentAmount>
+        <PaymentCurrency>USD</PaymentCurrency>
+        <CompanyRef>TEST123</CompanyRef>
+        <RedirectURL>https://example.com/success</RedirectURL>
+        <BackURL>https://example.com/cancel</BackURL>
+        <CompanyRefUnique>0</CompanyRefUnique>
+        <PTL>5</PTL>
+    </Transaction>
+    <Services>
+        <Service>
+            <ServiceType>{SERVICE_ID}</ServiceType>
+            <ServiceDescription>Test payment</ServiceDescription>
+            <ServiceDate>2026/01/05</ServiceDate>
+        </Service>
+    </Services>
+</API3G>
+"""
 
-    # Define relationships (Foreign Key references)
-    relationships = [
-        ('FarmerGroup', 'Farm'),
-        ('District', 'SoilData'),
-        ('User', 'District', 'modified_by'),
-        ('User', 'District', 'created_by'),
-        ('User', 'FarmerGroup', 'modified_by'),
-        ('User', 'FarmerGroup', 'created_by'),
-        ('User', 'Farm', 'modified_by'),
-        ('User', 'Farm', 'created_by'),
-        ('User', 'SoilData', 'modified_by'),
-        ('User', 'SoilData', 'created_by'),
-        ('Farm', 'FarmData'),
-        ('District', 'Point'),
-        ('User', 'Point', 'modified_by'),
-        ('User', 'Point', 'created_by'),
-        ('Forest', 'Tree'),
-        ('Point', 'Tree'),
-        ('Weather', 'Farm'),
-        ('Solar', 'Farm')
-    ]
+headers = {"Content-Type": "application/xml"}
 
-    for parent, child, *attr in relationships:
-        if attr:
-            dot.edge(parent, child, label=f"{attr[0]} FK")
-        else:
-            dot.edge(parent, child)
+response = requests.post(API_URL, data=payload.encode("utf-8"), headers=headers)
 
-    # Save and render the graph
-    dot.render('uml_diagram', format='png', cleanup=True)
-    print("UML diagram generated and saved as uml_diagram.png")
+print("Raw response:")
+print(response.text)
 
-if __name__ == '__main__':
-    generate_uml()
+# Parse XML
+root = ET.fromstring(response.text)
+trans_token = root.findtext("TransToken")
+
+if trans_token:
+    print("\n✅ Transaction created")
+    print("Payment URL:")
+    print(f"https://secure.3gdirectpay.com/payv2.php?ID={trans_token}")
+else:
+    print("\n❌ Failed to create transaction")
