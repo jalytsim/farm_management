@@ -1,5 +1,6 @@
 # app/routes/api_tree.py
 
+import logging
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
 from sqlalchemy import func
@@ -282,3 +283,112 @@ def get_stats():
         'avg_diameter': round(float(avg_diameter), 2),
         'trees_by_forest': [{'forest': name, 'count': count} for name, count in trees_by_forest]
     })
+    
+    
+@bp.route('/bulk-create', methods=['POST'])
+@jwt_required()
+def bulk_create_forests():
+    identity = get_jwt_identity()
+    user_id = identity['id']
+    user = User.query.get(user_id)
+    
+    if not user or not user.id_start:
+        return jsonify({"msg": "User id_start is not defined"}), 400
+    
+    if 'file' not in request.files:
+        return jsonify({"msg": "No file provided"}), 400
+    
+    file = request.files['file']
+    
+    if file.filename == '':
+        return jsonify({"msg": "No file selected"}), 400
+    
+    if not file.filename.endswith('.csv'):
+        return jsonify({"msg": "File must be a CSV"}), 400
+    
+    try:
+        import csv
+        import io
+        
+        stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
+        csv_reader = csv.DictReader(stream)
+        
+        # Validate headers
+        required_headers = {'name', 'tree_type'}
+        headers = set(csv_reader.fieldnames or [])
+        
+        if not required_headers.issubset(headers):
+            missing = required_headers - headers
+            return jsonify({
+                "msg": f"Missing required columns: {', '.join(missing)}"
+            }), 400
+        
+        results = {
+            'success': 0,
+            'errors': 0,
+            'skipped': 0,
+            'details': []
+        }
+        
+        for row_num, row in enumerate(csv_reader, start=2):
+            try:
+                name = row.get('name', '').strip()
+                tree_type = row.get('tree_type', '').strip()
+                
+                if not name or not tree_type:
+                    results['errors'] += 1
+                    results['details'].append({
+                        'row': row_num,
+                        'name': name or 'N/A',
+                        'error': 'Name and tree_type are required'
+                    })
+                    continue
+                
+                # ✅ VÉRIFICATION DES DOUBLONS - name + tree_type + created_by
+                existing_forest = Forest.query.filter_by(
+                    name=name,
+                    tree_type=tree_type,  # ✅ Ajouté
+                    created_by=user_id
+                ).first()
+                
+                if existing_forest:
+                    results['skipped'] += 1
+                    results['details'].append({
+                        'row': row_num,
+                        'name': name,
+                        'tree_type': tree_type,
+                        'forest_id': existing_forest.id,
+                        'status': 'skipped',
+                        'reason': f'Forest "{name}" with tree type "{tree_type}" already exists'
+                    })
+                    continue
+                
+                # Créer la forêt si elle n'existe pas
+                new_forest = forest_utils.create_forest(
+                    name=name,
+                    tree_type=tree_type,
+                    user=user
+                )
+                
+                results['success'] += 1
+                results['details'].append({
+                    'row': row_num,
+                    'forest_id': new_forest.id,
+                    'name': new_forest.name,
+                    'tree_type': new_forest.tree_type,
+                    'status': 'created'
+                })
+                
+            except Exception as e:
+                results['errors'] += 1
+                results['details'].append({
+                    'row': row_num,
+                    'name': name if 'name' in locals() else 'N/A',
+                    'error': str(e)
+                })
+        
+        return jsonify(results), 200
+        
+    except Exception as e:
+        logging.error(f"Error in bulk create: {e}")
+        return jsonify({"msg": f"Error processing file: {str(e)}"}), 500
