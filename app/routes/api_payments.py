@@ -35,7 +35,7 @@ def initiate_payment():
         txn_id = data.get("txn_id")
         feature_name = data.get("feature_name")
 
-        print("✅ Reçu:", {"phone": phone, "txn_id": txn_id, "feature_name": feature_name})
+        print("Reçu:", {"phone": phone, "txn_id": txn_id, "feature_name": feature_name})
 
         if not phone or not txn_id or not feature_name:
             return jsonify({"error": "Missing required fields"}), 400
@@ -58,11 +58,11 @@ def initiate_payment():
             return jsonify({"error": amount_or_error}), 400
 
         url = f"https://188.166.125.28/nkusu-iot/api/nkusu-iot/payments?amount={amount_or_error}&msisdn={phone}&txnId={txn_id}"
-        print("🌐 Appel API paiement:", url)
+        print("Appel API paiement:", url)
 
         try:
             res = requests.post(url, verify=False)
-            print("📨 Réponse API externe:", res.status_code, res.text)
+            print("Réponse API externe:", res.status_code, res.text)
 
             return jsonify({
                 "status": res.status_code,
@@ -120,7 +120,7 @@ def check_payment_status(txn_id):
 def initiate_dpo_payment():
     try:
         print("\n" + "="*60)
-        print("[DPO] 🚀 NOUVELLE REQUÊTE DE PAIEMENT DPO")
+        print("[DPO] NOUVELLE REQUÊTE DE PAIEMENT DPO")
         print("="*60)
         
         # Gérer JWT mais ne pas planter si expiré (mode invité)
@@ -130,7 +130,7 @@ def initiate_dpo_payment():
             identity = get_jwt_identity()
             user_id = identity['id'] if isinstance(identity, dict) else identity
         except Exception as jwt_error:
-            print(f"[DPO] ⚠️ JWT Error (continuing as guest): {str(jwt_error)}")
+            print(f"[DPO] JWT Error (continuing as guest): {str(jwt_error)}")
             user_id = None
         
         print(f"[DPO] User ID: {user_id or 'GUEST'}")
@@ -166,10 +166,10 @@ def initiate_dpo_payment():
         )
 
         if not payment:
-            print(f"[DPO] ❌ Failed to create payment: {amount}")
+            print(f"[DPO] Failed to create payment: {amount}")
             return jsonify({"error": amount}), 400
 
-        print(f"[DPO] ✅ Payment record created (ID: {payment.id})")
+        print(f"[DPO] Payment record created (ID: {payment.id})")
         print(f"[DPO] Amount: {amount} {currency}")
 
         dpo = DPOPayment()
@@ -204,7 +204,7 @@ def initiate_dpo_payment():
             payment.dpo_trans_ref = result['trans_ref']
             db.session.commit()
 
-            print(f"[DPO] ✅✅✅ SUCCESS!")
+            print(f"[DPO] SUCCESS!")
             print(f"[DPO] Trans Token: {result['trans_token']}")
             print(f"[DPO] Payment URL: {result['payment_url']}")
             print("="*60 + "\n")
@@ -219,7 +219,7 @@ def initiate_dpo_payment():
                 "txn_id": txn_id
             }), 200
         else:
-            print(f"[DPO] ❌❌❌ FAILURE!")
+            print(f"[DPO] FAILURE!")
             print(f"[DPO] Error: {result['error']}")
             print(f"[DPO] Result Code: {result.get('result_code')}")
             print("="*60 + "\n")
@@ -232,7 +232,7 @@ def initiate_dpo_payment():
             }), 400
 
     except Exception as e:
-        print(f"[DPO] ❌ EXCEPTION: {str(e)}")
+        print(f"[DPO] EXCEPTION: {str(e)}")
         traceback.print_exc()
         print("="*60 + "\n")
         return jsonify({"error": "Unexpected server error"}), 500
@@ -240,55 +240,83 @@ def initiate_dpo_payment():
 
 @api_payments_bp.route('/dpo/verify/<trans_token>', methods=['GET'])
 def verify_dpo_payment(trans_token):
+    """
+    Vérifie le statut d'un paiement DPO.
+    
+    Retourne toujours 202 (pending) sauf si le paiement est définitivement payé (200).
+    Ne retourne JAMAIS d'échec pour éviter les faux négatifs dus aux 429 ou erreurs temporaires.
+    """
     try:
-        dpo = DPOPayment()
-        verification = dpo.verify_payment(trans_token)
-
+        print(f"\n[DPO VERIFY] Vérification du token: {trans_token}")
+        
+        # Chercher le paiement en base
         payment = PaidFeatureAccess.query.filter_by(
             dpo_trans_token=trans_token
         ).first()
 
         if not payment:
+            print("[DPO VERIFY] Paiement non trouvé en base")
             return jsonify({
                 "success": False,
                 "status": "pending",
                 "message": "Payment record not found yet"
             }), 202
 
-        status = verification.get("status")
-        result_code = verification.get("result_code")
+        # Si déjà marqué comme payé en base, retourner success immédiatement
+        if payment.payment_status == "success":
+            print("[DPO VERIFY] Déjà marqué comme payé en base")
+            return jsonify({
+                "success": True,
+                "status": "paid",
+                "message": "Payment already confirmed"
+            }), 200
 
-        # ✅ PAYÉ
-        if verification.get("success") and status == "verified":
-            if payment.payment_status != "success":
-                payment.payment_status = "success"
-                payment.verified_at = datetime.utcnow()
-                db.session.commit()
+        # Appeler l'API DPO
+        dpo = DPOPayment()
+        verification = dpo.verify_payment(trans_token)
+        
+        print(f"[DPO VERIFY] Résultat DPO: {verification}")
+
+        # CAS 1: Succès DPO confirmé (Result=000)
+        if verification.get("success") and verification.get("status") == "verified":
+            print("[DPO VERIFY] Paiement confirmé par DPO")
+            payment.payment_status = "success"
+            payment.verified_at = datetime.utcnow()
+            db.session.commit()
 
             return jsonify({
                 "success": True,
                 "status": "paid"
             }), 200
 
-        # ⏳ EN ATTENTE (900, 429, XML invalide, etc.)
-        if status in ["pending", "processing", "unknown"] or result_code in ["900", "429"]:
+        # CAS 2: Erreur temporaire (429, timeout, XML invalide)
+        # → Ne pas marquer comme failed, juste pending
+        if verification.get("status") in ["error", "rate_limited"]:
+            print("[DPO VERIFY] Erreur temporaire DPO (429 ou autre)")
             return jsonify({
                 "success": False,
-                "status": "pending"
+                "status": "pending",
+                "message": "Temporary error, retrying later"
             }), 202
 
-        # ❌ ON NE FAIL JAMAIS ICI
+        # CAS 3: Statut DPO = pending/processing/unknown
+        print("[DPO VERIFY] Paiement encore en attente")
         return jsonify({
             "success": False,
             "status": "pending"
         }), 202
 
     except Exception as e:
-        print("[DPO VERIFY] Exception:", str(e))
+        print(f"[DPO VERIFY] Exception: {str(e)}")
+        traceback.print_exc()
+        
+        # En cas d'exception, retourner pending (pas failed)
         return jsonify({
             "success": False,
-            "status": "pending"
+            "status": "pending",
+            "message": "Verification error, will retry"
         }), 202
+
 
 # ==================== ROUTES COMMUNES ====================
 
@@ -345,12 +373,14 @@ def list_my_payments():
 
 # ==================== ROUTES DE REDIRECTION DPO ====================
 
-# ==================== ROUTES DE REDIRECTION DPO (CORRIGÉES) ====================
-
 @api_payments_bp.route('/payment/success', methods=['GET'])
 def dpo_payment_success():
+    """
+    Callback DPO après paiement réussi.
+    DPO ajoute automatiquement ?TransactionToken=XXX à l'URL.
+    """
     trans_token = request.args.get('TransactionToken')
-    print(f"\n[DPO REDIRECT] ✅ Success callback received: {trans_token}")
+    print(f"\n[DPO REDIRECT] Success callback received: {trans_token}")
 
     frontend_url = "https://www.nkusu.com"
 
@@ -358,48 +388,44 @@ def dpo_payment_success():
         return redirect(f"{frontend_url}/payment/error?error=Missing+token")
 
     try:
-        dpo = DPOPayment()
-        verification = dpo.verify_payment(trans_token)
-
+        # Marquer immédiatement comme succès en base
         payment = PaidFeatureAccess.query.filter_by(
             dpo_trans_token=trans_token
         ).first()
 
-        if not payment:
-            return redirect(f"{frontend_url}/payment/error?error=Payment+not+found")
-
-        # ✅ SEUL CAS DE SUCCÈS
-        if verification.get("success") and verification.get("status") == "verified":
+        if payment and payment.payment_status != "success":
             payment.payment_status = "success"
             payment.verified_at = datetime.utcnow()
             db.session.commit()
+            print("[DPO REDIRECT] Paiement marqué comme success en base")
 
-            return redirect(
-                f"{frontend_url}/payment/success?TransactionToken={trans_token}"
-            )
-
-        # ❌ sinon → pending, PAS failed
+        # Rediriger vers le frontend avec le token
         return redirect(
-            f"{frontend_url}/payment/pending?TransactionToken={trans_token}"
+            f"{frontend_url}/payment/success?TransactionToken={trans_token}"
         )
 
     except Exception as e:
         print("[DPO REDIRECT] Exception:", str(e))
+        traceback.print_exc()
         return redirect(
-            f"{frontend_url}/payment/pending?TransactionToken={trans_token}"
+            f"{frontend_url}/payment/error?error=Server+error"
         )
+
 
 @api_payments_bp.route('/payment/cancelled', methods=['GET'])
 def dpo_payment_cancelled():
+    """
+    Callback DPO quand l'utilisateur annule.
+    NE PAS marquer comme failed car le paiement peut encore aboutir.
+    """
     trans_token = request.args.get('TransactionToken')
-    print(f"\n[DPO REDIRECT] ⚠️ Cancel callback: {trans_token}")
+    print(f"\n[DPO REDIRECT] Cancel callback: {trans_token}")
 
     frontend_url = "https://www.nkusu.com"
 
-    # ❌ NE PAS TOUCHER AU STATUT
-    # Le paiement peut encore réussir après
+    # Ne pas toucher au statut du paiement
+    # Le paiement peut encore réussir après annulation
 
     return redirect(
-        f"{frontend_url}/payment/pending?TransactionToken={trans_token}"
+        f"{frontend_url}/payment/cancelled?TransactionToken={trans_token}"
     )
-
