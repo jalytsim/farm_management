@@ -244,56 +244,51 @@ def verify_dpo_payment(trans_token):
         dpo = DPOPayment()
         verification = dpo.verify_payment(trans_token)
 
-        payment = PaidFeatureAccess.query.filter_by(dpo_trans_token=trans_token).first()
+        payment = PaidFeatureAccess.query.filter_by(
+            dpo_trans_token=trans_token
+        ).first()
 
         if not payment:
             return jsonify({
                 "success": False,
                 "status": "pending",
                 "message": "Payment record not found yet"
-            }), 200
+            }), 202
 
-        status = verification.get("status", "").lower()
+        status = verification.get("status")
+        result_code = verification.get("result_code")
 
+        # ✅ PAYÉ
         if verification.get("success") and status == "verified":
-            payment.payment_status = "success"
-            db.session.commit()
+            if payment.payment_status != "success":
+                payment.payment_status = "success"
+                payment.verified_at = datetime.utcnow()
+                db.session.commit()
 
             return jsonify({
                 "success": True,
-                "status": "verified"
+                "status": "paid"
             }), 200
 
-        elif status in ["pending", "processing", "in_progress", "unknown", ""]:
-            payment.payment_status = "pending"
-            db.session.commit()
-
-            return jsonify({
-                "success": True,
-                "status": "pending"
-            }), 200
-
-        elif status in ["failed", "cancelled", "rejected"]:
-            payment.payment_status = "failed"
-            db.session.commit()
-
+        # ⏳ EN ATTENTE (900, 429, XML invalide, etc.)
+        if status in ["pending", "processing", "unknown"] or result_code in ["900", "429"]:
             return jsonify({
                 "success": False,
-                "status": "failed"
-            }), 200
+                "status": "pending"
+            }), 202
 
-        # fallback
+        # ❌ ON NE FAIL JAMAIS ICI
         return jsonify({
-            "success": True,
+            "success": False,
             "status": "pending"
-        }), 200
+        }), 202
 
     except Exception as e:
+        print("[DPO VERIFY] Exception:", str(e))
         return jsonify({
-            "success": True,
-            "status": "pending",
-            "error": str(e)
-        }), 200
+            "success": False,
+            "status": "pending"
+        }), 202
 
 # ==================== ROUTES COMMUNES ====================
 
@@ -354,81 +349,57 @@ def list_my_payments():
 
 @api_payments_bp.route('/payment/success', methods=['GET'])
 def dpo_payment_success():
-    """Redirection après paiement DPO réussi"""
     trans_token = request.args.get('TransactionToken')
-    print(f"\n[DPO REDIRECT] ✅ Success callback received with token: {trans_token}")
-    
+    print(f"\n[DPO REDIRECT] ✅ Success callback received: {trans_token}")
+
+    frontend_url = "https://www.nkusu.com"
+
     if not trans_token:
-        print(f"[DPO REDIRECT] ❌ No transaction token provided")
-        frontend_url = "https://www.nkusu.com"
-        return redirect(f"{frontend_url}/payment/error?error=Missing+transaction+token")
-    
+        return redirect(f"{frontend_url}/payment/error?error=Missing+token")
+
     try:
-        # VÉRIFIER LE PAIEMENT AVANT DE REDIRIGER
-        print(f"[DPO REDIRECT] 🔍 Verifying payment...")
         dpo = DPOPayment()
         verification = dpo.verify_payment(trans_token)
-        
-        print(f"[DPO REDIRECT] Verification result: {verification}")
-        
-        # Mettre à jour le statut dans la base de données
-        payment = PaidFeatureAccess.query.filter_by(dpo_trans_token=trans_token).first()
-        
-        if payment:
-            print(f"[DPO REDIRECT] Found payment record (ID: {payment.id})")
-            
-            if verification['success'] and verification['status'] == 'verified':
-                payment.payment_status = "success"
-                payment.verified_at = datetime.utcnow()
-                db.session.commit()
-                print(f"[DPO REDIRECT] ✅ Payment marked as successful in database")
-                
-                # Rediriger vers la page de succès
-                frontend_url = "https://www.nkusu.com"
-                redirect_url = f"{frontend_url}/payment/success?TransactionToken={trans_token}"
-                print(f"[DPO REDIRECT] Redirecting to: {redirect_url}")
-                return redirect(redirect_url)
-            else:
-                # Vérification échouée
-                payment.payment_status = "failed"
-                db.session.commit()
-                print(f"[DPO REDIRECT] ❌ Verification failed: {verification.get('error')}")
-                
-                frontend_url = "https://www.nkusu.com"
-                error_msg = verification.get('error', 'Payment verification failed')
-                return redirect(f"{frontend_url}/payment/error?error={error_msg}")
-        else:
-            print(f"[DPO REDIRECT] ⚠️ No payment record found for token: {trans_token}")
-            frontend_url = "https://www.nkusu.com"
-            return redirect(f"{frontend_url}/payment/error?error=Payment+record+not+found")
-            
-    except Exception as e:
-        print(f"[DPO REDIRECT] ❌ Exception during verification: {str(e)}")
-        traceback.print_exc()
-        
-        frontend_url = "https://www.nkusu.com"
-        return redirect(f"{frontend_url}/payment/error?error=Verification+error")
 
+        payment = PaidFeatureAccess.query.filter_by(
+            dpo_trans_token=trans_token
+        ).first()
+
+        if not payment:
+            return redirect(f"{frontend_url}/payment/error?error=Payment+not+found")
+
+        # ✅ SEUL CAS DE SUCCÈS
+        if verification.get("success") and verification.get("status") == "verified":
+            payment.payment_status = "success"
+            payment.verified_at = datetime.utcnow()
+            db.session.commit()
+
+            return redirect(
+                f"{frontend_url}/payment/success?TransactionToken={trans_token}"
+            )
+
+        # ❌ sinon → pending, PAS failed
+        return redirect(
+            f"{frontend_url}/payment/pending?TransactionToken={trans_token}"
+        )
+
+    except Exception as e:
+        print("[DPO REDIRECT] Exception:", str(e))
+        return redirect(
+            f"{frontend_url}/payment/pending?TransactionToken={trans_token}"
+        )
 
 @api_payments_bp.route('/payment/cancelled', methods=['GET'])
 def dpo_payment_cancelled():
-    """Redirection après annulation de paiement DPO"""
     trans_token = request.args.get('TransactionToken')
-    print(f"\n[DPO REDIRECT] ⚠️ Cancelled callback received with token: {trans_token}")
-    
-    # Mettre à jour le statut si possible
-    if trans_token:
-        try:
-            payment = PaidFeatureAccess.query.filter_by(dpo_trans_token=trans_token).first()
-            if payment:
-                payment.payment_status = "cancelled"
-                db.session.commit()
-                print(f"[DPO REDIRECT] Payment marked as cancelled")
-        except Exception as e:
-            print(f"[DPO REDIRECT] Error updating cancelled status: {str(e)}")
-    
-    # Rediriger vers le frontend React
+    print(f"\n[DPO REDIRECT] ⚠️ Cancel callback: {trans_token}")
+
     frontend_url = "https://www.nkusu.com"
-    redirect_url = f"{frontend_url}/payment/cancelled?TransactionToken={trans_token}" if trans_token else f"{frontend_url}/payment/cancelled"
-    print(f"[DPO REDIRECT] Redirecting to: {redirect_url}")
-    return redirect(redirect_url)
+
+    # ❌ NE PAS TOUCHER AU STATUT
+    # Le paiement peut encore réussir après
+
+    return redirect(
+        f"{frontend_url}/payment/pending?TransactionToken={trans_token}"
+    )
+
