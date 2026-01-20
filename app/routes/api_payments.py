@@ -405,13 +405,3 @@ def dpo_payment_cancelled():
     redirect_url = f"{frontend_url}/payment/cancelled?TransactionToken={trans_token}" if trans_token else f"{frontend_url}/payment/cancelled"
     print(f"[DPO REDIRECT] Redirecting to: {redirect_url}")
     return redirect(redirect_url)
-
-@api_payments_bp.route('/payment/cancelled', methods=['GET'])
-def dpo_payment_cancelled():
-    """Redirection après annulation de paiement DPO"""
-    trans_token = request.args.get('TransactionToken')
-    print(f"[DPO REDIRECT] Cancelled with token: {trans_token}")
-    
-    # Rediriger vers le frontend React
-    frontend_url = "https://www.nkusu.com"
-    return redirect(f"{frontend_url}/payment/cancelled?TransactionToken={trans_token}")
