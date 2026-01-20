@@ -123,10 +123,17 @@ def initiate_dpo_payment():
         print("[DPO] 🚀 NOUVELLE REQUÊTE DE PAIEMENT DPO")
         print("="*60)
         
-        verify_jwt_in_request(optional=True)
-        identity = get_jwt_identity()
-        user_id = identity['id'] if isinstance(identity, dict) else identity
-        print(f"[DPO] User ID: {user_id}")
+        # Gérer JWT mais ne pas planter si expiré (mode invité)
+        user_id = None
+        try:
+            verify_jwt_in_request(optional=True)
+            identity = get_jwt_identity()
+            user_id = identity['id'] if isinstance(identity, dict) else identity
+        except Exception as jwt_error:
+            print(f"[DPO] ⚠️ JWT Error (continuing as guest): {str(jwt_error)}")
+            user_id = None
+        
+        print(f"[DPO] User ID: {user_id or 'GUEST'}")
 
         data = request.get_json()
         if not data:
