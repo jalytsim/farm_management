@@ -48,7 +48,7 @@ class DPOPayment:
 """
 
         try:
-            print(f"[DPO] 📤 Sending request to DPO API")
+            print(f"[DPO] Sending request to DPO API")
             print(f"[DPO] Amount: {amount} {currency}")
             print(f"[DPO] Reference: {reference}")
             print(f"[DPO] Date: {today}")
@@ -60,8 +60,8 @@ class DPOPayment:
                 timeout=30
             )
 
-            print(f"[DPO] 📥 Response Status: {response.status_code}")
-            print(f"[DPO] 📥 Response Body (FULL):")
+            print(f"[DPO] Response Status: {response.status_code}")
+            print(f"[DPO] Response Body (FULL):")
             print("="*80)
             print(response.text)
             print("="*80)
@@ -71,7 +71,7 @@ class DPOPayment:
             explanation = self._safe_text(root, ".//ResultExplanation")
 
             if result != "000":
-                print(f"[DPO] ❌ DPO Error - Code: {result}, Message: {explanation}")
+                print(f"[DPO] DPO Error - Code: {result}, Message: {explanation}")
                 return {
                     "success": False,
                     "error": explanation or "DPO API error",
@@ -83,7 +83,7 @@ class DPOPayment:
             trans_ref = self._safe_text(root, ".//TransRef")
 
             if not trans_token:
-                print(f"[DPO] ❌ No TransToken in response")
+                print(f"[DPO] No TransToken in response")
                 return {
                     "success": False,
                     "error": "No TransToken returned from DPO",
@@ -91,9 +91,9 @@ class DPOPayment:
                 }
 
             payment_url = f"{self.payment_url_base}{trans_token}"
-            print(f"[DPO] ✅ Token created successfully")
-            print(f"[DPO] ✅ TransToken: {trans_token}")
-            print(f"[DPO] ✅ Payment URL: {payment_url}")
+            print(f"[DPO] Token created successfully")
+            print(f"[DPO] TransToken: {trans_token}")
+            print(f"[DPO] Payment URL: {payment_url}")
 
             return {
                 "success": True,
@@ -103,13 +103,13 @@ class DPOPayment:
             }
 
         except requests.exceptions.RequestException as e:
-            print(f"[DPO] ❌ Network error: {str(e)}")
+            print(f"[DPO] Network error: {str(e)}")
             return {
                 "success": False,
                 "error": f"Network error: {str(e)}"
             }
         except ET.ParseError as e:
-            print(f"[DPO] ❌ XML Parse error: {str(e)}")
+            print(f"[DPO] XML Parse error: {str(e)}")
             return {
                 "success": False,
                 "error": f"Invalid XML response: {str(e)}"
@@ -127,7 +127,7 @@ class DPOPayment:
 """
 
         try:
-            print(f"[DPO] 🔍 Verifying token: {trans_token}")
+            print(f"[DPO] Verifying token: {trans_token}")
             
             response = requests.post(
                 self.api_endpoint,
@@ -136,42 +136,83 @@ class DPOPayment:
                 timeout=30
             )
 
-            print(f"[DPO] Verify Response: {response.text}")
+            print(f"[DPO] Verify Response Status: {response.status_code}")
+            
+            # Détecter les erreurs 429 (Too Many Requests)
+            if response.status_code == 429:
+                print(f"[DPO] 429 Too Many Requests - Rate limited")
+                return {
+                    "success": False,
+                    "status": "rate_limited",
+                    "error": "Rate limit exceeded, retry later"
+                }
+            
+            # Vérifier si la réponse est du HTML (erreur DPO)
+            if response.text.strip().startswith("<!DOCTYPE") or response.text.strip().startswith("<html"):
+                print(f"[DPO] HTML response received (likely 429 or error page)")
+                return {
+                    "success": False,
+                    "status": "rate_limited",
+                    "error": "DPO returned HTML instead of XML (rate limited)"
+                }
+
+            print(f"[DPO] Verify Response: {response.text[:500]}")
 
             root = ET.fromstring(response.text)
             result = self._safe_text(root, ".//Result")
             result_explanation = self._safe_text(root, ".//ResultExplanation")
 
-            if result != "000":
-                print(f"[DPO] ❌ Verification failed - Code: {result}")
+            # Result = 000 → Transaction payée
+            if result == "000":
+                print(f"[DPO] Payment verified successfully")
                 return {
-                    "success": False,
-                    "status": "failed",
-                    "error": result_explanation or "Verification failed"
+                    "success": True,
+                    "status": "verified",
+                    "result_code": result,
+                    "amount": self._safe_text(root, ".//TransactionAmount"),
+                    "currency": self._safe_text(root, ".//TransactionCurrency"),
+                    "company_ref": self._safe_text(root, ".//CompanyRef"),
+                    "customer_phone": self._safe_text(root, ".//CustomerPhone"),
+                    "customer_email": self._safe_text(root, ".//CustomerEmail"),
                 }
 
-            print(f"[DPO] ✅ Payment verified successfully")
+            # Result = 900 → Transaction en attente
+            if result == "900":
+                print(f"[DPO] Transaction pending (900)")
+                return {
+                    "success": False,
+                    "status": "pending",
+                    "result_code": result,
+                    "error": result_explanation or "Transaction pending"
+                }
+
+            # Autre code d'erreur → considérer comme pending (ne jamais fail)
+            print(f"[DPO] Unknown result code: {result}")
             return {
-                "success": True,
-                "status": "verified",
-                "amount": self._safe_text(root, ".//TransactionAmount"),
-                "currency": self._safe_text(root, ".//TransactionCurrency"),
-                "company_ref": self._safe_text(root, ".//CompanyRef"),
-                "customer_phone": self._safe_text(root, ".//CustomerPhone"),
-                "customer_email": self._safe_text(root, ".//CustomerEmail"),
+                "success": False,
+                "status": "pending",
+                "result_code": result,
+                "error": result_explanation or f"Unknown status (code {result})"
             }
 
+        except requests.exceptions.Timeout:
+            print(f"[DPO] Verify timeout")
+            return {
+                "success": False,
+                "status": "error",
+                "error": "Request timeout"
+            }
         except requests.exceptions.RequestException as e:
-            print(f"[DPO] ❌ Verify network error: {str(e)}")
+            print(f"[DPO] Verify network error: {str(e)}")
             return {
                 "success": False,
                 "status": "error",
                 "error": f"Network error: {str(e)}"
             }
         except ET.ParseError as e:
-            print(f"[DPO] ❌ Verify XML parse error: {str(e)}")
+            print(f"[DPO] Verify XML parse error (likely HTML 429): {str(e)}")
             return {
                 "success": False,
-                "status": "error",
-                "error": f"Invalid XML response: {str(e)}"
+                "status": "rate_limited",
+                "error": "XML parse error (DPO rate limit or HTML response)"
             }
