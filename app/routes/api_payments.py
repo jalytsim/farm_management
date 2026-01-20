@@ -241,32 +241,59 @@ def initiate_dpo_payment():
 @api_payments_bp.route('/dpo/verify/<trans_token>', methods=['GET'])
 def verify_dpo_payment(trans_token):
     try:
-        print(f"\n[DPO VERIFY] Verifying token: {trans_token}")
-        
         dpo = DPOPayment()
         verification = dpo.verify_payment(trans_token)
-        
-        print(f"[DPO VERIFY] Verification result: {verification}")
-        
+
         payment = PaidFeatureAccess.query.filter_by(dpo_trans_token=trans_token).first()
-        if payment:
-            print(f"[DPO VERIFY] Found payment record (ID: {payment.id})")
-            if verification['success'] and verification['status'] == 'verified':
-                payment.payment_status = "success"
-                db.session.commit()
-                print(f"[DPO VERIFY] ✅ Payment marked as successful")
-            else:
-                print(f"[DPO VERIFY] ❌ Verification failed")
-        else:
-            print(f"[DPO VERIFY] ⚠️ No payment record found")
-        
-        return jsonify(verification), 200
+
+        if not payment:
+            return jsonify({
+                "success": False,
+                "status": "pending",
+                "message": "Payment record not found yet"
+            }), 200
+
+        status = verification.get("status", "").lower()
+
+        if verification.get("success") and status == "verified":
+            payment.payment_status = "success"
+            db.session.commit()
+
+            return jsonify({
+                "success": True,
+                "status": "verified"
+            }), 200
+
+        elif status in ["pending", "processing", "in_progress", "unknown", ""]:
+            payment.payment_status = "pending"
+            db.session.commit()
+
+            return jsonify({
+                "success": True,
+                "status": "pending"
+            }), 200
+
+        elif status in ["failed", "cancelled", "rejected"]:
+            payment.payment_status = "failed"
+            db.session.commit()
+
+            return jsonify({
+                "success": False,
+                "status": "failed"
+            }), 200
+
+        # fallback
+        return jsonify({
+            "success": True,
+            "status": "pending"
+        }), 200
 
     except Exception as e:
-        print(f"[DPO VERIFY] ❌ Error: {str(e)}")
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
-
+        return jsonify({
+            "success": True,
+            "status": "pending",
+            "error": str(e)
+        }), 200
 
 # ==================== ROUTES COMMUNES ====================
 
