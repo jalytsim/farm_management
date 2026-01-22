@@ -64,6 +64,51 @@ def list_trees():
         'total_trees': trees.total
     })
 
+@bp.route('/all', methods=['GET'])
+@jwt_required()
+def list_all_trees():
+    """Liste tous les arbres sans pagination (pour la carte)"""
+    identity = get_jwt_identity()
+    user_id = identity['id']
+    forest_id = request.args.get('forest_id', type=int)
+    
+    user = User.query.get(user_id)
+    
+    # Base query
+    query = Tree.query
+    
+    # Filter by forest if specified
+    if forest_id:
+        query = query.filter_by(forest_id=forest_id)
+    
+    # Filter by user if not admin
+    if not user.is_admin:
+        query = query.filter_by(created_by=user_id)
+    
+    trees = query.all()
+    
+    trees_json = []
+    for tree in trees:
+        point = Point.query.get(tree.point_id)
+        forest = Forest.query.get(tree.forest_id)
+        trees_json.append({
+            'id': tree.id,
+            'name': tree.name,
+            'type': tree.type,
+            'height': tree.height,
+            'diameter': tree.diameter,
+            'date_planted': tree.date_planted.isoformat() if tree.date_planted else None,
+            'date_cut': tree.date_cut.isoformat() if tree.date_cut else None,
+            'forest_id': tree.forest_id,
+            'forest_name': forest.name if forest else None,
+            'point': {
+                'latitude': point.latitude,
+                'longitude': point.longitude
+            } if point else None
+        })
+    
+    return jsonify({'trees': trees_json, 'total': len(trees_json)})
+
 @bp.route('/<int:tree_id>', methods=['GET'])
 @jwt_required()
 def get_tree(tree_id):
