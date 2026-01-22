@@ -6,8 +6,33 @@ from flask_jwt_extended import get_jwt_identity, jwt_required
 from sqlalchemy import func
 from app.models import Tree, Point, Forest, User, db
 from datetime import datetime
+from math import radians, cos, sin, asin, sqrt
 
 bp = Blueprint('api_tree', __name__, url_prefix='/api/tree')
+
+def haversine_distance(lat1, lon1, lat2, lon2):
+    """Calcule la distance entre deux points GPS (en mètres)"""
+    R = 6371000  # Rayon de la Terre en mètres
+    lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
+    
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    
+    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+    c = 2 * asin(sqrt(a))
+    
+    return R * c
+
+def normalize_date(date_str):
+    """Normalise les dates pour accepter YYYY-MM-DD et YYYY/MM/DD"""
+    if not date_str:
+        return None
+    # Remplacer les / par des -
+    normalized = date_str.replace('/', '-')
+    try:
+        return datetime.fromisoformat(normalized)
+    except ValueError as e:
+        raise ValueError(f"Invalid date format '{date_str}'. Expected YYYY-MM-DD or YYYY/MM/DD")
 
 @bp.route('/', methods=['GET'])
 @jwt_required()
@@ -177,8 +202,8 @@ def create_tree():
             type=data.get('type', ''),
             height=float(data['height']),
             diameter=float(data['diameter']),
-            date_planted=datetime.fromisoformat(data['date_planted']),
-            date_cut=datetime.fromisoformat(data['date_cut']) if data.get('date_cut') else None,
+            date_planted=normalize_date(data['date_planted']),
+            date_cut=normalize_date(data.get('date_cut')) if data.get('date_cut') else None,
             forest_id=data['forest_id'],
             point_id=point.id,
             created_by=user_id,
@@ -223,9 +248,9 @@ def update_tree(tree_id):
         if 'diameter' in data:
             tree.diameter = float(data['diameter'])
         if 'date_planted' in data:
-            tree.date_planted = datetime.fromisoformat(data['date_planted'])
+            tree.date_planted = normalize_date(data['date_planted'])
         if 'date_cut' in data:
-            tree.date_cut = datetime.fromisoformat(data['date_cut']) if data['date_cut'] else None
+            tree.date_cut = normalize_date(data['date_cut']) if data['date_cut'] else None
         
         tree.modified_by = user_id
         
@@ -328,17 +353,18 @@ def get_stats():
         'avg_diameter': round(float(avg_diameter), 2),
         'trees_by_forest': [{'forest': name, 'count': count} for name, count in trees_by_forest]
     })
-    
-    
+
+
 @bp.route('/bulk-create', methods=['POST'])
 @jwt_required()
-def bulk_create_forests():
+def bulk_create_trees():
+    """Import en masse d'arbres depuis un fichier CSV"""
     identity = get_jwt_identity()
     user_id = identity['id']
     user = User.query.get(user_id)
     
-    if not user or not user.id_start:
-        return jsonify({"msg": "User id_start is not defined"}), 400
+    if not user:
+        return jsonify({"msg": "User not found"}), 400
     
     if 'file' not in request.files:
         return jsonify({"msg": "No file provided"}), 400
@@ -359,7 +385,7 @@ def bulk_create_forests():
         csv_reader = csv.DictReader(stream)
         
         # Validate headers
-        required_headers = {'name', 'tree_type'}
+        required_headers = {'name', 'forest_id', 'latitude', 'longitude', 'height', 'diameter', 'date_planted'}
         headers = set(csv_reader.fieldnames or [])
         
         if not required_headers.issubset(headers):
@@ -378,62 +404,132 @@ def bulk_create_forests():
         for row_num, row in enumerate(csv_reader, start=2):
             try:
                 name = row.get('name', '').strip()
-                tree_type = row.get('tree_type', '').strip()
+                forest_id_str = row.get('forest_id', '').strip()
+                latitude_str = row.get('latitude', '').strip()
+                longitude_str = row.get('longitude', '').strip()
+                height_str = row.get('height', '').strip()
+                diameter_str = row.get('diameter', '').strip()
+                date_planted_str = row.get('date_planted', '').strip()
                 
-                if not name or not tree_type:
+                # Validation
+                if not all([name, forest_id_str, latitude_str, longitude_str, height_str, diameter_str, date_planted_str]):
                     results['errors'] += 1
                     results['details'].append({
                         'row': row_num,
                         'name': name or 'N/A',
-                        'error': 'Name and tree_type are required'
+                        'error': 'All required fields must be filled'
                     })
                     continue
                 
-                # ✅ VÉRIFICATION DES DOUBLONS - name + tree_type + created_by
-                existing_forest = Forest.query.filter_by(
-                    name=name,
-                    tree_type=tree_type,  # ✅ Ajouté
-                    created_by=user_id
-                ).first()
-                
-                if existing_forest:
-                    results['skipped'] += 1
+                # Convertir en types appropriés
+                try:
+                    forest_id = int(forest_id_str)
+                    latitude = float(latitude_str)
+                    longitude = float(longitude_str)
+                    height = float(height_str)
+                    diameter = float(diameter_str)
+                except ValueError as e:
+                    results['errors'] += 1
                     results['details'].append({
                         'row': row_num,
                         'name': name,
-                        'tree_type': tree_type,
-                        'forest_id': existing_forest.id,
-                        'status': 'skipped',
-                        'reason': f'Forest "{name}" with tree type "{tree_type}" already exists'
+                        'error': f'Invalid data format: {str(e)}'
                     })
                     continue
                 
-                # Créer la forêt si elle n'existe pas
-                new_forest = forest_utils.create_forest(
+                # Vérifier que la forêt existe
+                forest = Forest.query.get(forest_id)
+                if not forest:
+                    results['errors'] += 1
+                    results['details'].append({
+                        'row': row_num,
+                        'name': name,
+                        'error': f'Forest ID {forest_id} not found'
+                    })
+                    continue
+                
+                # ✅ VÉRIFICATION DES DOUBLONS - name + forest + GPS (dans un rayon de 10m)
+                existing_trees = Tree.query.filter_by(
                     name=name,
-                    tree_type=tree_type,
-                    user=user
+                    forest_id=forest_id,
+                    created_by=user_id
+                ).all()
+                
+                is_duplicate = False
+                for existing_tree in existing_trees:
+                    existing_point = Point.query.get(existing_tree.point_id)
+                    if existing_point:
+                        distance = haversine_distance(
+                            latitude, longitude,
+                            existing_point.latitude, existing_point.longitude
+                        )
+                        if distance < 10:  # 10 mètres
+                            is_duplicate = True
+                            results['skipped'] += 1
+                            results['details'].append({
+                                'row': row_num,
+                                'name': name,
+                                'tree_id': existing_tree.id,
+                                'status': 'skipped',
+                                'reason': f'Tree "{name}" at forest "{forest.name}" already exists within 10m'
+                            })
+                            break
+                
+                if is_duplicate:
+                    continue
+                
+                # Créer le point géographique
+                point = Point(
+                    longitude=longitude,
+                    latitude=latitude,
+                    owner_type='tree',
+                    owner_id=None,
+                    created_by=user_id,
+                    modified_by=user_id
                 )
+                db.session.add(point)
+                db.session.flush()
+                
+                # Créer l'arbre
+                tree = Tree(
+                    name=name,
+                    type=row.get('type', '').strip(),
+                    height=height,
+                    diameter=diameter,
+                    date_planted=normalize_date(date_planted_str),
+                    date_cut=normalize_date(row.get('date_cut', '').strip()) if row.get('date_cut', '').strip() else None,
+                    forest_id=forest_id,
+                    point_id=point.id,
+                    created_by=user_id,
+                    modified_by=user_id
+                )
+                db.session.add(tree)
+                db.session.flush()
+                
+                # Mettre à jour owner_id du point
+                point.owner_id = str(tree.id)
+                db.session.commit()
                 
                 results['success'] += 1
                 results['details'].append({
                     'row': row_num,
-                    'forest_id': new_forest.id,
-                    'name': new_forest.name,
-                    'tree_type': new_forest.tree_type,
+                    'tree_id': tree.id,
+                    'name': name,
                     'status': 'created'
                 })
                 
             except Exception as e:
+                db.session.rollback()
+                logging.error(f"Error importing row {row_num}: {e}")
                 results['errors'] += 1
                 results['details'].append({
                     'row': row_num,
-                    'name': name if 'name' in locals() else 'N/A',
+                    'name': row.get('name', 'N/A'),
                     'error': str(e)
                 })
         
         return jsonify(results), 200
         
     except Exception as e:
-        logging.error(f"Error in bulk create: {e}")
+        logging.error(f"Error in bulk create trees: {e}")
         return jsonify({"msg": f"Error processing file: {str(e)}"}), 500
