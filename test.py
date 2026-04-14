@@ -1,60 +1,49 @@
-import requests
-import xml.etree.ElementTree as ET
-import uuid
-from datetime import datetime
+from datetime import date
+from PIL import Image, ImageDraw, ImageFont
+import ctypes
+import os
 
-API_URL = "https://secure.3gdirectpay.com/API/v6/"
+# =======================
+# CONFIGURATION
+# =======================
+GOAL_DATE = date(2026, 12, 31)   # <-- CHANGE ICI ta date objectif
+BACKGROUND_COLOR = (15, 15, 20)
+TEXT_COLOR = (255, 255, 255)
+IMAGE_SIZE = (1920, 1080)
 
-COMPANY_TOKEN = "8D3DA73D-9D7F-4E09-96D4-3D44E7A83EA3"
-SERVICE_ID = "5525"
+OUTPUT_PATH = r"C:\LifeCalendar\wallpaper.png"
 
-# DPO requires YYYY-MM-DD format
-today = datetime.today().strftime("%Y-%m-%d")
+# =======================
+# CALCUL
+# =======================
+today = date.today()
+days_left = (GOAL_DATE - today).days
 
-# Unique reference required in test mode
-company_ref = f"TEST-{uuid.uuid4().hex[:8]}"
+text = f"{days_left} jours restants\njusqu'à ton objectif"
 
-payload = f"""
-<?xml version="1.0" encoding="utf-8"?>
-<API3G>
-    <CompanyToken>{COMPANY_TOKEN}</CompanyToken>
-    <Request>createToken</Request>
-    <Transaction>
-        <PaymentAmount>1000.00</PaymentAmount>
-        <PaymentCurrency>UGX</PaymentCurrency>
-        <CompanyRef>{company_ref}</CompanyRef>
-        <RedirectURL>https://example.com/success</RedirectURL>
-        <BackURL>https://example.com/cancel</BackURL>
-        <CompanyRefUnique>1</CompanyRefUnique>
-        <PTL>5</PTL>
-    </Transaction>
-    <Services>
-        <Service>
-            <ServiceType>{SERVICE_ID}</ServiceType>
-            <ServiceDescription>Test payment</ServiceDescription>
-            <ServiceDate>{today}</ServiceDate>
-        </Service>
-    </Services>
-</API3G>
-"""
+# =======================
+# IMAGE
+# =======================
+img = Image.new("RGB", IMAGE_SIZE, BACKGROUND_COLOR)
+draw = ImageDraw.Draw(img)
 
-headers = {"Content-Type": "application/xml"}
+try:
+    font = ImageFont.truetype("arial.ttf", 80)
+except:
+    font = ImageFont.load_default()
 
-response = requests.post(API_URL, data=payload.encode("utf-8"), headers=headers)
+text_width, text_height = draw.multiline_textsize(text, font=font)
+x = (IMAGE_SIZE[0] - text_width) // 2
+y = (IMAGE_SIZE[1] - text_height) // 2
 
-print("Raw response:")
-print(response.text)
+draw.multiline_text((x, y), text, fill=TEXT_COLOR, font=font, align="center")
 
-# Parse XML carefully
-root = ET.fromstring(response.text)
-trans_token = root.findtext(".//TransToken")
+os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
+img.save(OUTPUT_PATH)
 
-if trans_token:
-    print("\n✅ Transaction created successfully!")
-    print("Payment URL:")
-    print(f"https://secure.3gdirectpay.com/payv2.php?ID={trans_token}")
-else:
-    print("\n❌ Failed to create transaction")
-    fault = root.findtext(".//ResultExplanation")
-    if fault:
-        print("Reason:", fault)
+# =======================
+# APPLIQUER LE FOND D'ÉCRAN
+# =======================
+ctypes.windll.user32.SystemParametersInfoW(
+    20, 0, OUTPUT_PATH, 3
+)

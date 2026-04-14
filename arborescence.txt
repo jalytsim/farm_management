@@ -1,0 +1,279 @@
+D:\project\Weather\
+├── .babelrc.json
+├── .eslintrc.cjs
+├── .gitignore
+├── .yarn
+│   └── install-state.gz
+├── .yarnrc.yml
+├── DDS_tamplate.html
+├── DDS_template.html
+├── README.md
+├── arborescence.py
+├── certificate.html
+├── dist
+│   ├── assets
+│   │   ├── bg-CXlWhlXB.jpg
+│   │   ├── index-CdQxqfQo.js
+│   │   ├── index-dOB1aOhO.css
+│   │   ├── index.es-CDh3NULK.js
+│   │   ├── index.es-DdpTD3s3.js
+│   │   ├── parrot-CPW7Bwmu.jpg
+│   │   ├── purify.es-BFmuJLeH.js
+│   │   ├── purify.es-DGIRlouP.js
+│   │   └── stackblur-es-rpmdK_oe.js
+│   ├── gifs
+│   │   ├── draw-mode-demo.gif
+│   │   └── point-mode-demo.gif
+│   ├── index.html
+│   ├── logo.jpg
+│   ├── parrotlogo.png
+│   ├── parrotlogo.svg
+│   ├── signature.jpg
+│   └── vite.svg
+├── index.html
+├── package.json
+├── postcss.config.js
+├── projet.md
+├── public
+│   ├── gifs
+│   │   ├── draw-mode-demo.gif
+│   │   └── point-mode-demo.gif
+│   ├── logo.jpg
+│   ├── parrotlogo.png
+│   ├── parrotlogo.svg
+│   ├── signature.jpg
+│   └── vite.svg
+├── qrcode.html
+├── src
+│   ├── App.css
+│   ├── App.jsx
+│   ├── FeatureRoute.jsx
+│   ├── ProtectedRoute.jsx
+│   ├── WeatherOnlyRoute.jsx
+│   ├── animations.css
+│   ├── assets
+│   │   ├── 3000x2250-px-animals-birds-head-parrots-wallpapers-1663631-wallhere.com.jpg
+│   │   ├── bg.jpg
+│   │   ├── cute_parrot.jpg
+│   │   ├── flambo.png
+│   │   ├── fly_parrot.jpg
+│   │   ├── gris-du-gabon--parrot.jpg
+│   │   ├── main.html
+│   │   ├── plume.jpg
+│   │   └── react.svg
+│   ├── axiosInstance.jsx
+│   ├── components
+│   │   ├── Card
+│   │   │   ├── Card.jsx
+│   │   │   └── Cardex.jsx
+│   │   ├── Category
+│   │   │   ├── CateList.jsx
+│   │   │   ├── CateModal.jsx
+│   │   │   ├── CategoryManager.jsx
+│   │   │   └── Createcate.jsx
+│   │   ├── Dashboard
+│   │   │   ├── AlertMessaging.jsx
+│   │   │   ├── Dashboard.jsx
+│   │   │   ├── UserDashBoard.jsx
+│   │   │   └── WBIIDashboard.jsx
+│   │   ├── District
+│   │   │   ├── CreateDistrict.jsx
+│   │   │   ├── DistrictEdit.jsx
+│   │   │   ├── DistrictList.jsx
+│   │   │   ├── DistrictManager.jsx
+│   │   │   ├── DistrictView.jsx
+│   │   │   └── Modal.jsx
+│   │   ├── Eudr
+│   │   │   ├── DueDiligenceStatement.jsx
+│   │   │   ├── EUDRSubmitForm.jsx
+│   │   │   ├── SoapResponseDisplay.jsx
+│   │   │   └── UserStatsCertificate.jsx
+│   │   ├── Farm
+│   │   │   ├── Create.jsx
+│   │   │   ├── FarmDataManager.jsx
+│   │   │   ├── FarmList.jsx
+│   │   │   ├── FarmManager.jsx
+│   │   │   ├── FarmModal.jsx
+│   │   │   └── Farmdata.jsx
+│   │   ├── Farmergroup
+│   │   │   └── FarmerGroup.jsx
+│   │   ├── Features
+│   │   │   └── FeatureManager.jsx
+│   │   ├── Forest
+│   │   │   ├── Fore
+│   │   │   │   ├── ForestList.jsx
+│   │   │   │   ├── ForestPage.jsx
+│   │   │   │   └── Modal.jsx
+│   │   │   ├── Forest.jsx
+│   │   │   ├── Point
+│   │   │   │   ├── ForestPoint.jsx
+│   │   │   │   ├── ModalPoint.jsx
+│   │   │   │   └── PointList.jsx
+│   │   │   ├── Tree
+│   │   │   │   ├── ForestTree.jsx
+│   │   │   │   └── ModalTree.jsx
+│   │   │   └── TreeManagement
+│   │   │       ├── BulkImportModal.jsx
+│   │   │       ├── INTEGRATION_GUIDE.md
+│   │   │       ├── SearchModal.jsx
+│   │   │       ├── TreeForm.jsx
+│   │   │       ├── TreeList.jsx
+│   │   │       ├── TreeManagement.jsx
+│   │   │       ├── TreeStats.jsx
+│   │   │       ├── hooks
+│   │   │       │   ├── useMapbox.js
+│   │   │       │   └── useTreeData.js
+│   │   │       └── services
+│   │   │           └── treeService.js
+│   │   ├── Graph
+│   │   │   ├── Cgd1mois.jsx
+│   │   │   ├── Cgdthree.jsx
+│   │   │   ├── DailyGraph.jsx
+│   │   │   ├── Graph.jsx
+│   │   │   ├── GraphCGD.jsx
+│   │   │   ├── GraphPest.jsx
+│   │   │   ├── PlantDae.jsx
+│   │   │   ├── PlantationDate.jsx
+│   │   │   └── WeatherHistory.jsx
+│   │   ├── Guest
+│   │   │   ├── EUDRSubmitFormForGuest.jsx
+│   │   │   ├── GeojsonForm.jsx
+│   │   │   ├── components
+│   │   │   │   ├── CarbonReportSection.jsx
+│   │   │   │   ├── EudrReportSection.jsx
+│   │   │   │   ├── LoadingOverlay.jsx
+│   │   │   │   ├── TutorialFloatingButton.jsx
+│   │   │   │   ├── TutorialHighlight.jsx
+│   │   │   │   ├── TutorialInvitation.jsx
+│   │   │   │   ├── TutorialTooltip.jsx
+│   │   │   │   ├── UploadCard.jsx
+│   │   │   │   ├── autre.jsx
+│   │   │   │   └── combined.txt
+│   │   │   ├── config
+│   │   │   │   ├── featuresPricing.js
+│   │   │   │   └── tutorialSteps.js
+│   │   │   ├── hooks
+│   │   │   │   ├── useFileUpload.jsx
+│   │   │   │   ├── useReports.jsx
+│   │   │   │   ├── useTutorial.js
+│   │   │   │   └── useUserInfo.jsx
+│   │   │   ├── steps
+│   │   │   │   ├── StepLocation.jsx
+│   │   │   │   ├── StepPayment.jsx
+│   │   │   │   ├── StepReportType.jsx
+│   │   │   │   ├── StepReports.jsx
+│   │   │   │   └── StepUserInfo.jsx
+│   │   │   └── utils
+│   │   │       ├── notificationUtils.js
+│   │   │       ├── pdfUtils.js
+│   │   │       └── reportUtils.jsx
+│   │   ├── Layout
+│   │   │   ├── Layout.jsx
+│   │   │   └── SectionFutur.jsx
+│   │   ├── Message
+│   │   │   └── WaterMessage.jsx
+│   │   ├── Payment
+│   │   │   ├── CheckStatusModal.jsx
+│   │   │   ├── Payment.jsx
+│   │   │   ├── PaymentCancelled.jsx
+│   │   │   ├── PaymentError.jsx
+│   │   │   ├── PaymentSuccess.jsx
+│   │   │   ├── SendPaymentModal.jsx
+│   │   │   └── SendSmsModal.jsx
+│   │   ├── Qr
+│   │   │   ├── Component
+│   │   │   │   ├── FarmBlock.jsx
+│   │   │   │   ├── FormNavigation.jsx
+│   │   │   │   ├── FormStep.jsx
+│   │   │   │   ├── InputField.jsx
+│   │   │   │   ├── QrFormGenerator.jsx
+│   │   │   │   ├── QrFormWithReceipt.jsx
+│   │   │   │   ├── ReceiptPreview.jsx
+│   │   │   │   ├── SelectField.jsx
+│   │   │   │   ├── StepIndicator.jsx
+│   │   │   │   ├── conservationStepsConfig.js
+│   │   │   │   ├── exportStepsConfig.js
+│   │   │   │   ├── fertilizerStepsConfig.js
+│   │   │   │   └── formStepsConfig.js
+│   │   │   ├── Export2.jsx
+│   │   │   ├── Page
+│   │   │   │   ├── Conservation.jsx
+│   │   │   │   ├── ExportDigitalStamps.jsx
+│   │   │   │   ├── Fertilizer.jsx
+│   │   │   │   └── ProduceQrPage.jsx
+│   │   │   ├── Produce
+│   │   │   │   └── useFetchData.jsx
+│   │   │   ├── qr.jsx
+│   │   │   └── receipt-styles.js
+│   │   ├── SendDPOPaymentModal.jsx
+│   │   ├── SimpleTest.jsx
+│   │   ├── Users
+│   │   │   ├── CreateUsers.jsx
+│   │   │   └── UserManagement.jsx
+│   │   ├── Weather
+│   │   │   └── WeatherAndSolar.jsx
+│   │   ├── crop
+│   │   │   ├── Createcrop.jsx
+│   │   │   ├── CropCoefficientManager.jsx
+│   │   │   ├── CropEdit.jsx
+│   │   │   ├── CropList.jsx
+│   │   │   ├── CropManager.jsx
+│   │   │   ├── CropManger1.jsx
+│   │   │   ├── CropModal.jsx
+│   │   │   ├── GradeManager.jsx
+│   │   │   ├── IrrigationManager.jsx
+│   │   │   └── tabcrop.jsx
+│   │   ├── gfw
+│   │   │   ├── CarbonReport.jsx
+│   │   │   ├── CarbonReportForest.jsx
+│   │   │   ├── FarmReport.jsx
+│   │   │   ├── FarmReportSection.jsx
+│   │   │   ├── ForestReport.jsx
+│   │   │   ├── Gfwreportforest.jsx
+│   │   │   ├── ReportTest - Copie.txt
+│   │   │   ├── Reportgen2Forest.jsx
+│   │   │   └── fullReport.jsx
+│   │   ├── img
+│   │   │   ├── parrot.jpg
+│   │   │   └── parrotlogo.svg
+│   │   ├── main
+│   │   │   ├── BarNav.jsx
+│   │   │   ├── ContactUs.jsx
+│   │   │   ├── Home.jsx
+│   │   │   ├── Landing.jsx
+│   │   │   ├── Landipage.jsx
+│   │   │   ├── Loading.jsx
+│   │   │   ├── Login.jsx
+│   │   │   ├── PaymentRequired.jsx
+│   │   │   ├── SignUp.jsx
+│   │   │   └── css
+│   │   │       └── landing.css
+│   │   ├── mapbox
+│   │   │   ├── CoordinateForm.jsx
+│   │   │   ├── ForestMap.jsx
+│   │   │   ├── MapPoint.jsx
+│   │   │   ├── MapView.jsx
+│   │   │   ├── MapViewAll.jsx
+│   │   │   ├── MapViewAllDash.jsx
+│   │   │   ├── Mapbox.jsx
+│   │   │   ├── PolygonDrawer.jsx
+│   │   │   ├── PolygonDrawer.old.jsx
+│   │   │   ├── StaticForestMap.jsx
+│   │   │   ├── Test.jsx
+│   │   │   ├── WaterAdvisory.jsx
+│   │   │   ├── WeatherDasboard.jsx
+│   │   │   └── WeatherMapFarm.jsx
+│   │   ├── store
+│   │   │   └── StoreProductManager.jsx
+│   │   ├── test.jsx
+│   │   └── test.txt
+│   ├── hooks
+│   │   ├── pay.txt
+│   │   ├── useConsumeOnce.jsx
+│   │   ├── useFeatureAccess.jsx
+│   │   └── useMapbox.jsx
+│   ├── index.css
+│   └── main.jsx
+├── tailwind.config.js
+├── vite.config.js
+└── yarn.lock
