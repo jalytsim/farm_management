@@ -9,6 +9,16 @@ from app import db
 
 bp = Blueprint('auth', __name__)
 
+def farmer_or_admin_required(f):
+    @login_required
+    def wrap(*args, **kwargs):
+        if current_user.user_type != 'farmer' and not current_user.is_admin:
+            flash('You do not have permission to access this page.', 'danger')
+            return redirect(url_for('main.home'))
+        return f(*args, **kwargs)
+    wrap.__name__ = f.__name__
+    return wrap
+
 
 @bp.route('/api/login', methods=['POST'])
 def api_login():

@@ -1,8 +1,0 @@
-@startuml
-title Diagramme de séquence pour Connexion Utilisateur
-actor Utilisateur
-participant Système
-Utilisateur -> Système: Saisir les identifiants
-Système -> Utilisateur: Vérification des identifiants
-Utilisateur -> Système: Accès au tableau de bord
-@enduml

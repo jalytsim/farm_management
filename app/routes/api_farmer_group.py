@@ -1,7 +1,5 @@
 from flask import Blueprint, jsonify, request
-from flask_login import login_required, current_user
 from app.models import db, FarmerGroup
-from app.routes.farm import farmer_or_admin_required
 
 bp = Blueprint('api_farmergroup', __name__, url_prefix='/api/farmergroup')
 

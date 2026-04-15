@@ -1,279 +1,548 @@
-D:\project\Weather\
-├── .babelrc.json
-├── .eslintrc.cjs
+D:\project\farm_management
+├── "app
+│   └── uml
+│       ├── sequence_diagram_Afficher_les_graphiques_m\303\251t\303\251orologiques.png"
+│       ├── sequence_diagram_Afficher_les_graphiques_m\303\251t\303\251orologiques.puml"
+│       ├── sequence_diagram_Calculer_les_valeurs_d'ET\342\202\200_et_d'ETc.puml"
+│       ├── sequence_diagram_Consulter_les_pr\303\251visions_m\303\251t\303\251orologiques.png"
+│       ├── sequence_diagram_Consulter_les_pr\303\251visions_m\303\251t\303\251orologiques.puml"
+│       ├── sequence_diagram_Fournir_les_donn\303\251es_m\303\251t\303\251orologiques.png"
+│       ├── sequence_diagram_Fournir_les_donn\303\251es_m\303\251t\303\251orologiques.puml"
+│       ├── sequence_diagram_G\303\251rer_les_utilisateurs.png"
+│       ├── sequence_diagram_G\303\251rer_les_utilisateurs.puml"
+│       ├── sequence_diagram_Obtenir_les_informations_m\303\251t\303\251orologiques_associ\303\251es.png"
+│       ├── sequence_diagram_Obtenir_les_informations_m\303\251t\303\251orologiques_associ\303\251es.puml"
+│       ├── sequence_diagram_Rechercher_une_localisation_g\303\251ographique.png"
+│       └── sequence_diagram_Rechercher_une_localisation_g\303\251ographique.puml"
 ├── .gitignore
-├── .yarn
-│   └── install-state.gz
-├── .yarnrc.yml
-├── DDS_tamplate.html
-├── DDS_template.html
+├── AlertMessaging.js
+├── BrianGeojson.json
+├── Dump20240714
+│   ├── qrcode_crop.sql
+│   ├── qrcode_district.sql
+│   ├── qrcode_farm.sql
+│   ├── qrcode_farmdata.sql
+│   ├── qrcode_farmergroup.sql
+│   ├── qrcode_forest.sql
+│   ├── qrcode_point.sql
+│   ├── qrcode_producecategory.sql
+│   ├── qrcode_soildata.sql
+│   ├── qrcode_tree.sql
+│   └── qrcode_user.sql
+├── NDVI-calculation
 ├── README.md
-├── arborescence.py
-├── certificate.html
-├── dist
-│   ├── assets
-│   │   ├── bg-CXlWhlXB.jpg
-│   │   ├── index-CdQxqfQo.js
-│   │   ├── index-dOB1aOhO.css
-│   │   ├── index.es-CDh3NULK.js
-│   │   ├── index.es-DdpTD3s3.js
-│   │   ├── parrot-CPW7Bwmu.jpg
-│   │   ├── purify.es-BFmuJLeH.js
-│   │   ├── purify.es-DGIRlouP.js
-│   │   └── stackblur-es-rpmdK_oe.js
-│   ├── gifs
-│   │   ├── draw-mode-demo.gif
-│   │   └── point-mode-demo.gif
-│   ├── index.html
-│   ├── logo.jpg
-│   ├── parrotlogo.png
-│   ├── parrotlogo.svg
-│   ├── signature.jpg
-│   └── vite.svg
-├── index.html
-├── package.json
-├── postcss.config.js
-├── projet.md
-├── public
-│   ├── gifs
-│   │   ├── draw-mode-demo.gif
-│   │   └── point-mode-demo.gif
-│   ├── logo.jpg
-│   ├── parrotlogo.png
-│   ├── parrotlogo.svg
-│   ├── signature.jpg
-│   └── vite.svg
-├── qrcode.html
-├── src
-│   ├── App.css
-│   ├── App.jsx
-│   ├── FeatureRoute.jsx
-│   ├── ProtectedRoute.jsx
-│   ├── WeatherOnlyRoute.jsx
-│   ├── animations.css
-│   ├── assets
-│   │   ├── 3000x2250-px-animals-birds-head-parrots-wallpapers-1663631-wallhere.com.jpg
-│   │   ├── bg.jpg
-│   │   ├── cute_parrot.jpg
-│   │   ├── flambo.png
-│   │   ├── fly_parrot.jpg
-│   │   ├── gris-du-gabon--parrot.jpg
-│   │   ├── main.html
-│   │   ├── plume.jpg
-│   │   └── react.svg
-│   ├── axiosInstance.jsx
-│   ├── components
-│   │   ├── Card
-│   │   │   ├── Card.jsx
-│   │   │   └── Cardex.jsx
-│   │   ├── Category
-│   │   │   ├── CateList.jsx
-│   │   │   ├── CateModal.jsx
-│   │   │   ├── CategoryManager.jsx
-│   │   │   └── Createcate.jsx
-│   │   ├── Dashboard
-│   │   │   ├── AlertMessaging.jsx
-│   │   │   ├── Dashboard.jsx
-│   │   │   ├── UserDashBoard.jsx
-│   │   │   └── WBIIDashboard.jsx
-│   │   ├── District
-│   │   │   ├── CreateDistrict.jsx
-│   │   │   ├── DistrictEdit.jsx
-│   │   │   ├── DistrictList.jsx
-│   │   │   ├── DistrictManager.jsx
-│   │   │   ├── DistrictView.jsx
-│   │   │   └── Modal.jsx
-│   │   ├── Eudr
-│   │   │   ├── DueDiligenceStatement.jsx
-│   │   │   ├── EUDRSubmitForm.jsx
-│   │   │   ├── SoapResponseDisplay.jsx
-│   │   │   └── UserStatsCertificate.jsx
-│   │   ├── Farm
-│   │   │   ├── Create.jsx
-│   │   │   ├── FarmDataManager.jsx
-│   │   │   ├── FarmList.jsx
-│   │   │   ├── FarmManager.jsx
-│   │   │   ├── FarmModal.jsx
-│   │   │   └── Farmdata.jsx
-│   │   ├── Farmergroup
-│   │   │   └── FarmerGroup.jsx
-│   │   ├── Features
-│   │   │   └── FeatureManager.jsx
-│   │   ├── Forest
-│   │   │   ├── Fore
-│   │   │   │   ├── ForestList.jsx
-│   │   │   │   ├── ForestPage.jsx
-│   │   │   │   └── Modal.jsx
-│   │   │   ├── Forest.jsx
-│   │   │   ├── Point
-│   │   │   │   ├── ForestPoint.jsx
-│   │   │   │   ├── ModalPoint.jsx
-│   │   │   │   └── PointList.jsx
-│   │   │   ├── Tree
-│   │   │   │   ├── ForestTree.jsx
-│   │   │   │   └── ModalTree.jsx
-│   │   │   └── TreeManagement
-│   │   │       ├── BulkImportModal.jsx
-│   │   │       ├── INTEGRATION_GUIDE.md
-│   │   │       ├── SearchModal.jsx
-│   │   │       ├── TreeForm.jsx
-│   │   │       ├── TreeList.jsx
-│   │   │       ├── TreeManagement.jsx
-│   │   │       ├── TreeStats.jsx
-│   │   │       ├── hooks
-│   │   │       │   ├── useMapbox.js
-│   │   │       │   └── useTreeData.js
-│   │   │       └── services
-│   │   │           └── treeService.js
-│   │   ├── Graph
-│   │   │   ├── Cgd1mois.jsx
-│   │   │   ├── Cgdthree.jsx
-│   │   │   ├── DailyGraph.jsx
-│   │   │   ├── Graph.jsx
-│   │   │   ├── GraphCGD.jsx
-│   │   │   ├── GraphPest.jsx
-│   │   │   ├── PlantDae.jsx
-│   │   │   ├── PlantationDate.jsx
-│   │   │   └── WeatherHistory.jsx
-│   │   ├── Guest
-│   │   │   ├── EUDRSubmitFormForGuest.jsx
-│   │   │   ├── GeojsonForm.jsx
-│   │   │   ├── components
-│   │   │   │   ├── CarbonReportSection.jsx
-│   │   │   │   ├── EudrReportSection.jsx
-│   │   │   │   ├── LoadingOverlay.jsx
-│   │   │   │   ├── TutorialFloatingButton.jsx
-│   │   │   │   ├── TutorialHighlight.jsx
-│   │   │   │   ├── TutorialInvitation.jsx
-│   │   │   │   ├── TutorialTooltip.jsx
-│   │   │   │   ├── UploadCard.jsx
-│   │   │   │   ├── autre.jsx
-│   │   │   │   └── combined.txt
-│   │   │   ├── config
-│   │   │   │   ├── featuresPricing.js
-│   │   │   │   └── tutorialSteps.js
-│   │   │   ├── hooks
-│   │   │   │   ├── useFileUpload.jsx
-│   │   │   │   ├── useReports.jsx
-│   │   │   │   ├── useTutorial.js
-│   │   │   │   └── useUserInfo.jsx
-│   │   │   ├── steps
-│   │   │   │   ├── StepLocation.jsx
-│   │   │   │   ├── StepPayment.jsx
-│   │   │   │   ├── StepReportType.jsx
-│   │   │   │   ├── StepReports.jsx
-│   │   │   │   └── StepUserInfo.jsx
-│   │   │   └── utils
-│   │   │       ├── notificationUtils.js
-│   │   │       ├── pdfUtils.js
-│   │   │       └── reportUtils.jsx
-│   │   ├── Layout
-│   │   │   ├── Layout.jsx
-│   │   │   └── SectionFutur.jsx
-│   │   ├── Message
-│   │   │   └── WaterMessage.jsx
-│   │   ├── Payment
-│   │   │   ├── CheckStatusModal.jsx
-│   │   │   ├── Payment.jsx
-│   │   │   ├── PaymentCancelled.jsx
-│   │   │   ├── PaymentError.jsx
-│   │   │   ├── PaymentSuccess.jsx
-│   │   │   ├── SendPaymentModal.jsx
-│   │   │   └── SendSmsModal.jsx
-│   │   ├── Qr
-│   │   │   ├── Component
-│   │   │   │   ├── FarmBlock.jsx
-│   │   │   │   ├── FormNavigation.jsx
-│   │   │   │   ├── FormStep.jsx
-│   │   │   │   ├── InputField.jsx
-│   │   │   │   ├── QrFormGenerator.jsx
-│   │   │   │   ├── QrFormWithReceipt.jsx
-│   │   │   │   ├── ReceiptPreview.jsx
-│   │   │   │   ├── SelectField.jsx
-│   │   │   │   ├── StepIndicator.jsx
-│   │   │   │   ├── conservationStepsConfig.js
-│   │   │   │   ├── exportStepsConfig.js
-│   │   │   │   ├── fertilizerStepsConfig.js
-│   │   │   │   └── formStepsConfig.js
-│   │   │   ├── Export2.jsx
-│   │   │   ├── Page
-│   │   │   │   ├── Conservation.jsx
-│   │   │   │   ├── ExportDigitalStamps.jsx
-│   │   │   │   ├── Fertilizer.jsx
-│   │   │   │   └── ProduceQrPage.jsx
-│   │   │   ├── Produce
-│   │   │   │   └── useFetchData.jsx
-│   │   │   ├── qr.jsx
-│   │   │   └── receipt-styles.js
-│   │   ├── SendDPOPaymentModal.jsx
-│   │   ├── SimpleTest.jsx
-│   │   ├── Users
-│   │   │   ├── CreateUsers.jsx
-│   │   │   └── UserManagement.jsx
-│   │   ├── Weather
-│   │   │   └── WeatherAndSolar.jsx
+├── alert_sheduler.py
+├── alerts.py
+├── alertspest.py
+├── app
+│   ├── __init__.py
+│   ├── models.py
+│   ├── routes
+│   │   ├── FichierPUMLB
+│   │   │   ├── modeldomaine.puml
+│   │   │   ├── secHDD.puml
+│   │   │   ├── secc2.puml
+│   │   │   ├── secc3.puml
+│   │   │   ├── seccETC.puml
+│   │   │   ├── secfournir.puml
+│   │   │   ├── secsurveillance.puml
+│   │   │   └── useCase.puml
+│   │   ├── __init__.py
+│   │   ├── admin.py
+│   │   ├── alerte.py
+│   │   ├── api_certificate.py
+│   │   ├── api_crop.py
+│   │   ├── api_dashboard.py
+│   │   ├── api_district.py
+│   │   ├── api_eudr.py
+│   │   ├── api_farm.py
+│   │   ├── api_farm_data.py
+│   │   ├── api_farmer_group.py
+│   │   ├── api_farmreport.py
+│   │   ├── api_features.py
+│   │   ├── api_forest.py
+│   │   ├── api_forestreport.py
+│   │   ├── api_gfw.py
+│   │   ├── api_grade.py
+│   │   ├── api_irrigations.py
+│   │   ├── api_kc.1.py
+│   │   ├── api_kc.py
+│   │   ├── api_notifications.py
+│   │   ├── api_payments.py
+│   │   ├── api_pays.py
+│   │   ├── api_point.py
+│   │   ├── api_producecategory.py
+│   │   ├── api_product.py
+│   │   ├── api_qr.py
+│   │   ├── api_store.py
+│   │   ├── api_tree.py
+│   │   ├── api_user.py
+│   │   ├── api_weather.py
+│   │   ├── auth.py
+│   │   ├── crop.py
+│   │   ├── district.py
+│   │   ├── farm.py
+│   │   ├── farmdata.py
+│   │   ├── farmergroup.py
+│   │   ├── forest.py
+│   │   ├── graph.py
+│   │   ├── main.py
+│   │   ├── map.py
+│   │   ├── mastercard_api.py
+│   │   ├── point.py
+│   │   ├── producecategory.py
+│   │   ├── qr.py
+│   │   ├── solar.py
+│   │   ├── stgl.py
+│   │   ├── testDb.py
+│   │   ├── tree.py
+│   │   └── weather.py
+│   ├── static
+│   │   ├── css
+│   │   │   ├── input.css
+│   │   │   └── output.css
+│   │   ├── data.csv
+│   │   ├── geoBoundaries-UGA-ADM3-with-properties.geojson
+│   │   ├── geoBoundaries-UGA-ADM3.geojson
+│   │   ├── geoBoundaries-UGA-ADM4.geojson
+│   │   ├── geojson.js
+│   │   └── js
+│   │       └── plotly-2.27.0.min.js
+│   ├── templates
+│   │   ├── 500.html
+│   │   ├── admin
+│   │   │   ├── create_user.html
+│   │   │   ├── dashboard.html
+│   │   │   └── user_list.html
+│   │   ├── choropleth_map.html
 │   │   ├── crop
-│   │   │   ├── Createcrop.jsx
-│   │   │   ├── CropCoefficientManager.jsx
-│   │   │   ├── CropEdit.jsx
-│   │   │   ├── CropList.jsx
-│   │   │   ├── CropManager.jsx
-│   │   │   ├── CropManger1.jsx
-│   │   │   ├── CropModal.jsx
-│   │   │   ├── GradeManager.jsx
-│   │   │   ├── IrrigationManager.jsx
-│   │   │   └── tabcrop.jsx
+│   │   │   ├── _crop_form_modal.html
+│   │   │   ├── create.html
+│   │   │   ├── edit.html
+│   │   │   └── index.html
+│   │   ├── districts
+│   │   │   ├── create.html
+│   │   │   ├── edit.html
+│   │   │   ├── list.html
+│   │   │   └── view.html
+│   │   ├── dynamic.html
+│   │   ├── farm
+│   │   │   ├── _farm_form_modal.html
+│   │   │   ├── farm_list.html
+│   │   │   └── index.html
+│   │   ├── farmReport.html
+│   │   ├── farmdata
+│   │   │   ├── create.html
+│   │   │   ├── edit.html
+│   │   │   └── index.html
+│   │   ├── farmergroup
+│   │   │   ├── _farmergroup_form_modal.html
+│   │   │   ├── create.html
+│   │   │   ├── edit.html
+│   │   │   └── index.html
+│   │   ├── forest
+│   │   │   └── forest.html
 │   │   ├── gfw
-│   │   │   ├── CarbonReport.jsx
-│   │   │   ├── CarbonReportForest.jsx
-│   │   │   ├── FarmReport.jsx
-│   │   │   ├── FarmReportSection.jsx
-│   │   │   ├── ForestReport.jsx
-│   │   │   ├── Gfwreportforest.jsx
-│   │   │   ├── ReportTest - Copie.txt
-│   │   │   ├── Reportgen2Forest.jsx
-│   │   │   └── fullReport.jsx
-│   │   ├── img
-│   │   │   ├── parrot.jpg
-│   │   │   └── parrotlogo.svg
+│   │   │   └── view.html
+│   │   ├── index.html
+│   │   ├── layout.html
 │   │   ├── main
-│   │   │   ├── BarNav.jsx
-│   │   │   ├── ContactUs.jsx
-│   │   │   ├── Home.jsx
-│   │   │   ├── Landing.jsx
-│   │   │   ├── Landipage.jsx
-│   │   │   ├── Loading.jsx
-│   │   │   ├── Login.jsx
-│   │   │   ├── PaymentRequired.jsx
-│   │   │   ├── SignUp.jsx
-│   │   │   └── css
-│   │   │       └── landing.css
-│   │   ├── mapbox
-│   │   │   ├── CoordinateForm.jsx
-│   │   │   ├── ForestMap.jsx
-│   │   │   ├── MapPoint.jsx
-│   │   │   ├── MapView.jsx
-│   │   │   ├── MapViewAll.jsx
-│   │   │   ├── MapViewAllDash.jsx
-│   │   │   ├── Mapbox.jsx
-│   │   │   ├── PolygonDrawer.jsx
-│   │   │   ├── PolygonDrawer.old.jsx
-│   │   │   ├── StaticForestMap.jsx
-│   │   │   ├── Test.jsx
-│   │   │   ├── WaterAdvisory.jsx
-│   │   │   ├── WeatherDasboard.jsx
-│   │   │   └── WeatherMapFarm.jsx
-│   │   ├── store
-│   │   │   └── StoreProductManager.jsx
-│   │   ├── test.jsx
-│   │   └── test.txt
-│   ├── hooks
-│   │   ├── pay.txt
-│   │   ├── useConsumeOnce.jsx
-│   │   ├── useFeatureAccess.jsx
-│   │   └── useMapbox.jsx
-│   ├── index.css
-│   └── main.jsx
-├── tailwind.config.js
-├── vite.config.js
-└── yarn.lock
+│   │   │   ├── home.html
+│   │   │   ├── landing.html
+│   │   │   ├── login.html
+│   │   │   └── signup.html
+│   │   ├── navbar.html
+│   │   ├── points
+│   │   │   ├── create.html
+│   │   │   ├── edit.html
+│   │   │   ├── list.html
+│   │   │   ├── upload.html
+│   │   │   └── view.html
+│   │   ├── producecategory
+│   │   │   ├── form_modal.html
+│   │   │   └── index.html
+│   │   ├── qrcode
+│   │   │   ├── codeQr.html
+│   │   │   ├── generate_farmer_qr.html
+│   │   │   ├── generate_tree_qr.html
+│   │   │   └── index.html
+│   │   ├── qrcode.html
+│   │   ├── qrmap.html
+│   │   └── tree
+│   │       ├── create.html
+│   │       ├── edit.html
+│   │       ├── list.html
+│   │       └── view.html
+│   ├── uml
+│   │   ├── SequenceFarmManagement.puml
+│   │   ├── UMLClassDiagram.py
+│   │   ├── UMLDeployment.py
+│   │   ├── UMLPaquetageDiagram.py
+│   │   ├── class_diagram.png
+│   │   ├── class_diagram.puml
+│   │   ├── class_diagram_ACL.png
+│   │   ├── class_diagram_ACL.puml
+│   │   ├── class_diagram_ETC_ET0.png
+│   │   ├── class_diagram_ETC_ET0.puml
+│   │   ├── class_diagram_Environment.png
+│   │   ├── class_diagram_Environment.puml
+│   │   ├── class_diagram_FarmReport.png
+│   │   ├── class_diagram_FarmReport.puml
+│   │   ├── class_diagram_Import_farm_data.png
+│   │   ├── class_diagram_Import_farm_data.puml
+│   │   ├── class_diagram_admin.png
+│   │   ├── class_diagram_admin.puml
+│   │   ├── class_diagram_carbon.png
+│   │   ├── class_diagram_carbon.puml
+│   │   ├── class_diagram_crop.png
+│   │   ├── class_diagram_crop.puml
+│   │   ├── class_diagram_farmManagement.png
+│   │   ├── class_diagram_farmManagement.puml
+│   │   ├── class_diagram_fournir_donner.png
+│   │   ├── class_diagram_fournir_donner.puml
+│   │   ├── class_diagram_indicethermique.png
+│   │   ├── class_diagram_indicethermique.puml
+│   │   ├── class_diagram_localGeo.png
+│   │   ├── class_diagram_localGeo.puml
+│   │   ├── class_diagram_meteo_graph.png
+│   │   ├── class_diagram_meteo_graph.puml
+│   │   ├── class_diagram_meteo_local.png
+│   │   ├── class_diagram_meteo_local.puml
+│   │   ├── class_diagram_polygon_creation.png
+│   │   ├── class_diagram_polygon_creation.puml
+│   │   ├── class_diagram_previsionMeteo.png
+│   │   ├── class_diagram_previsionMeteo.puml
+│   │   ├── class_diagram_view_all_farms.png
+│   │   ├── class_diagram_view_all_farms.puml
+│   │   ├── deployment_diagram.png
+│   │   ├── deployment_diagram.puml
+│   │   ├── generate_diagram.py
+│   │   ├── package_diagram.png
+│   │   ├── package_diagram.puml
+│   │   ├── package_diagram_with_relations.puml
+│   │   ├── sequence_diagram_Admin_View_All_Farms.png
+│   │   ├── sequence_diagram_Admin_View_All_Farms.puml
+│   │   ├── sequence_diagram_Afficher_les_graphiques_meteorologiques.png
+│   │   ├── sequence_diagram_Afficher_les_graphiques_meteorologiques.puml
+│   │   ├── sequence_diagram_Afficher_les_indices_thermiques.png
+│   │   ├── sequence_diagram_Afficher_les_indices_thermiques.puml
+│   │   ├── sequence_diagram_Calculer_les_valeurs_ET0_et_ETc.png
+│   │   ├── sequence_diagram_Calculer_les_valeurs_ET0_et_ETc.puml
+│   │   ├── sequence_diagram_Connexion_Utilisateur.png
+│   │   ├── sequence_diagram_Connexion_Utilisateur.puml
+│   │   ├── sequence_diagram_Consulter_les_previsions_meteorologiques.png
+│   │   ├── sequence_diagram_Consulter_les_previsions_meteorologiques.puml
+│   │   ├── sequence_diagram_Create_Account.png
+│   │   ├── sequence_diagram_Create_Account.puml
+│   │   ├── sequence_diagram_Create_Account_(Admin).puml
+│   │   ├── sequence_diagram_Crop_Management.png
+│   │   ├── sequence_diagram_Crop_Management.puml
+│   │   ├── sequence_diagram_Farm_Management.png
+│   │   ├── sequence_diagram_Farm_Management.puml
+│   │   ├── sequence_diagram_Fournir_les_donnees_meteorologiques_necessaires.png
+│   │   ├── sequence_diagram_Fournir_les_donnees_meteorologiques_necessaires.puml
+│   │   ├── sequence_diagram_Generate_Carbon_Report.png
+│   │   ├── sequence_diagram_Generate_Carbon_Report.puml
+│   │   ├── sequence_diagram_Generate_Farm_Report.png
+│   │   ├── sequence_diagram_Generate_Farm_Report.puml
+│   │   ├── sequence_diagram_Gerer_les_utilisateurs_par_l'admin.png
+│   │   ├── sequence_diagram_Gerer_les_utilisateurs_par_l'admin.puml
+│   │   ├── sequence_diagram_Import_Farm_Data.png
+│   │   ├── sequence_diagram_Import_Farm_Data.puml
+│   │   ├── sequence_diagram_Obtenir_les_informations_meteorologiques.png
+│   │   ├── sequence_diagram_Obtenir_les_informations_meteorologiques.puml
+│   │   ├── sequence_diagram_Polygon_Creation.png
+│   │   ├── sequence_diagram_Polygon_Creation.puml
+│   │   ├── sequence_diagram_Provide_Account_List.png
+│   │   ├── sequence_diagram_Provide_Account_List.puml
+│   │   ├── sequence_diagram_Provide_Environmental_Data.png
+│   │   ├── sequence_diagram_Provide_Environmental_Data.puml
+│   │   ├── sequence_diagram_Rechercher_une_localisation_geographique.png
+│   │   ├── sequence_diagram_Rechercher_une_localisation_geographique.puml
+│   │   ├── sequence_diagram_View_All_Farms.png
+│   │   ├── sequence_diagram_View_All_Farms.puml
+│   │   ├── use_caseNomena.png
+│   │   ├── use_case_diagram.png
+│   │   └── use_case_diagram.puml
+│   └── utils
+│       ├── __init__.py
+│       ├── crop_utils.py
+│       ├── dashboard_utils.py
+│       ├── district_utils.py
+│       ├── dpo_payment.py
+│       ├── eudr_utils.py
+│       ├── farm_utils.py
+│       ├── farm_utils1.py
+│       ├── farmdata_utils.py
+│       ├── feature_payment_utils.py
+│       ├── forest_utils.py
+│       ├── forest_watch_utils.py
+│       ├── graph_utils.py
+│       ├── map_utils.py
+│       ├── point_utils.py
+│       ├── producecategory_utils.py
+│       ├── qr_generator.py
+│       ├── scheduler.py
+│       ├── schedulerpest.py
+│       ├── solar_utils.py
+│       ├── test.py
+│       ├── testNomena.py
+│       ├── test_utils.py
+│       ├── tree_utils.py
+│       └── weather_utils.py
+├── appGlite.service
+├── arborescence.py
+├── arborescence.txt
+├── arrange.py
+├── backup_and_update.sh
+├── bigfarm.geojson
+├── carbonreportTest.geojson
+├── check_pest.py
+├── check_weather.py
+├── class_diagram.puml
+├── coc.json
+├── compliant.geojson
+├── config.py
+├── create arborescence.py
+├── database
+│   ├── 01082024.sql
+│   ├── 01092024.sql
+│   ├── 01102024.sql
+│   ├── 01112024.sql
+│   ├── 02082024.sql
+│   ├── 02092024.sql
+│   ├── 02102024.sql
+│   ├── 02112024.sql
+│   ├── 03082024.sql
+│   ├── 03092024.sql
+│   ├── 03102024.sql
+│   ├── 03112024.sql
+│   ├── 04082024.sql
+│   ├── 04092024.sql
+│   ├── 04102024.sql
+│   ├── 04112024.sql
+│   ├── 05082024.sql
+│   ├── 05092024.sql
+│   ├── 05102024.sql
+│   ├── 05112024.sql
+│   ├── 06082024.sql
+│   ├── 06092024.sql
+│   ├── 06102024.sql
+│   ├── 06112024.sql
+│   ├── 07072024.sql
+│   ├── 07082024.sql
+│   ├── 07092024.sql
+│   ├── 07102024.sql
+│   ├── 07112024.sql
+│   ├── 08072024.sql
+│   ├── 08082024.sql
+│   ├── 08092024.sql
+│   ├── 08102024.sql
+│   ├── 08112024.sql
+│   ├── 09072024.sql
+│   ├── 09082024.sql
+│   ├── 09092024.sql
+│   ├── 09102024.sql
+│   ├── 09112024.sql
+│   ├── 10072024.sql
+│   ├── 10082024.sql
+│   ├── 10092024.sql
+│   ├── 10102024.sql
+│   ├── 10112024.sql
+│   ├── 11072024.sql
+│   ├── 11082024.sql
+│   ├── 11092024.sql
+│   ├── 11102024.sql
+│   ├── 11112024.sql
+│   ├── 12072024.sql
+│   ├── 12082024.sql
+│   ├── 12092024.sql
+│   ├── 12102024.sql
+│   ├── 12112024.sql
+│   ├── 13072024.sql
+│   ├── 13082024.sql
+│   ├── 13092024.sql
+│   ├── 13102024.sql
+│   ├── 13112024.sql
+│   ├── 14072024.sql
+│   ├── 14082024.sql
+│   ├── 14092024.sql
+│   ├── 14102024.sql
+│   ├── 14112024.sql
+│   ├── 15072024.sql
+│   ├── 15082024.sql
+│   ├── 15092024.sql
+│   ├── 15102024.sql
+│   ├── 15112024.sql
+│   ├── 16072024.sql
+│   ├── 16082024.sql
+│   ├── 16092024.sql
+│   ├── 16102024.sql
+│   ├── 16112024.sql
+│   ├── 17072024.sql
+│   ├── 17082024.sql
+│   ├── 17092024.sql
+│   ├── 17102024.sql
+│   ├── 17112024.sql
+│   ├── 18072024.sql
+│   ├── 18082024.sql
+│   ├── 18092024.sql
+│   ├── 18102024.sql
+│   ├── 18112024.sql
+│   ├── 19072024.sql
+│   ├── 19082024.sql
+│   ├── 19092024.sql
+│   ├── 19102024.sql
+│   ├── 19112024.sql
+│   ├── 20072024.sql
+│   ├── 20082024.sql
+│   ├── 20092024.sql
+│   ├── 20102024.sql
+│   ├── 20112024.sql
+│   ├── 21072024.sql
+│   ├── 21082024.sql
+│   ├── 21092024.sql
+│   ├── 21102024.sql
+│   ├── 21112024.sql
+│   ├── 22072024.sql
+│   ├── 22082024.sql
+│   ├── 22092024.sql
+│   ├── 22102024.sql
+│   ├── 22112024.sql
+│   ├── 23072024.sql
+│   ├── 23082024.sql
+│   ├── 23092024.sql
+│   ├── 23102024.sql
+│   ├── 23112024.sql
+│   ├── 24072024.sql
+│   ├── 24082024.sql
+│   ├── 24092024.sql
+│   ├── 24102024.sql
+│   ├── 25072024.sql
+│   ├── 25082024.sql
+│   ├── 25092024.sql
+│   ├── 25102024.sql
+│   ├── 26072024.sql
+│   ├── 26082024.sql
+│   ├── 26092024.sql
+│   ├── 26102024.sql
+│   ├── 27072024.sql
+│   ├── 27082024.sql
+│   ├── 27092024.sql
+│   ├── 27102024.sql
+│   ├── 28072024.sql
+│   ├── 28082024.sql
+│   ├── 28092024.sql
+│   ├── 28102024.sql
+│   ├── 29072024.sql
+│   ├── 29082024.sql
+│   ├── 29092024.sql
+│   ├── 29102024.sql
+│   ├── 30072024.sql
+│   ├── 30082024.sql
+│   ├── 30092024.sql
+│   ├── 30102024.sql
+│   ├── 31072024.sql
+│   ├── 31082024.sql
+│   ├── 31102024.sql
+│   ├── qrcode_backup.sql
+│   └── weather.sql
+├── detailed_project_documentation.docx
+├── extent.json
+├── extent.xlsx
+├── gunicorn_config.py
+├── johnMugisha.geojson
+├── jrc_global_forest_cover.json
+├── kml
+│   ├── 2015 pine progressive now 4.85.kml
+│   ├── Parogressive 2010 now 15.4 pine.kml
+│   ├── Progressive  2009 pine now 13.5.kml
+│   ├── Progressive 2008 pine now 2.53.kml
+│   ├── Progressive 2009 pine  now 9.53.kml
+│   ├── Progressive 2010 pine now 3.57.kml
+│   ├── Progressive pine  2008 now 14.3.kml
+│   ├── Progressive pine 2007 now 19.9.kml
+│   ├── Progressive pine 2013 now 19.5.kml
+│   └── progressive 2012 pine now 15.8.kml
+├── kml_batch_extractor.py
+├── lifegoal_wallpaper.png
+├── nasa_datasets.txt
+├── new_db.sql
+├── nkusu-sandbox-signing.p12
+├── notCompliant.geojson
+├── project_documentation.docx
+├── qrcode_backup2.sql
+├── ranger.py
+├── requirements.txt
+├── run.py
+├── schedulerpest.py
+├── soilCarbonPixelMeaning.txt
+├── sortie_kml
+│   ├── 2015 pine progressive now 4.85_data.csv
+│   ├── 2015 pine progressive now 4.85_data.json
+│   ├── 2015 pine progressive now 4.85_data.txt
+│   ├── 2015 pine progressive now 4.85_data_coordinates.csv
+│   ├── 2015 pine progressive now 4.85_excel.csv
+│   ├── 2015 pine progressive now 4.85_excel_coordinates.csv
+│   ├── Parogressive 2010 now 15.4 pine_data.csv
+│   ├── Parogressive 2010 now 15.4 pine_data.json
+│   ├── Parogressive 2010 now 15.4 pine_data.txt
+│   ├── Parogressive 2010 now 15.4 pine_data_coordinates.csv
+│   ├── Parogressive 2010 now 15.4 pine_excel.csv
+│   ├── Parogressive 2010 now 15.4 pine_excel_coordinates.csv
+│   ├── Progressive  2009 pine now 13.5_data.csv
+│   ├── Progressive  2009 pine now 13.5_data.json
+│   ├── Progressive  2009 pine now 13.5_data.txt
+│   ├── Progressive  2009 pine now 13.5_data_coordinates.csv
+│   ├── Progressive  2009 pine now 13.5_excel.csv
+│   ├── Progressive  2009 pine now 13.5_excel_coordinates.csv
+│   ├── Progressive 2008 pine now 2.53_data.csv
+│   ├── Progressive 2008 pine now 2.53_data.json
+│   ├── Progressive 2008 pine now 2.53_data.txt
+│   ├── Progressive 2008 pine now 2.53_data_coordinates.csv
+│   ├── Progressive 2008 pine now 2.53_excel.csv
+│   ├── Progressive 2008 pine now 2.53_excel_coordinates.csv
+│   ├── Progressive 2009 pine  now 9.53_data.csv
+│   ├── Progressive 2009 pine  now 9.53_data.json
+│   ├── Progressive 2009 pine  now 9.53_data.txt
+│   ├── Progressive 2009 pine  now 9.53_data_coordinates.csv
+│   ├── Progressive 2009 pine  now 9.53_excel.csv
+│   ├── Progressive 2009 pine  now 9.53_excel_coordinates.csv
+│   ├── Progressive 2010 pine now 3.57_data.csv
+│   ├── Progressive 2010 pine now 3.57_data.json
+│   ├── Progressive 2010 pine now 3.57_data.txt
+│   ├── Progressive 2010 pine now 3.57_data_coordinates.csv
+│   ├── Progressive 2010 pine now 3.57_excel.csv
+│   ├── Progressive 2010 pine now 3.57_excel_coordinates.csv
+│   ├── Progressive pine  2008 now 14.3_data.csv
+│   ├── Progressive pine  2008 now 14.3_data.json
+│   ├── Progressive pine  2008 now 14.3_data.txt
+│   ├── Progressive pine  2008 now 14.3_data_coordinates.csv
+│   ├── Progressive pine  2008 now 14.3_excel.csv
+│   ├── Progressive pine  2008 now 14.3_excel_coordinates.csv
+│   ├── Progressive pine 2007 now 19.9_data.csv
+│   ├── Progressive pine 2007 now 19.9_data.json
+│   ├── Progressive pine 2007 now 19.9_data.txt
+│   ├── Progressive pine 2007 now 19.9_data_coordinates.csv
+│   ├── Progressive pine 2007 now 19.9_excel.csv
+│   ├── Progressive pine 2007 now 19.9_excel_coordinates.csv
+│   ├── Progressive pine 2013 now 19.5_data.csv
+│   ├── Progressive pine 2013 now 19.5_data.json
+│   ├── Progressive pine 2013 now 19.5_data.txt
+│   ├── Progressive pine 2013 now 19.5_data_coordinates.csv
+│   ├── Progressive pine 2013 now 19.5_excel.csv
+│   ├── Progressive pine 2013 now 19.5_excel_coordinates.csv
+│   ├── progressive 2012 pine now 15.8_data.csv
+│   ├── progressive 2012 pine now 15.8_data.json
+│   ├── progressive 2012 pine now 15.8_data.txt
+│   ├── progressive 2012 pine now 15.8_data_coordinates.csv
+│   ├── progressive 2012 pine now 15.8_excel.csv
+│   └── progressive 2012 pine now 15.8_excel_coordinates.csv
+├── sortie_kml.zip
+├── sql-pays.sql
+├── test.csv
+├── test.json
+├── test.py
+├── test.xlsx
+├── testGEojson.geojson
+└── use_case_diagram.puml

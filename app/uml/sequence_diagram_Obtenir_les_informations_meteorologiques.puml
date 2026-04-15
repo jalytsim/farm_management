@@ -1,9 +1,0 @@
-@startuml
-title Diagramme de sequence pour Obtenir les informations meteorologiques
-actor Utilisateur
-participant Système
-Utilisateur -> Systeme: Selectionner une localisation
-Systeme -> API_Meteorologique: Demander les donnees meteorologiques
-API_Meteorologique -> Systeme: Retourner les donnees meteorologiques
-Systeme -> Utilisateur: Afficher les informations meteorologiques
-@enduml

@@ -1,9 +1,0 @@
-@startuml
-title Diagramme de sequence pour Consulter les previsions meteorologiques
-actor Utilisateur
-participant Système
-Utilisateur -> Systeme: Entrer les coordonnees ou la localisation
-Systeme -> API_Meteorologique: Recuperer les previsions pour les jours à venir
-API_Meteorologique -> Systeme: Retourner les previsions meteorologiques
-Systeme -> Utilisateur: Afficher les previsions
-@enduml

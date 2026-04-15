@@ -44,9 +44,7 @@ def init_extensions(app):
 def register_blueprints(app):
     """Register Flask blueprints."""
     from app.routes import (
-        auth, farm, qr, map, main, forest, point, admin, 
-        farmdata, tree, crop, farmergroup, producecategory, 
-        district, weather, stgl, solar, graph, api_crop ,
+        auth, map, admin, weather, stgl, solar, graph, api_crop ,
           api_farm, api_farm_data,api_producecategory,api_district,
           api_farmer_group,
             api_point,api_forest,
@@ -57,10 +55,9 @@ def register_blueprints(app):
     )
     
     blueprints = [
-        auth.bp, farm.bp, qr.bp, map.bp, main.bp, forest.bp, 
-        point.bp, admin.admin_bp, farmdata.bp, crop.crop_bp, 
-        api_crop.api_crop_bp, farmergroup.bp, producecategory.bp, 
-        district.bp, tree.bp, graph.bp, solar.bp, stgl.bp, weather.bp, 
+        auth.bp, map.bp,admin.admin_bp, 
+        api_crop.api_crop_bp, 
+        graph.bp, solar.bp, stgl.bp, weather.bp, 
         api_farm.bp, api_farm_data.bp,api_producecategory.bp,api_district.bp,
         api_farmer_group.bp,api_point.bp,api_forest.bp,api_qr.bp,api_gfw.bp,api_pays.bp,api_kc.bp,api_irrigations.bp,
         api_grade.bp,api_user.bp,api_store.api_store_bp, api_product.api_product_bp, api_dashboard.dashboard_api_bp,api_eudr.api_eudr_bp,
@@ -71,9 +68,6 @@ def register_blueprints(app):
     
     for blueprint in blueprints:
         app.register_blueprint(blueprint)
-
-    from app.routes.testDb import test
-    app.register_blueprint(test)
 
 def register_filters(app):
     """Register custom Jinja filters."""

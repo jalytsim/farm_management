@@ -1,9 +1,0 @@
-@startuml
-title Diagramme de sequence pour Rechercher une localisation geographique
-actor Utilisateur
-participant Système
-Utilisateur -> Systeme: Entrer les coordonnees ou le nom de la localisation
-Systeme -> API_Cartographique: Envoyer une requête de recherche
-API_Cartographique -> Systeme: Retourner les details de la localisation
-Systeme -> Utilisateur: Afficher les resultats de recherche
-@enduml

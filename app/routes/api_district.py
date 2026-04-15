@@ -2,7 +2,6 @@
 from flask import Blueprint, jsonify, render_template, request, redirect, url_for, flash
 from flask_login import login_required
 from app.routes.admin import admin_required
-from app.routes.farm import farmer_or_admin_required
 from app.utils.district_utils import create_district, delete_district, get_all_districts, get_district_by_id, update_district
 
 bp = Blueprint('api_district', __name__, url_prefix='/api/district')
