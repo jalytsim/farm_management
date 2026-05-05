@@ -139,6 +139,8 @@ def generate_pdfs():
         return send_file(temp_file.name, as_attachment=True, download_name='receipts.pdf', mimetype='application/pdf')
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()   # ← ajoute cette ligne
         return jsonify({"error": f"Error generating PDF: {str(e)}"}), 500
 
 
