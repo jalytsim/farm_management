@@ -61,7 +61,8 @@ D:\project\farm_management\farm_management\
 │   │   └── js
 │   │       └── plotly-2.27.0.min.js
 │   ├── templates
-│   │   └── index.html
+│   │   ├── index.html
+│   │   └── qrcode.html
 │   └── utils
 │       ├── __init__.py
 │       ├── crop_utils.py
@@ -91,6 +92,7 @@ D:\project\farm_management\farm_management\
 ├── arborescence.txt
 ├── config.py
 ├── detailed_project_documentation.docx
+├── dump.sql
 ├── gunicorn_config.py
 ├── project_documentation.docx
 ├── requirements.txt
