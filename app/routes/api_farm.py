@@ -20,35 +20,52 @@ bp = Blueprint('api_farm', __name__, url_prefix='/api/farm')
 @jwt_required()
 def index():
     identity = get_jwt_identity()
-    user_id = identity['id']
-
-    page = request.args.get('page', 1, type=int)
+    user_id  = identity['id']
+    page     = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 6, type=int)
+    search   = request.args.get('search', '').strip()
 
     user = User.query.get(user_id)
-    print("+++++++++===========+++++++++", user_id)
 
+    # Base query selon le rôle
     if user.is_admin:
-        farms = Farm.query.paginate(page=page, per_page=6)
+        query = Farm.query
     else:
-        farms = Farm.query.filter_by(created_by=user_id).paginate(page=page, per_page=6)
+        query = Farm.query.filter_by(created_by=user_id)
+
+    # ── Recherche serveur sur plusieurs colonnes ───────────────────────────
+    if search:
+        like = f'%{search}%'
+        query = query.filter(
+            db.or_(
+                Farm.name.ilike(like),
+                Farm.subcounty.ilike(like),
+                Farm.farm_id.ilike(like),
+                Farm.cin.ilike(like),
+            )
+        )
+
+    farms = query.paginate(page=page, per_page=per_page, error_out=False)
 
     farms_list = [{
-        "id": farm.farm_id,
-        "name": farm.name,
-        "subcounty": farm.subcounty,
-        "district_id": farm.district_id,
+        "id":           farm.farm_id,
+        "name":         farm.name,
+        "subcounty":    farm.subcounty,
+        "district_id":  farm.district_id,
         "farmergroup_id": farm.farmergroup_id,
-        'geolocation': farm.geolocation,
+        "geolocation":  farm.geolocation,
         "phonenumber1": farm.phonenumber,
         "phonenumber2": farm.phonenumber2,
-        "gender": farm.gender,
-        "cin": farm.cin,
+        "gender":       farm.gender,
+        "cin":          farm.cin,
     } for farm in farms.items]
 
     return jsonify(
         farms=farms_list,
         total_pages=farms.pages,
         current_page=farms.page,
+        total_farms=farms.total,
+        search=search,
     )
 
 @bp.route('/all')
