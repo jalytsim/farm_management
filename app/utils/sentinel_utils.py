@@ -1,18 +1,22 @@
 """
 sentinel_utils.py — Sentinel-2 + Prophet ML Forecast
-  - 5 ans historique trimestriel
-  - Forecast 4 trimestres Prophet
-  - Tiers Low/Medium/High couleurs
-  - LTV + prime d'assurance estimée
+
+Fixes vs previous version:
+  - Prophet ImportError is now VISIBLE (logged, not silent)
+  - Cache poison detection: if cached forecast is empty, Prophet is re-run
+    directly from cached history (no Sentinel API call needed)
+  - _prophet_forecast now logs the exact failure reason
+  - force_refresh=True always recomputes forecast regardless of cache
 """
 
-import os, time, warnings
+import os, time, warnings, logging
 import requests
 import pandas as pd
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
 warnings.filterwarnings('ignore')
+logger = logging.getLogger(__name__)
 
 SENTINEL_CLIENT_ID     = os.environ.get('SENTINEL_CLIENT_ID',     '0bfcba08-1240-451e-bf8f-93aa71eff6c1')
 SENTINEL_CLIENT_SECRET = os.environ.get('SENTINEL_CLIENT_SECRET', '2iJGb9PNYtCABXZOXHhWAxICOmTs4D9X')
@@ -169,40 +173,107 @@ def get_tier(index_name, value):
     last = TIERS.get(index_name, TIERS['ndvi'])[-1]
     return {'label': last['label'], 'color': last['color'], 'bg': last['bg']}
 
+
 # ── Prophet Forecast ──────────────────────────────────────────
+# FIX: errors are now logged explicitly instead of silently swallowed.
 def _prophet_forecast(data, index_name, periods=4):
+    """
+    data: list of dicts — can be either:
+      - raw format:      [{date, ndvi: float, ...}]     (from _parse_response)
+      - enriched format: [{date, ndvi: {value, tier}}]  (from history_out / cache)
+    Both formats are handled.
+    """
+    # ── Check Prophet availability FIRST — fail loudly ────────────────────
     try:
         from prophet import Prophet
     except ImportError:
+        logger.error(
+            '[SentinelForecast] Prophet is NOT installed on this server. '
+            'Run: pip install prophet  (or: pip install neuralprophet). '
+            'Forecast will be empty until Prophet is installed.'
+        )
         return []
 
-    rows = [(d['date'], d[index_name]) for d in data if d.get(index_name) is not None]
+    # ── Extract (date, value) pairs — handle both data formats ────────────
+    rows = []
+    for d in data:
+        raw = d.get(index_name)
+        if raw is None:
+            continue
+        # Enriched format: {value: float, tier: {...}}
+        if isinstance(raw, dict):
+            val = raw.get('value')
+        else:
+            # Raw format: float
+            val = raw
+        if val is not None:
+            rows.append((d['date'], val))
+
     if len(rows) < 8:
+        logger.warning(
+            f'[SentinelForecast] Not enough data for {index_name}: '
+            f'{len(rows)} points (need ≥ 8). Forecast skipped.'
+        )
         return []
 
-    df = pd.DataFrame({'ds': pd.to_datetime([r[0] for r in rows]), 'y': [r[1] for r in rows]})
-    model = Prophet(yearly_seasonality=True, weekly_seasonality=False,
-                    daily_seasonality=False, seasonality_mode='additive', interval_width=0.80)
-    model.fit(df)
-    future   = model.make_future_dataframe(periods=periods, freq='QS')
-    forecast = model.predict(future)
-    pred     = forecast[forecast['ds'] > df['ds'].max()]
-
-    result = []
-    for _, row in pred.iterrows():
-        val = round(float(row['yhat']), 4)
-        lo  = round(float(row['yhat_lower']), 4)
-        hi  = round(float(row['yhat_upper']), 4)
-        result.append({
-            'date':        row['ds'].strftime('%Y-%m-%d'),
-            'quarter':     row['ds'].strftime('%Y-Q') + str((row['ds'].month - 1) // 3 + 1),
-            'value':       val,
-            'lower_80':    lo,
-            'upper_80':    hi,
-            'tier':        get_tier(index_name, val),
-            'is_forecast': True,
+    try:
+        df = pd.DataFrame({
+            'ds': pd.to_datetime([r[0] for r in rows]),
+            'y':  [r[1] for r in rows],
         })
+        model = Prophet(
+            yearly_seasonality=True,
+            weekly_seasonality=False,
+            daily_seasonality=False,
+            seasonality_mode='additive',
+            interval_width=0.80,
+        )
+        model.fit(df)
+        future   = model.make_future_dataframe(periods=periods, freq='QS')
+        forecast = model.predict(future)
+        pred     = forecast[forecast['ds'] > df['ds'].max()]
+
+        result = []
+        for _, row in pred.iterrows():
+            val = round(float(row['yhat']), 4)
+            lo  = round(float(row['yhat_lower']), 4)
+            hi  = round(float(row['yhat_upper']), 4)
+            result.append({
+                'date':        row['ds'].strftime('%Y-%m-%d'),
+                'quarter':     row['ds'].strftime('%Y-Q') + str((row['ds'].month - 1) // 3 + 1),
+                'value':       val,
+                'lower_80':    lo,
+                'upper_80':    hi,
+                'tier':        get_tier(index_name, val),
+                'is_forecast': True,
+            })
+
+        logger.info(f'[SentinelForecast] {index_name}: {len(result)} forecast quarters generated.')
+        return result
+
+    except Exception as e:
+        logger.error(f'[SentinelForecast] Prophet failed for {index_name}: {e}', exc_info=True)
+        return []
+
+
+def _is_forecast_empty(forecast_dict):
+    """True if all indices have empty forecast lists — indicates cache poison."""
+    if not forecast_dict:
+        return True
+    return all(len(v) == 0 for v in forecast_dict.values())
+
+
+def _run_forecast_all(history_data, indices):
+    """
+    Run Prophet forecast for all indices from history data.
+    history_data: list of dicts (raw OR enriched format both accepted)
+    Returns: {idx: [forecast_items]}
+    """
+    result = {}
+    for idx in indices:
+        result[idx] = _prophet_forecast(history_data, idx, periods=4)
     return result
+
 
 # ── LTV ───────────────────────────────────────────────────────
 def compute_ltv(ndvi_mean, area_ha, yield_t_per_ha=1.5,
@@ -245,20 +316,24 @@ def _build_geometry(points, geolocation=None):
             pass
     return None
 
-# ── Entrée principale ─────────────────────────────────────────
+
+# ── Main entry point ──────────────────────────────────────────
 def get_sat_index_full(entity_type, entity_id,
                        loan_amount=None, yield_t_per_ha=1.5, price_per_t=500,
                        force_refresh=False):
     """
-    Entrée principale du module Sat-Index.
-    - Vérifie d'abord le cache BDD (SentinelCache)
-    - Appelle Sentinel API uniquement si cache absent ou expiré (>90 jours)
-    - force_refresh=True force un nouvel appel API
+    Main entry point for Sat-Index.
+    - Checks DB cache first (SentinelCache)
+    - FIX: if cached forecast is empty (cache poison), recomputes forecast
+      from cached history WITHOUT calling Sentinel API again
+    - force_refresh=True forces a full Sentinel API call
     """
     from app.models import Farm, Forest, Point, SentinelCache
     from app import db
     import json
     from datetime import timedelta
+
+    indices = ['ndvi', 'ndmi', 'ndwi', 'nmdi', 'evi', 'savi', 'nbr', 'bsi']
 
     if entity_type == 'farm':
         entity = Farm.query.filter_by(farm_id=entity_id).first()
@@ -278,24 +353,43 @@ def get_sat_index_full(entity_type, entity_id,
     if not geometry:
         return None, 'No geometry available — add polygon points first'
 
-    indices = ['ndvi', 'ndmi', 'ndwi', 'nmdi', 'evi', 'savi', 'nbr', 'bsi']
-
-    # ── Vérifier le cache ────────────────────────────────────
+    # ── Check cache ────────────────────────────────────────────────────────
     cache = None
     if entity_type == 'farm':
         cache = SentinelCache.query.filter_by(farm_id=entity_id).first()
 
     if cache and not cache.is_stale() and not force_refresh:
-        # ── Servir depuis le cache ──
         history_out  = cache.get_history()
         forecast_out = cache.get_forecast()
-        ltv_data     = None
 
+        # ── FIX: Cache poison detection ───────────────────────────────────
+        # If forecast is empty (Prophet wasn't installed when cache was created),
+        # recompute it from cached history — no Sentinel API call needed.
+        if _is_forecast_empty(forecast_out) and history_out:
+            logger.warning(
+                f'[SentinelCache] Cached forecast for {entity_id} is empty (likely Prophet was '
+                f'missing when cache was created). Recomputing forecast from {len(history_out)} '
+                f'cached history points...'
+            )
+            forecast_out = _run_forecast_all(history_out, indices)
+
+            # Persist the recomputed forecast back to cache
+            if not _is_forecast_empty(forecast_out):
+                try:
+                    cache.forecast_json = json.dumps(forecast_out)
+                    db.session.commit()
+                    logger.info(f'[SentinelCache] Forecast recomputed and saved for {entity_id}.')
+                except Exception as e:
+                    logger.error(f'[SentinelCache] Could not save recomputed forecast: {e}')
+                    db.session.rollback()
+        # ── end fix ───────────────────────────────────────────────────────
+
+        ltv_data = None
         if loan_amount or yield_t_per_ha != 1.5 or price_per_t != 500:
-            # Recalculer LTV avec nouveaux paramètres sans rappeler Sentinel
             recent_ndvi = next(
-                (r['ndvi']['value'] for r in reversed(history_out)
-                 if r.get('ndvi', {}).get('value') is not None), 0.4
+                (r.get('ndvi', {}).get('value') if isinstance(r.get('ndvi'), dict) else r.get('ndvi')
+                 for r in reversed(history_out) if r.get('ndvi') is not None),
+                0.4
             )
             try:
                 from app.utils.dashboard_utils import (
@@ -312,19 +406,19 @@ def get_sat_index_full(entity_type, entity_id,
             ltv_data = cache.get_ltv()
 
         return {
-            'entity_id':    entity_id,
-            'entity_type':  entity_type,
-            'name':         name,
-            'period':       {'from': cache.period_from, 'to': cache.period_to},
-            'history':      history_out,
-            'forecast':     forecast_out,
-            'ltv':          ltv_data,
-            'tiers_meta':   TIERS,
-            'from_cache':   True,
+            'entity_id':        entity_id,
+            'entity_type':      entity_type,
+            'name':             name,
+            'period':           {'from': cache.period_from, 'to': cache.period_to},
+            'history':          history_out,
+            'forecast':         forecast_out,
+            'ltv':              ltv_data,
+            'tiers_meta':       TIERS,
+            'from_cache':       True,
             'cache_updated_at': cache.updated_at.isoformat() if cache.updated_at else None,
         }, None
 
-    # ── Appel Sentinel API ───────────────────────────────────
+    # ── Full Sentinel API call ─────────────────────────────────────────────
     now       = datetime.utcnow()
     date_to   = now.strftime('%Y-%m-%dT23:59:59Z')
     date_from = (now - relativedelta(years=5)).strftime('%Y-%m-%dT00:00:00Z')
@@ -333,19 +427,25 @@ def get_sat_index_full(entity_type, entity_id,
         raw        = _call_statistics(geometry, date_from, date_to)
         historical = _parse_response(raw)
     except Exception as e:
-        # Si l'API échoue mais qu'on a un cache (même expiré) → le servir
+        logger.error(f'[Sentinel] API call failed for {entity_id}: {e}')
+        # Serve stale cache if available rather than empty response
         if cache:
+            history_out  = cache.get_history()
+            forecast_out = cache.get_forecast()
+            # Even on API failure, try to fix empty forecast from stale history
+            if _is_forecast_empty(forecast_out) and history_out:
+                forecast_out = _run_forecast_all(history_out, indices)
             return {
-                'entity_id':    entity_id,
-                'entity_type':  entity_type,
-                'name':         name,
-                'period':       {'from': cache.period_from, 'to': cache.period_to},
-                'history':      cache.get_history(),
-                'forecast':     cache.get_forecast(),
-                'ltv':          cache.get_ltv(),
-                'tiers_meta':   TIERS,
-                'from_cache':   True,
-                'cache_stale':  True,
+                'entity_id':        entity_id,
+                'entity_type':      entity_type,
+                'name':             name,
+                'period':           {'from': cache.period_from, 'to': cache.period_to},
+                'history':          history_out,
+                'forecast':         forecast_out,
+                'ltv':              cache.get_ltv(),
+                'tiers_meta':       TIERS,
+                'from_cache':       True,
+                'cache_stale':      True,
                 'cache_updated_at': cache.updated_at.isoformat() if cache.updated_at else None,
             }, None
         return None, f'Sentinel API error: {e}'
@@ -353,7 +453,7 @@ def get_sat_index_full(entity_type, entity_id,
     if not historical:
         return None, 'No satellite data for this location'
 
-    # ── Enrichir l'historique ──
+    # ── Enrich history ────────────────────────────────────────────────────
     history_out = []
     for row in historical:
         out = {'date': row['date']}
@@ -362,12 +462,17 @@ def get_sat_index_full(entity_type, entity_id,
             out[idx] = {'value': val, 'tier': get_tier(idx, val)}
         history_out.append(out)
 
-    # ── Forecast Prophet ──
-    forecast_out = {}
-    for idx in indices:
-        forecast_out[idx] = _prophet_forecast(historical, idx, periods=4)
+    # ── Run Prophet forecast ───────────────────────────────────────────────
+    # Pass raw `historical` (float values) — _prophet_forecast handles both formats
+    forecast_out = _run_forecast_all(historical, indices)
 
-    # ── LTV ──
+    if _is_forecast_empty(forecast_out):
+        logger.warning(
+            f'[SentinelForecast] All forecasts empty for {entity_id}. '
+            f'Check Prophet installation: pip install prophet'
+        )
+
+    # ── LTV ───────────────────────────────────────────────────────────────
     ltv_data = None
     if entity_type == 'farm':
         try:
@@ -379,13 +484,14 @@ def get_sat_index_full(entity_type, entity_id,
             area_ha, _   = get_farm_area_ha(entity.id, area_map, fallback_map, entity_id)
         except Exception:
             area_ha = 0
+
         recent_ndvi = next(
             (r.get('ndvi') for r in reversed(historical) if r.get('ndvi') is not None), 0.4
         )
         if area_ha > 0:
             ltv_data = compute_ltv(recent_ndvi, area_ha, yield_t_per_ha, price_per_t, loan_amount)
 
-    # ── Sauvegarder en cache ──
+    # ── Save to cache ──────────────────────────────────────────────────────
     if entity_type == 'farm':
         try:
             if not cache:
@@ -396,20 +502,21 @@ def get_sat_index_full(entity_type, entity_id,
             cache.ltv_json      = json.dumps(ltv_data) if ltv_data else None
             cache.period_from   = date_from[:10]
             cache.period_to     = date_to[:10]
-            cache.stale_after   = now + timedelta(days=90)  # expire dans 90 jours
+            cache.stale_after   = now + timedelta(days=90)
             db.session.commit()
+            logger.info(f'[SentinelCache] Saved for {entity_id}. Forecast empty: {_is_forecast_empty(forecast_out)}')
         except Exception as e:
-            print(f'[SentinelCache] Save error: {e}')
+            logger.error(f'[SentinelCache] Save error: {e}')
             db.session.rollback()
 
     return {
-        'entity_id':    entity_id,
-        'entity_type':  entity_type,
-        'name':         name,
-        'period':       {'from': date_from[:10], 'to': date_to[:10]},
-        'history':      history_out,
-        'forecast':     forecast_out,
-        'ltv':          ltv_data,
-        'tiers_meta':   TIERS,
-        'from_cache':   False,
+        'entity_id':   entity_id,
+        'entity_type': entity_type,
+        'name':        name,
+        'period':      {'from': date_from[:10], 'to': date_to[:10]},
+        'history':     history_out,
+        'forecast':    forecast_out,
+        'ltv':         ltv_data,
+        'tiers_meta':  TIERS,
+        'from_cache':  False,
     }, None
