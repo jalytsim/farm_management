@@ -630,3 +630,32 @@ class Certificate(db.Model):
             'status': self.status,
             'download_count': self.download_count
         }
+# ── Modèle ──────────────────────────────────────────────────────────────────
+class BlogPost(db.Model):
+    __tablename__ = 'blogpost'
+    id          = db.Column(db.Integer, primary_key=True)
+    slug        = db.Column(db.String(200), unique=True, nullable=False)
+    title       = db.Column(db.String(255), nullable=False)
+    excerpt     = db.Column(db.Text, nullable=False)
+    author      = db.Column(db.String(100), nullable=False)
+    category    = db.Column(db.String(50), nullable=False)
+    tags        = db.Column(db.JSON, default=list)
+    read_time   = db.Column(db.String(20), nullable=True)
+    cover_image = db.Column(db.String(500), nullable=True)   # ← nouveau
+    created_at  = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at  = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by  = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+
+    def to_dict(self):
+        return {
+            'id':          self.id,
+            'slug':        self.slug,
+            'title':       self.title,
+            'excerpt':     self.excerpt,
+            'author':      self.author,
+            'category':    self.category,
+            'tags':        self.tags or [],
+            'read_time':   self.read_time,
+            'cover_image': self.cover_image,   # ← nouveau
+            'created_at':  self.created_at.isoformat(),
+        }
