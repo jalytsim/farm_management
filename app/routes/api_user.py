@@ -141,3 +141,27 @@ def delete_user(id):
     db.session.commit()
 
     return jsonify({'message': 'User deleted successfully'})
+
+@bp.route('/<int:user_id>/update-access', methods=['PATCH'])
+@jwt_required()
+def update_wbii_access(user_id):
+    identity = get_jwt_identity()
+    requester = User.query.get(identity['id'])
+
+    if not requester or not requester.is_admin:
+        return jsonify({'status': 'error', 'message': 'Admin access required'}), 403
+
+    target_user = User.query.get_or_404(user_id)
+    data = request.get_json()
+
+    if 'has_access_wbii' not in data:
+        return jsonify({'status': 'error', 'message': 'Missing has_access_wbii field'}), 400
+
+    target_user.has_access_wbii = bool(data['has_access_wbii'])
+    db.session.commit()
+
+    return jsonify({
+        'status':          'success',
+        'user_id':         user_id,
+        'has_access_wbii': target_user.has_access_wbii,
+    })

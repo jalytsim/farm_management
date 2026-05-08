@@ -1,0 +1,124 @@
+{
+  "forecast": {
+    "ndvi": [
+      {
+        "quarter": "2025-Q2",
+        "forecast": 0.5185,
+        "lower_80": 0.3849,
+        "upper_80": 0.6644,
+        "tier": "HIGH"
+      },
+      {
+        "quarter": "2025-Q3",
+        "forecast": 0.4605,
+        "lower_80": 0.3191,
+        "upper_80": 0.6046,
+        "tier": "MEDIUM"
+      },
+      {
+        "quarter": "2025-Q4",
+        "forecast": 0.4415,
+        "lower_80": 0.3061,
+        "upper_80": 0.5779,
+        "tier": "MEDIUM"
+      },
+      {
+        "quarter": "2026-Q1",
+        "forecast": 0.5442,
+        "lower_80": 0.4029,
+        "upper_80": 0.6879,
+        "tier": "HIGH"
+      }
+    ],
+    "savi": [
+      {
+        "quarter": "2025-Q2",
+        "forecast": 0.3254,
+        "lower_80": 0.2464,
+        "upper_80": 0.4109,
+        "tier": "MEDIUM"
+      },
+      {
+        "quarter": "2025-Q3",
+        "forecast": 0.291,
+        "lower_80": 0.207,
+        "upper_80": 0.3688,
+        "tier": "LOW"
+      },
+      {
+        "quarter": "2025-Q4",
+        "forecast": 0.29,
+        "lower_80": 0.2069,
+        "upper_80": 0.3733,
+        "tier": "LOW"
+      },
+      {
+        "quarter": "2026-Q1",
+        "forecast": 0.3354,
+        "lower_80": 0.2541,
+        "upper_80": 0.4207,
+        "tier": "MEDIUM"
+      }
+    ],
+    "evi": [
+      {
+        "quarter": "2025-Q2",
+        "forecast": 0.3945,
+        "lower_80": 0.3058,
+        "upper_80": 0.4842,
+        "tier": "MEDIUM"
+      },
+      {
+        "quarter": "2025-Q3",
+        "forecast": 0.3497,
+        "lower_80": 0.2681,
+        "upper_80": 0.4423,
+        "tier": "MEDIUM"
+      },
+      {
+        "quarter": "2025-Q4",
+        "forecast": 0.3714,
+        "lower_80": 0.2819,
+        "upper_80": 0.4597,
+        "tier": "MEDIUM"
+      },
+      {
+        "quarter": "2026-Q1",
+        "forecast": 0.3799,
+        "lower_80": 0.2908,
+        "upper_80": 0.4664,
+        "tier": "MEDIUM"
+      }
+    ],
+    "nmdi": [
+      {
+        "quarter": "2025-Q2",
+        "forecast": 0.5672,
+        "lower_80": 0.5057,
+        "upper_80": 0.6255,
+        "tier": "MODERATE"
+      },
+      {
+        "quarter": "2025-Q3",
+        "forecast": 0.5482,
+        "lower_80": 0.4878,
+        "upper_80": 0.6047,
+        "tier": "GOOD"
+      },
+      {
+        "quarter": "2025-Q4",
+        "forecast": 0.6374,
+        "lower_80": 0.58,
+        "upper_80": 0.6986,
+        "tier": "MODERATE"
+      },
+      {
+        "quarter": "2026-Q1",
+        "forecast": 0.5354,
+        "lower_80": 0.4725,
+        "upper_80": 0.5951,
+        "tier": "GOOD"
+      }
+    ]
+  }
+}

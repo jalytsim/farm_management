@@ -1,4 +1,4 @@
-D:\project\farm_management
+D:\project\farm_management\farm_management\
 ├── .gitignore
 ├── AlertMessaging.js
 ├── NDVI-calculation
@@ -10,15 +10,6 @@ D:\project\farm_management
 │   ├── __init__.py
 │   ├── models.py
 │   ├── routes
-│   │   ├── FichierPUMLB
-│   │   │   ├── modeldomaine.puml
-│   │   │   ├── secHDD.puml
-│   │   │   ├── secc2.puml
-│   │   │   ├── secc3.puml
-│   │   │   ├── seccETC.puml
-│   │   │   ├── secfournir.puml
-│   │   │   ├── secsurveillance.puml
-│   │   │   └── useCase.puml
 │   │   ├── __init__.py
 │   │   ├── admin.py
 │   │   ├── alerte.py
@@ -46,6 +37,7 @@ D:\project\farm_management
 │   │   ├── api_producecategory.py
 │   │   ├── api_product.py
 │   │   ├── api_qr.py
+│   │   ├── api_sentinel.py
 │   │   ├── api_store.py
 │   │   ├── api_tree.py
 │   │   ├── api_user.py
@@ -69,7 +61,8 @@ D:\project\farm_management
 │   │   └── js
 │   │       └── plotly-2.27.0.min.js
 │   ├── templates
-│   │   └── index.html
+│   │   ├── index.html
+│   │   └── qrcode.html
 │   └── utils
 │       ├── __init__.py
 │       ├── crop_utils.py
@@ -90,6 +83,7 @@ D:\project\farm_management
 │       ├── qr_generator.py
 │       ├── scheduler.py
 │       ├── schedulerpest.py
+│       ├── sentinel_utils.py
 │       ├── solar_utils.py
 │       ├── tree_utils.py
 │       └── weather_utils.py
@@ -98,8 +92,12 @@ D:\project\farm_management
 ├── arborescence.txt
 ├── config.py
 ├── detailed_project_documentation.docx
+├── dump.sql
 ├── gunicorn_config.py
 ├── project_documentation.docx
 ├── requirements.txt
 ├── run.py
-└── schedulerpest.py
+├── schedulerpest.py
+├── sentinel_data.json
+├── sentinel_forecast.json
+└── testProhet.py

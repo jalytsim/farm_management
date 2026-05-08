@@ -28,7 +28,7 @@ def api_login():
 
     if user and check_password_hash(user.password, password):
         # Inclure user_type dans le token JWT
-        access_token = create_access_token(identity={'id': user.id, 'is_admin': user.is_admin, 'user_type': user.user_type}, expires_delta=timedelta(days=7))
+        access_token = create_access_token(identity={'id': user.id, 'is_admin': user.is_admin, 'user_type': user.user_type, 'has_access_wbii': user.has_access_wbii,}, expires_delta=timedelta(days=7))
         return jsonify(token=access_token), 200
     else:
         return jsonify({"msg": "Login Unsuccessful. Please check email and password"}), 401
