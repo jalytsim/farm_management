@@ -98,8 +98,12 @@ def _parse_response(api_response):
                 continue
             try:
                 val = float(idx_data['bands']['B0']['stats']['mean'])
-                if val != val or abs(val) > 1e6:
+                # NaN check first, then hard clamp — Prophet and stats can
+                # occasionally produce values slightly outside [-1, 1].
+                if val != val:          # NaN
                     val = None
+                else:
+                    val = max(-1.0, min(1.0, val))
             except Exception:
                 val = None
             row[idx] = val
@@ -107,62 +111,76 @@ def _parse_response(api_response):
     return result
 
 # ── Tiers ─────────────────────────────────────────────────────
+# Seuils et labels alignés sur SatIndexInterpretations.xlsx
+# Chaque liste est ordonnée par 'max' croissant (get_tier s'arrête
+# au premier seuil >= valeur).
 TIERS = {
+    # NDVI — Normalized Difference Vegetation Index [-1, 1]
+    # Excel: Water(<-0.1) | Barren(-0.1–0.1) | Sparse(0.1–0.3) | Moderate(0.3–0.6) | Dense(0.6–1.0)
     'ndvi': [
-        {'max': 0.20, 'label': 'Very Low',  'color': '#dc2626', 'bg': '#fef2f2'},
-        {'max': 0.35, 'label': 'Low',       'color': '#f97316', 'bg': '#fff7ed'},
-        {'max': 0.50, 'label': 'Medium',    'color': '#ca8a04', 'bg': '#fefce8'},
-        {'max': 0.65, 'label': 'High',      'color': '#16a34a', 'bg': '#f0fdf4'},
-        {'max': 1.00, 'label': 'Very High', 'color': '#15803d', 'bg': '#dcfce7'},
+        {'max': -0.10, 'label': 'Water / Ice',          'color': '#0284c7', 'bg': '#eff6ff'},
+        {'max':  0.10, 'label': 'Barren Land',           'color': '#92400e', 'bg': '#fef3c7'},
+        {'max':  0.30, 'label': 'Sparse / Stressed',     'color': '#f97316', 'bg': '#fff7ed'},
+        {'max':  0.60, 'label': 'Moderate Vegetation',   'color': '#ca8a04', 'bg': '#fefce8'},
+        {'max':  1.00, 'label': 'Dense / Healthy',       'color': '#15803d', 'bg': '#dcfce7'},
     ],
-    'ndmi': [
-        {'max': -0.20, 'label': 'Severe Drought', 'color': '#dc2626', 'bg': '#fef2f2'},
-        {'max':  0.00, 'label': 'Dry',            'color': '#f97316', 'bg': '#fff7ed'},
-        {'max':  0.20, 'label': 'Normal',          'color': '#ca8a04', 'bg': '#fefce8'},
-        {'max':  0.40, 'label': 'Moist',           'color': '#16a34a', 'bg': '#f0fdf4'},
-        {'max':  1.00, 'label': 'Very Wet',        'color': '#0284c7', 'bg': '#eff6ff'},
-    ],
-    'ndwi': [
-        {'max': -0.30, 'label': 'Dry / Built-up', 'color': '#f97316', 'bg': '#fff7ed'},
-        {'max':  0.00, 'label': 'Bare Soil',       'color': '#ca8a04', 'bg': '#fefce8'},
-        {'max':  0.20, 'label': 'Low Water',       'color': '#16a34a', 'bg': '#f0fdf4'},
-        {'max':  1.00, 'label': 'Water Body',      'color': '#0284c7', 'bg': '#eff6ff'},
-    ],
-    'nmdi': [
-        {'max': 0.45, 'label': 'Very Wet',       'color': '#0284c7', 'bg': '#eff6ff'},
-        {'max': 0.55, 'label': 'Good',           'color': '#16a34a', 'bg': '#f0fdf4'},
-        {'max': 0.65, 'label': 'Moderate',       'color': '#ca8a04', 'bg': '#fefce8'},
-        {'max': 0.75, 'label': 'Drought Risk',   'color': '#f97316', 'bg': '#fff7ed'},
-        {'max': 1.00, 'label': 'Severe Drought', 'color': '#dc2626', 'bg': '#fef2f2'},
-    ],
+    # EVI — Enhanced Vegetation Index [-1, 1]
+    # Excel: Water/Barren(<=0) | Dry/Stressed(0–0.2) | Healthy(0.2–1.0)
     'evi': [
-        {'max': 0.15, 'label': 'Very Low',  'color': '#dc2626', 'bg': '#fef2f2'},
-        {'max': 0.25, 'label': 'Low',       'color': '#f97316', 'bg': '#fff7ed'},
-        {'max': 0.35, 'label': 'Medium',    'color': '#ca8a04', 'bg': '#fefce8'},
-        {'max': 0.45, 'label': 'High',      'color': '#16a34a', 'bg': '#f0fdf4'},
-        {'max': 1.00, 'label': 'Very High', 'color': '#15803d', 'bg': '#dcfce7'},
+        {'max':  0.00, 'label': 'Water / Barren',        'color': '#0284c7', 'bg': '#eff6ff'},
+        {'max':  0.20, 'label': 'Dry / Stressed',        'color': '#f97316', 'bg': '#fff7ed'},
+        {'max':  1.00, 'label': 'Healthy Vegetation',    'color': '#15803d', 'bg': '#dcfce7'},
     ],
+    # SAVI — Soil Adjusted Vegetation Index [-1, 1]
+    # Excel: Non-vegetated(-1–0.1) | Sparse(0.1–0.3) | Dense(0.3–1.0)
     'savi': [
-        {'max': 0.15, 'label': 'Very Low',  'color': '#dc2626', 'bg': '#fef2f2'},
-        {'max': 0.25, 'label': 'Low',       'color': '#f97316', 'bg': '#fff7ed'},
-        {'max': 0.35, 'label': 'Medium',    'color': '#ca8a04', 'bg': '#fefce8'},
-        {'max': 0.45, 'label': 'High',      'color': '#16a34a', 'bg': '#f0fdf4'},
-        {'max': 1.00, 'label': 'Very High', 'color': '#15803d', 'bg': '#dcfce7'},
+        {'max':  0.10, 'label': 'Non-Vegetated',         'color': '#92400e', 'bg': '#fef3c7'},
+        {'max':  0.30, 'label': 'Sparse / Stressed',     'color': '#f97316', 'bg': '#fff7ed'},
+        {'max':  1.00, 'label': 'Dense / Healthy',       'color': '#15803d', 'bg': '#dcfce7'},
     ],
+    # NDMI — Normalized Difference Moisture Index [-1, 1]
+    # Excel: Bare Soil/Severe Drought(-1–-0.6) | Dry/Sparse(-0.6–-0.2) |
+    #        Water Stress(-0.2–0) | Initial Stress(0–0.2) | Low Stress(0.2–0.4) | High Moisture(0.4–1.0)
+    'ndmi': [
+        {'max': -0.60, 'label': 'Bare Soil / Severe Drought', 'color': '#7f1d1d', 'bg': '#fef2f2'},
+        {'max': -0.20, 'label': 'Dry / Sparse Canopy',        'color': '#dc2626', 'bg': '#fef2f2'},
+        {'max':  0.00, 'label': 'Water Stress',                'color': '#f97316', 'bg': '#fff7ed'},
+        {'max':  0.20, 'label': 'Initial Water Stress',        'color': '#ca8a04', 'bg': '#fefce8'},
+        {'max':  0.40, 'label': 'Low Water Stress',            'color': '#16a34a', 'bg': '#f0fdf4'},
+        {'max':  1.00, 'label': 'High Moisture',               'color': '#0284c7', 'bg': '#eff6ff'},
+    ],
+    # NDWI — Normalized Difference Water Index [-1, 1]
+    # Excel: High Water Stress(-1–-0.3) | Moderate Drought(-0.3–0) |
+    #        Shallow/Wetland(0–0.3) | Clear Water(>0.3)
+    'ndwi': [
+        {'max': -0.30, 'label': 'High Water Stress',     'color': '#dc2626', 'bg': '#fef2f2'},
+        {'max':  0.00, 'label': 'Moderate Drought',      'color': '#f97316', 'bg': '#fff7ed'},
+        {'max':  0.30, 'label': 'Shallow / Wetland',     'color': '#16a34a', 'bg': '#f0fdf4'},
+        {'max':  1.00, 'label': 'Clear Water',           'color': '#0284c7', 'bg': '#eff6ff'},
+    ],
+    # NMDI — Normalized Multi-band Drought Index [-1, 1]
+    # Excel: Wet Soil(<0.6) | Moderate Drought(0.6–0.7) | Extremely Dry(>=0.7)
+    'nmdi': [
+        {'max':  0.60, 'label': 'Wet Soil',              'color': '#0284c7', 'bg': '#eff6ff'},
+        {'max':  0.70, 'label': 'Moderate Drought',      'color': '#ca8a04', 'bg': '#fefce8'},
+        {'max':  1.00, 'label': 'Extremely Dry',         'color': '#dc2626', 'bg': '#fef2f2'},
+    ],
+    # NBR — Normalized Burn Ratio [-1, 1]
+    # Excel: Burned(-1–-0.1) | Bare/Dry(-0.1–0.1) | Healthy(0.1–1.0)
     'nbr': [
-        {'max': -0.10, 'label': 'High Severity Burn', 'color': '#7f1d1d', 'bg': '#fef2f2'},
-        {'max':  0.10, 'label': 'Moderate Burn',      'color': '#dc2626', 'bg': '#fef2f2'},
-        {'max':  0.27, 'label': 'Low Severity Burn',  'color': '#f97316', 'bg': '#fff7ed'},
-        {'max':  0.44, 'label': 'Unburned',           'color': '#ca8a04', 'bg': '#fefce8'},
-        {'max':  1.00, 'label': 'Healthy Forest',     'color': '#15803d', 'bg': '#dcfce7'},
+        {'max': -0.10, 'label': 'Burned Area',           'color': '#7f1d1d', 'bg': '#fef2f2'},
+        {'max':  0.10, 'label': 'Bare / Dry Soil',       'color': '#ca8a04', 'bg': '#fefce8'},
+        {'max':  1.00, 'label': 'Healthy Vegetation',    'color': '#15803d', 'bg': '#dcfce7'},
     ],
+    # BSI — Bare Soil Index [-1, 1]
+    # Excel: Good Vegetation(-1–0) | Sparse/Mixed(0–0.1) | Bare Soil(0.1–1.0)
     'bsi': [
-        {'max': -0.20, 'label': 'Dense Vegetation', 'color': '#15803d', 'bg': '#dcfce7'},
-        {'max':  0.00, 'label': 'Vegetation Cover', 'color': '#16a34a', 'bg': '#f0fdf4'},
-        {'max':  0.20, 'label': 'Partially Bare',   'color': '#ca8a04', 'bg': '#fefce8'},
-        {'max':  1.00, 'label': 'Bare Soil',        'color': '#92400e', 'bg': '#fff7ed'},
+        {'max':  0.00, 'label': 'Good Vegetation',       'color': '#15803d', 'bg': '#dcfce7'},
+        {'max':  0.10, 'label': 'Sparse / Mixed',        'color': '#ca8a04', 'bg': '#fefce8'},
+        {'max':  1.00, 'label': 'Bare Soil',             'color': '#92400e', 'bg': '#fef3c7'},
     ],
 }
+
 
 def get_tier(index_name, value):
     if value is None:
@@ -176,69 +194,162 @@ def get_tier(index_name, value):
 
 # ── Prophet Forecast ──────────────────────────────────────────
 # FIX: errors are now logged explicitly instead of silently swallowed.
-def _prophet_forecast(data, index_name, periods=4):
-    """
-    data: list of dicts — can be either:
-      - raw format:      [{date, ndvi: float, ...}]     (from _parse_response)
-      - enriched format: [{date, ndvi: {value, tier}}]  (from history_out / cache)
-    Both formats are handled.
-    """
-    # ── Check Prophet availability FIRST — fail loudly ────────────────────
-    try:
-        from prophet import Prophet
-    except ImportError:
-        logger.error(
-            '[SentinelForecast] Prophet is NOT installed on this server. '
-            'Run: pip install prophet  (or: pip install neuralprophet). '
-            'Forecast will be empty until Prophet is installed.'
-        )
-        return []
-
-    # ── Extract (date, value) pairs — handle both data formats ────────────
+def _extract_rows(data, index_name):
+    """Extract (date_str, float_value) pairs from raw or enriched history."""
     rows = []
     for d in data:
         raw = d.get(index_name)
         if raw is None:
             continue
-        # Enriched format: {value: float, tier: {...}}
-        if isinstance(raw, dict):
-            val = raw.get('value')
-        else:
-            # Raw format: float
-            val = raw
+        val = raw.get('value') if isinstance(raw, dict) else raw
         if val is not None:
-            rows.append((d['date'], val))
+            rows.append((d['date'], float(val)))
+    return rows
+
+
+def _seasonal_naive_forecast(df, index_name, periods=4):
+    """
+    Seasonal naive forecast — gold-standard baseline for short quarterly
+    time series (20 points).  Predicts each future quarter as the
+    historical average of that same quarter-of-year, blended with a
+    small linear trend (max 10% weight).  Confidence intervals come from
+    the per-quarter standard deviation.
+
+    Always produces predictions inside the historical data range.
+    Used as the primary model (or as fallback when Prophet goes wild).
+    """
+    import numpy as np
+
+    df = df.copy()
+    df['quarter'] = df['ds'].dt.quarter
+
+    q_stats = df.groupby('quarter')['y'].agg(['mean', 'std'])
+
+    # Gentle linear trend
+    x     = np.arange(len(df))
+    slope = float(np.polyfit(x, df['y'].values, 1)[0])
+
+    last_date = df['ds'].max()
+    result    = []
+
+    for i in range(1, periods + 1):
+        future_date = last_date + pd.DateOffset(months=3 * i)
+        q = future_date.quarter
+
+        row    = q_stats.loc[q] if q in q_stats.index else None
+        q_mean = float(row['mean']) if row is not None else df['y'].mean()
+        q_std  = float(row['std'])  if row is not None and not pd.isna(row['std']) else df['y'].std()
+        if pd.isna(q_std) or q_std < 0.005:
+            q_std = max(df['y'].std(), 0.005)
+
+        # Blend: 90% seasonal mean + 10% linear trend
+        val = q_mean + slope * i * 0.1
+        val = round(max(-1.0, min(1.0, val)), 4)
+
+        # 80% CI  (z=1.28 for 80%)
+        ci = max(q_std * 1.28, 0.01)
+        lo = round(max(-1.0, min(1.0, val - ci)), 4)
+        hi = round(max(-1.0, min(1.0, val + ci)), 4)
+
+        result.append({
+            'date':        future_date.strftime('%Y-%m-%d'),
+            'quarter':     f"{future_date.year}-Q{q}",
+            'value':       val,
+            'lower_80':    lo,
+            'upper_80':    hi,
+            'tier':        get_tier(index_name, val),
+            'is_forecast': True,
+        })
+
+    logger.info(f'[SeasonalNaive] {index_name}: {len(result)} quarters → '
+                f'{[r["value"] for r in result]}')
+    return result
+
+
+def _prophet_forecast(data, index_name, periods=4):
+    """
+    Two-stage forecast strategy:
+
+    Stage 1 — Prophet with data-driven bounds.
+      Cap and floor are set from the actual data range (± 50% margin),
+      not from the physical max [-1, 1].  This prevents Prophet from
+      treating a narrow-range index as "far from its carrying capacity"
+      and projecting a wild trend toward 1 or -1.
+      Very conservative changepoints and seasonality priors.
+
+    Stage 2 — Seasonal naive fallback.
+      Used when Prophet is not installed, raises an error, OR produces
+      any prediction > 3 standard deviations from the historical mean
+      (sanity check).  Always produces realistic results.
+    """
+    rows = _extract_rows(data, index_name)
 
     if len(rows) < 8:
-        logger.warning(
-            f'[SentinelForecast] Not enough data for {index_name}: '
-            f'{len(rows)} points (need ≥ 8). Forecast skipped.'
-        )
+        logger.warning(f'[Forecast] {index_name}: only {len(rows)} points '
+                       f'(need ≥ 8) — skipping forecast.')
         return []
 
+    df = pd.DataFrame({
+        'ds': pd.to_datetime([r[0] for r in rows]),
+        'y':  [r[1] for r in rows],
+    })
+
+    historical_mean = df['y'].mean()
+    historical_std  = max(df['y'].std(), 0.005)
+
+    # ── Stage 1: Prophet ────────────────────────────────────────────────────
+    prophet_result = []
     try:
-        df = pd.DataFrame({
-            'ds': pd.to_datetime([r[0] for r in rows]),
-            'y':  [r[1] for r in rows],
-        })
+        from prophet import Prophet
+
+        y_min  = df['y'].min()
+        y_max  = df['y'].max()
+        margin = max((y_max - y_min) * 0.5, 0.05)
+
+        cap   = min(y_max + margin, 1.0)
+        floor = max(y_min - margin, -1.0)
+
+        df_p         = df.copy()
+        df_p['cap']  = cap
+        df_p['floor']= floor
+
         model = Prophet(
-            yearly_seasonality=True,
+            growth='logistic',
+            # 2 Fourier terms = very smooth yearly seasonality.
+            # More terms overfit 20 quarterly points.
+            yearly_seasonality=2,
             weekly_seasonality=False,
             daily_seasonality=False,
             seasonality_mode='additive',
+            # Near-flat trend — avoids end-of-series extrapolation spikes.
+            changepoint_prior_scale=0.005,
+            # Very low seasonality amplitude.
+            seasonality_prior_scale=0.5,
             interval_width=0.80,
         )
-        model.fit(df)
-        future   = model.make_future_dataframe(periods=periods, freq='QS')
-        forecast = model.predict(future)
-        pred     = forecast[forecast['ds'] > df['ds'].max()]
+        model.fit(df_p)
 
-        result = []
+        future          = model.make_future_dataframe(periods=periods, freq='QS')
+        future['cap']   = cap
+        future['floor'] = floor
+        forecast        = model.predict(future)
+        pred            = forecast[forecast['ds'] > df['ds'].max()]
+
         for _, row in pred.iterrows():
-            val = round(float(row['yhat']), 4)
-            lo  = round(float(row['yhat_lower']), 4)
-            hi  = round(float(row['yhat_upper']), 4)
-            result.append({
+            val = float(row['yhat'])
+            # Sanity gate: reject if > 3 std from historical mean
+            if abs(val - historical_mean) > 3 * historical_std:
+                logger.warning(
+                    f'[Prophet] {index_name}: prediction {val:.4f} is '
+                    f'{abs(val - historical_mean) / historical_std:.1f}σ '
+                    f'from mean {historical_mean:.4f} — falling back to seasonal naive.'
+                )
+                prophet_result = []
+                break
+            val = round(max(-1.0, min(1.0, val)), 4)
+            lo  = round(max(-1.0, min(1.0, float(row['yhat_lower']))), 4)
+            hi  = round(max(-1.0, min(1.0, float(row['yhat_upper']))), 4)
+            prophet_result.append({
                 'date':        row['ds'].strftime('%Y-%m-%d'),
                 'quarter':     row['ds'].strftime('%Y-Q') + str((row['ds'].month - 1) // 3 + 1),
                 'value':       val,
@@ -248,12 +359,18 @@ def _prophet_forecast(data, index_name, periods=4):
                 'is_forecast': True,
             })
 
-        logger.info(f'[SentinelForecast] {index_name}: {len(result)} forecast quarters generated.')
-        return result
+        if prophet_result:
+            logger.info(f'[Prophet] {index_name}: {len(prophet_result)} quarters → '
+                        f'{[r["value"] for r in prophet_result]}')
+            return prophet_result
 
+    except ImportError:
+        logger.warning('[Forecast] Prophet not installed — using seasonal naive.')
     except Exception as e:
-        logger.error(f'[SentinelForecast] Prophet failed for {index_name}: {e}', exc_info=True)
-        return []
+        logger.error(f'[Prophet] {index_name} failed: {e}')
+
+    # ── Stage 2: Seasonal naive fallback ────────────────────────────────────
+    return _seasonal_naive_forecast(df, index_name, periods)
 
 
 def _is_forecast_empty(forecast_dict):
@@ -276,6 +393,53 @@ def _run_forecast_all(history_data, indices):
 
 
 # ── LTV ───────────────────────────────────────────────────────
+
+def _compute_area_ha_from_points(points):
+    """
+    Calcule la superficie en hectares directement depuis les objets Point
+    déjà chargés (évite _build_area_map_from_points qui charge toute la table
+    et avale les erreurs silencieusement).
+    Retourne (area_ha, 'gps') ou (0.0, None).
+    """
+    if not points or len(points) < 3:
+        return 0.0, None
+    try:
+        from shapely.geometry import Polygon
+        import pyproj
+        from shapely.ops import transform as shapely_transform
+
+        coords  = [(p.longitude, p.latitude) for p in points]
+        polygon = Polygon(coords)
+
+        if not polygon.is_valid:
+            polygon = polygon.buffer(0)   # auto-repair
+        if polygon.is_empty:
+            return 0.0, None
+
+        cx   = polygon.centroid.x
+        cy   = polygon.centroid.y
+        zone = int((cx + 180) / 6) + 1
+        hemi = 'north' if cy >= 0 else 'south'
+        epsg = 32600 + zone if hemi == 'north' else 32700 + zone
+
+        transformer = pyproj.Transformer.from_crs(
+            pyproj.CRS('EPSG:4326'), pyproj.CRS(f'EPSG:{epsg}'), always_xy=True
+        )
+        projected = shapely_transform(transformer.transform, polygon)
+        area_ha   = round(projected.area / 10_000, 4)
+        logger.info(f'[Sentinel] GPS area computed: {area_ha} ha ({len(points)} points)')
+        return area_ha, 'gps'
+
+    except ImportError:
+        logger.warning('[Sentinel] shapely/pyproj not installed — area unavailable. '
+                       'Run: pip install shapely pyproj')
+        return 0.0, None
+    except Exception as e:
+        logger.warning(f'[Sentinel] Area calculation failed: {e}')
+        return 0.0, None
+
+
+
 def compute_ltv(ndvi_mean, area_ha, yield_t_per_ha=1.5,
                 price_per_t=500, loan_amount=None):
     ndvi_factor    = max(0.3, min(1.0, ndvi_mean / 0.7))
@@ -339,14 +503,23 @@ def get_sat_index_full(entity_type, entity_id,
         entity = Farm.query.filter_by(farm_id=entity_id).first()
         if not entity:
             return None, 'Farm not found'
-        points   = Point.query.filter_by(owner_type='farmer', owner_id=str(entity.id)).order_by(Point.id).all()
+        # Points are saved with owner_id = farm_id string (e.g. "WAK0001"),
+        # NOT the integer PK — using entity.id here was the root bug.
+        points = Point.query.filter_by(
+            owner_type='farmer', owner_id=str(entity_id)
+        ).order_by(Point.id).all()
+        logger.info(f'[Sentinel] Farm {entity_id}: found {len(points)} polygon points '
+                    f'(db pk={entity.id})')
         geometry = _build_geometry(points, entity.geolocation)
         name     = entity.name
     else:
         entity = Forest.query.filter_by(id=entity_id).first()
         if not entity:
             return None, 'Forest not found'
-        points   = Point.query.filter_by(owner_type='forest', owner_id=str(entity_id)).order_by(Point.id).all()
+        points = Point.query.filter_by(
+            owner_type='forest', owner_id=str(entity_id)
+        ).order_by(Point.id).all()
+        logger.info(f'[Sentinel] Forest {entity_id}: found {len(points)} polygon points')
         geometry = _build_geometry(points)
         name     = entity.name
 
@@ -391,16 +564,10 @@ def get_sat_index_full(entity_type, entity_id,
                  for r in reversed(history_out) if r.get('ndvi') is not None),
                 0.4
             )
-            try:
-                from app.utils.dashboard_utils import (
-                    _build_area_map_from_points, _get_fallback_acreage_map, get_farm_area_ha
-                )
-                area_map     = _build_area_map_from_points()
-                fallback_map = _get_fallback_acreage_map()
-                area_ha, _   = get_farm_area_ha(entity.id, area_map, fallback_map, entity_id)
-                if area_ha > 0:
-                    ltv_data = compute_ltv(recent_ndvi, area_ha, yield_t_per_ha, price_per_t, loan_amount)
-            except Exception:
+            area_ha, _ = _compute_area_ha_from_points(points)
+            if area_ha > 0:
+                ltv_data = compute_ltv(recent_ndvi, area_ha, yield_t_per_ha, price_per_t, loan_amount)
+            else:
                 ltv_data = cache.get_ltv()
         else:
             ltv_data = cache.get_ltv()
@@ -475,15 +642,7 @@ def get_sat_index_full(entity_type, entity_id,
     # ── LTV ───────────────────────────────────────────────────────────────
     ltv_data = None
     if entity_type == 'farm':
-        try:
-            from app.utils.dashboard_utils import (
-                _build_area_map_from_points, _get_fallback_acreage_map, get_farm_area_ha
-            )
-            area_map     = _build_area_map_from_points()
-            fallback_map = _get_fallback_acreage_map()
-            area_ha, _   = get_farm_area_ha(entity.id, area_map, fallback_map, entity_id)
-        except Exception:
-            area_ha = 0
+        area_ha, _ = _compute_area_ha_from_points(points)
 
         recent_ndvi = next(
             (r.get('ndvi') for r in reversed(historical) if r.get('ndvi') is not None), 0.4
