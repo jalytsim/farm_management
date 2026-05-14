@@ -8,18 +8,19 @@ from app import db
 
 class User(UserMixin, db.Model):
     __tablename__ = 'user'
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(150), unique=True, nullable=False)
-    email = db.Column(db.String(150), unique=True, nullable=False)
-    password = db.Column(db.String(150), nullable=False)
-    phonenumber = db.Column(db.String(20), nullable=True)
-    company_name = db.Column(db.String(255), nullable=True)
-    user_type = db.Column(db.String(50), nullable=False)
-    is_admin = db.Column(db.Boolean, default=False)
+    id              = db.Column(db.Integer, primary_key=True)
+    username        = db.Column(db.String(150), unique=True, nullable=False)
+    email           = db.Column(db.String(150), unique=True, nullable=False)
+    password        = db.Column(db.String(150), nullable=False)
+    phonenumber     = db.Column(db.String(20), nullable=True)
+    company_name    = db.Column(db.String(255), nullable=True)
+    user_type       = db.Column(db.String(50), nullable=False)
+    is_admin        = db.Column(db.Boolean, default=False)
     has_access_wbii = db.Column(db.Boolean, default=False)
-    date_created = db.Column(db.DateTime, default=datetime.utcnow)
-    date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    id_start = db.Column(db.String(10), nullable=True)
+    permissions     = db.Column(db.JSON, default=dict)           # ✅ permissions modulaires
+    date_created    = db.Column(db.DateTime, default=datetime.utcnow)
+    date_updated    = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    id_start        = db.Column(db.String(10), nullable=True)
 
     def __repr__(self):
         return f'<User {self.username}>'
@@ -197,8 +198,8 @@ class Forest(db.Model):
 class Point(db.Model):
     __tablename__ = 'point'
     id = db.Column(db.Integer, primary_key=True)
-    longitude = db.Column(db.Float, nullable=False)
-    latitude = db.Column(db.Float, nullable=False)
+    longitude = db.Column(db.Numeric(12, 8), nullable=False)
+    latitude = db.Column(db.Numeric(12, 8), nullable=False)
     owner_type = db.Column(db.Enum('forest', 'farmer', 'tree'), nullable=False)
     owner_id = db.Column(db.String(100), nullable=True)
     district_id = db.Column(db.Integer, db.ForeignKey('district.id'), nullable=True)
@@ -583,12 +584,13 @@ class Certificate(db.Model):
                 'not_compliant_percent':    self.not_compliant_percent,
                 'overall_rate':             self.overall_compliance_rate,
             },
-            'title':       self.title,
-            'issue_date':  self.issue_date.isoformat() if self.issue_date else None,
-            'valid_until': self.valid_until.isoformat() if self.valid_until else None,
-'status':          self.status,
-            'download_count':  self.download_count,
+            'title':          self.title,
+            'issue_date':     self.issue_date.isoformat() if self.issue_date else None,
+            'valid_until':    self.valid_until.isoformat() if self.valid_until else None,
+            'status':         self.status,
+            'download_count': self.download_count,
         }
+
 
 class BlogPost(db.Model):
     __tablename__ = 'blogpost'
@@ -619,6 +621,7 @@ class BlogPost(db.Model):
             'created_at':  self.created_at.isoformat(),
         }
 
+
 class GFWLog(db.Model):
     __tablename__ = 'gfwlog'
     id          = db.Column(db.Integer, primary_key=True)
@@ -631,6 +634,7 @@ class GFWLog(db.Model):
     user_agent  = db.Column(db.String(255), nullable=True)
     created_at  = db.Column(db.DateTime, default=datetime.utcnow)
 
+
 class SMSLog(db.Model):
     __tablename__ = 'smslog'
     id        = db.Column(db.Integer, primary_key=True)
@@ -641,26 +645,21 @@ class SMSLog(db.Model):
     http_code = db.Column(db.Integer, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+
 class SentinelCache(db.Model):
     __tablename__ = 'sentinelcache'
-    id           = db.Column(db.Integer, primary_key=True)
-    farm_id      = db.Column(db.String(50), nullable=False, unique=True, index=True)
-    history_json = db.Column(LONGTEXT, nullable=True)
-    forecast_json= db.Column(LONGTEXT, nullable=True)
-    ltv_json     = db.Column(db.Text, nullable=True)
-    period_from  = db.Column(db.String(20), nullable=True)
-    period_to    = db.Column(db.String(20), nullable=True)
-    stale_after  = db.Column(db.DateTime, nullable=True)
-    created_at   = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at   = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    id            = db.Column(db.Integer, primary_key=True)
+    farm_id       = db.Column(db.String(50), nullable=False, unique=True, index=True)
+    history_json  = db.Column(LONGTEXT, nullable=True)
+    forecast_json = db.Column(LONGTEXT, nullable=True)
+    ltv_json      = db.Column(db.Text, nullable=True)
+    period_from   = db.Column(db.String(20), nullable=True)
+    period_to     = db.Column(db.String(20), nullable=True)
+    stale_after   = db.Column(db.DateTime, nullable=True)
+    created_at    = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at    = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     def is_stale(self):
-        if not self.stale_after:
-            return True
-        return datetime.utcnow() > self.stale_after
-
-    def is_stale(self):
-        """Retourne True si le cache est expiré ou absent."""
         if not self.stale_after:
             return True
         return datetime.utcnow() > self.stale_after

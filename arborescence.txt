@@ -1,4 +1,4 @@
-D:\project\farm_management\farm_management
+D:\project\farm_management\farm_management\
 ├── .gitignore
 ├── AlertMessaging.js
 ├── NDVI-calculation
@@ -44,7 +44,6 @@ D:\project\farm_management\farm_management
 │   │   ├── api_user.py
 │   │   ├── api_weather.py
 │   │   ├── auth.py
-│   │   ├── blog.py
 │   │   ├── graph.py
 │   │   ├── map.py
 │   │   ├── mastercard_api.py
@@ -94,8 +93,13 @@ D:\project\farm_management\farm_management
 ├── arborescence.txt
 ├── blog_content
 │   ├── article-2026-60cb83.md
+│   ├── covers
+│   │   └── dkdsnfkjndnfnf-903dcb.jpg
+│   ├── dkdsnfkjndnfnf-903dcb.md
 │   ├── examen-de-fin-detude-2026-a1f63e.md
 │   ├── jhhbbjjkjjjn-20d7d6.md
+│   ├── meta
+│   │   └── dkdsnfkjndnfnf-903dcb.json
 │   └── test-17-avril-2026-981223.md
 ├── config.py
 ├── detailed_project_documentation.docx
