@@ -1,19 +1,24 @@
 from flask import Blueprint, json, jsonify, request, send_file
 from app.models import Crop, District, Farm, FarmData, Forest, GFWLog
-from app.routes.map import gfw_async, gfw_async_from_geojson
-from app.routes.map import gfw_async, gfw_async_carbon, gfw_async_carbon_from_geojson, gfw_async_from_geojson
+from app.routes.map import (
+    gfw_async,
+    gfw_async_from_geojson,
+    gfw_async_carbon,
+    gfw_async_carbon_from_geojson,
+)
 import os
 import hashlib
-from datetime import datetime
-from werkzeug.utils import secure_filename
+import asyncio
 import tempfile
 import requests
+from datetime import datetime
+from werkzeug.utils import secure_filename
 from urllib.parse import urlencode
-from weasyprint import HTML
+from playwright.async_api import async_playwright
 from app import db
 
-UPLOAD_FOLDER = 'uploads/geojsons'
-LOG_FILE      = 'logs/geojson_uploads.log'
+UPLOAD_FOLDER      = 'uploads/geojsons'
+LOG_FILE           = 'logs/geojson_uploads.log'
 ALLOWED_EXTENSIONS = {'geojson'}
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -27,12 +32,14 @@ bp = Blueprint('api_gfw', __name__, url_prefix='/api/gfw')
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+
 def file_hash(file_stream):
     hasher = hashlib.sha256()
     for chunk in iter(lambda: file_stream.read(4096), b""):
         hasher.update(chunk)
     file_stream.seek(0)
     return hasher.hexdigest()
+
 
 def send_sms(phone, message):
     if not phone or not message:
@@ -45,6 +52,7 @@ def send_sms(phone, message):
     except Exception as e:
         print(f"❌ Erreur SMS : {e}")
 
+
 def is_valid_geojson(file_stream):
     try:
         data = json.load(file_stream)
@@ -56,12 +64,14 @@ def is_valid_geojson(file_stream):
         file_stream.seek(0)
         return False
 
+
 def log_upload(ip, user_agent, filename, filehash, guest_id):
     with open(LOG_FILE, "a") as log_file:
         log_file.write(
             f"{datetime.utcnow().isoformat()} | GuestID: {guest_id} | "
             f"IP: {ip} | UA: {user_agent} | File: {filename} | Hash: {filehash}\n"
         )
+
 
 def _log_gfw(action_type, entity_type, entity_id):
     """Journalise silencieusement une action GFW dans GFWLog."""
@@ -88,6 +98,75 @@ def _log_gfw(action_type, entity_type, entity_id):
         db.session.commit()
     except Exception as e:
         print(f"[GFWLog] Erreur : {e}")
+
+
+def _group_by_dataset(dataset_results):
+    """Regroupe les résultats GFW par dataset (format standard)."""
+    report_by_dataset = {}
+    for item in dataset_results:
+        dataset = item['dataset']
+        if dataset not in report_by_dataset:
+            report_by_dataset[dataset] = []
+        report_by_dataset[dataset].append({
+            "pixel":       item["pixel"],
+            "data_fields": item["data_fields"],
+            "coordinates": item["coordinates"],
+        })
+    return report_by_dataset
+
+
+# ─── Playwright helper ───────────────────────────────────────────────────────
+
+async def _html_to_pdf_bytes(html_content: str) -> bytes:
+    """
+    Convertit du HTML en PDF via Playwright (Chrome headless).
+
+    Avantages vs WeasyPrint :
+      - Rendu identique au navigateur (CSS, polices, couleurs)
+      - Images cross-origin correctement chargées (Mapbox, logos CDN)
+      - Sauts de page @media print respectés
+      - Fond d'impression inclus (print_background=True)
+
+    Les images sont déjà en base64 data-URI côté client (pdfUtils.js),
+    donc Playwright n'a pas besoin d'accès réseau pour les assets.
+    """
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(
+            headless=True,
+            args=["--no-sandbox", "--disable-setuid-sandbox"],
+        )
+        page = await browser.new_page(
+            viewport={"width": 1200, "height": 900},
+        )
+
+        await page.set_content(html_content, wait_until="networkidle")
+
+        # Attendre que toutes les images soient chargées
+        await page.evaluate("""
+            async () => {
+                const imgs = Array.from(document.images);
+                await Promise.all(imgs.map(img =>
+                    img.complete
+                        ? Promise.resolve()
+                        : new Promise(r => { img.onload = r; img.onerror = r; })
+                ));
+                await new Promise(r => setTimeout(r, 800));
+            }
+        """)
+
+        pdf_bytes = await page.pdf(
+            format           = "A4",
+            print_background = True,
+            margin           = {
+                "top":    "15mm",
+                "bottom": "15mm",
+                "left":   "12mm",
+                "right":  "12mm",
+            },
+        )
+
+        await browser.close()
+        return pdf_bytes
 
 
 # ============================================
@@ -158,20 +237,20 @@ async def farmerReport(farm_id):
     for fd in crops_data:
         crop_name = Crop.query.get(fd.crop_id).name if fd.crop_id else 'N/A'
         farm_info['crops'].append({
-            'crop':               crop_name,
-            'land_type':          fd.land_type,
-            'tilled_land_size':   fd.tilled_land_size,
-            'planting_date':      fd.planting_date.strftime('%Y-%m-%d') if fd.planting_date else 'N/A',
-            'season':             fd.season,
-            'quality':            fd.quality,
-            'quantity':           fd.quantity,
-            'harvest_date':       fd.harvest_date.strftime('%Y-%m-%d') if fd.harvest_date else 'N/A',
-            'expected_yield':     fd.expected_yield,
-            'actual_yield':       fd.actual_yield,
-            'timestamp':          fd.timestamp.strftime('%Y-%m-%d %H:%M:%S') if fd.timestamp else 'N/A',
-            'channel_partner':    fd.channel_partner,
-            'destination_country':fd.destination_country,
-            'customer_name':      fd.customer_name,
+            'crop':                crop_name,
+            'land_type':           fd.land_type,
+            'tilled_land_size':    fd.tilled_land_size,
+            'planting_date':       fd.planting_date.strftime('%Y-%m-%d') if fd.planting_date else 'N/A',
+            'season':              fd.season,
+            'quality':             fd.quality,
+            'quantity':            fd.quantity,
+            'harvest_date':        fd.harvest_date.strftime('%Y-%m-%d') if fd.harvest_date else 'N/A',
+            'expected_yield':      fd.expected_yield,
+            'actual_yield':        fd.actual_yield,
+            'timestamp':           fd.timestamp.strftime('%Y-%m-%d %H:%M:%S') if fd.timestamp else 'N/A',
+            'channel_partner':     fd.channel_partner,
+            'destination_country': fd.destination_country,
+            'customer_name':       fd.customer_name,
         })
 
     data, status_code = await gfw_async(owner_type='farmer', owner_id=farm_id)
@@ -193,7 +272,7 @@ async def farmerReport(farm_id):
 
 
 # ============================================
-# CARBON REPORT ENDPOINTS  — ★ NASA/ORNL
+# CARBON REPORT ENDPOINTS
 # ============================================
 
 @bp.route('/farm/<string:farm_id>/CarbonReport', methods=['GET'])
@@ -205,37 +284,37 @@ async def CarbonReport(farm_id):
         return jsonify({"error": "Farm not found"}), 404
 
     farm_info = {
-        'farm_id':      farm.farm_id,
-        'name':         farm.name,
-        'subcounty':    farm.subcounty,
+        'farm_id':         farm.farm_id,
+        'name':            farm.name,
+        'subcounty':       farm.subcounty,
         'district_name':   'N/A',
         'district_region': 'N/A',
-        'geolocation':  farm.geolocation,
-        'phonenumber':  farm.phonenumber,
-        'phonenumber2': farm.phonenumber2,
-        'date_created': farm.date_created.strftime('%Y-%m-%d %H:%M:%S'),
-        'date_updated': farm.date_updated.strftime('%Y-%m-%d %H:%M:%S'),
-        'crops': []
+        'geolocation':     farm.geolocation,
+        'phonenumber':     farm.phonenumber,
+        'phonenumber2':    farm.phonenumber2,
+        'date_created':    farm.date_created.strftime('%Y-%m-%d %H:%M:%S'),
+        'date_updated':    farm.date_updated.strftime('%Y-%m-%d %H:%M:%S'),
+        'crops':           [],
     }
 
     crops_data = FarmData.query.filter_by(farm_id=farm_id).all()
-    for data in crops_data:
-        crop_name = Crop.query.get(data.crop_id).name if data.crop_id else 'N/A'
+    for fd in crops_data:
+        crop_name = Crop.query.get(fd.crop_id).name if fd.crop_id else 'N/A'
         farm_info['crops'].append({
-            'crop':             crop_name,
-            'land_type':        data.land_type,
-            'tilled_land_size': data.tilled_land_size,
-            'planting_date':    data.planting_date.strftime('%Y-%m-%d') if data.planting_date else 'N/A',
-            'season':           data.season,
-            'quality':          data.quality,
-            'quantity':         data.quantity,
-            'harvest_date':     data.harvest_date.strftime('%Y-%m-%d') if data.harvest_date else 'N/A',
-            'expected_yield':   data.expected_yield,
-            'actual_yield':     data.actual_yield,
-            'timestamp':        data.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
-            'channel_partner':  data.channel_partner,
-            'destination_country': data.destination_country,
-            'customer_name':    data.customer_name
+            'crop':                crop_name,
+            'land_type':           fd.land_type,
+            'tilled_land_size':    fd.tilled_land_size,
+            'planting_date':       fd.planting_date.strftime('%Y-%m-%d') if fd.planting_date else 'N/A',
+            'season':              fd.season,
+            'quality':             fd.quality,
+            'quantity':            fd.quantity,
+            'harvest_date':        fd.harvest_date.strftime('%Y-%m-%d') if fd.harvest_date else 'N/A',
+            'expected_yield':      fd.expected_yield,
+            'actual_yield':        fd.actual_yield,
+            'timestamp':           fd.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+            'channel_partner':     fd.channel_partner,
+            'destination_country': fd.destination_country,
+            'customer_name':       fd.customer_name,
         })
 
     data, status_code = await gfw_async_carbon(owner_type='farmer', owner_id=farm_id)
@@ -245,7 +324,7 @@ async def CarbonReport(farm_id):
     print(farm_info)
     return jsonify({
         "farm_info": farm_info,
-        "report":    data['dataset_results']
+        "report":    data['dataset_results'],
     }), 200
 
 
@@ -270,7 +349,7 @@ async def CarbonReportforest(forest_id):
     print(forest_info)
     return jsonify({
         "forest_info": forest_info,
-        "report":      data['dataset_results']
+        "report":      data['dataset_results'],
     }), 200
 
 
@@ -294,11 +373,11 @@ async def report_from_file():
     if not is_valid_geojson(file.stream):
         return jsonify({'error': 'Invalid GeoJSON content'}), 400
 
-    filehash  = file_hash(file.stream)
-    guest_id  = request.headers.get('X-Guest-ID', 'unknown_guest')
-    ip        = request.headers.get('X-Forwarded-For', request.remote_addr)
+    filehash   = file_hash(file.stream)
+    guest_id   = request.headers.get('X-Guest-ID', 'unknown_guest')
+    ip         = request.headers.get('X-Forwarded-For', request.remote_addr)
     user_agent = request.headers.get('User-Agent', 'Unknown')
-    filename  = secure_filename(file.filename)
+    filename   = secure_filename(file.filename)
     saved_path = os.path.join(UPLOAD_FOLDER, f"{filehash}.geojson")
 
     if os.path.exists(saved_path):
@@ -312,10 +391,9 @@ async def report_from_file():
         if status_code != 200:
             return jsonify(data), status_code
 
-        report_by_dataset = _group_by_dataset(data['dataset_results'])
         return jsonify({
             "message": "Duplicate file, using cached content",
-            "report":  report_by_dataset,
+            "report":  _group_by_dataset(data['dataset_results']),
             "hash":    filehash,
         }), 200
 
@@ -373,11 +451,10 @@ async def carbon_report_from_file():
         if status_code != 200:
             return jsonify(data), status_code
 
-        report_by_dataset = _group_by_dataset(data['dataset_results'])
         return jsonify({
             "message": "Duplicate file, using cached content",
-            "report":  report_by_dataset,
-            "hash":    filehash
+            "report":  _group_by_dataset(data['dataset_results']),
+            "hash":    filehash,
         }), 200
 
     file.save(saved_path)
@@ -399,61 +476,79 @@ async def carbon_report_from_file():
 
 
 # ============================================
-# PDF GENERATION ENDPOINTS
+# PDF GENERATION ENDPOINTS  —  Playwright
 # ============================================
 
 @bp.route('/generate-pdf', methods=['POST'])
 def generate_pdf():
-    """Générer un PDF à partir de HTML."""
-    data         = request.json
-    html_content = data.get('html')
+    """
+    Génère un PDF professionnel via Playwright (Chrome headless).
+
+    Body JSON :
+      html      : str   — document HTML complet avec images en base64
+      filename  : str   — nom du fichier téléchargé  (défaut: 'report.pdf')
+
+    Avantages vs ancienne approche WeasyPrint :
+      ✓ Rendu identique au navigateur  (polices, CSS, couleurs)
+      ✓ Images CORS correctement chargées  (Mapbox, logos)
+      ✓ Sauts de page @media print respectés
+      ✓ Texte vectoriel net  (pas de rasterisation JPEG)
+
+    Prérequis serveur (une seule fois) :
+      pip install playwright
+      playwright install chromium
+    """
+    data         = request.json or {}
+    html_content = data.get('html', '')
+    filename     = data.get('filename', 'report.pdf')
 
     if not html_content:
-        return {"error": "No HTML provided"}, 400
+        return jsonify({"error": "No HTML provided"}), 400
 
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_pdf:
-        HTML(string=html_content).write_pdf(temp_pdf.name)
+    try:
+        loop      = asyncio.new_event_loop()
+        pdf_bytes = loop.run_until_complete(_html_to_pdf_bytes(html_content))
+        loop.close()
+    except Exception as e:
+        print(f"❌ Playwright PDF error: {e}")
+        return jsonify({"error": f"PDF generation failed: {str(e)}"}), 500
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
+        tmp.write(pdf_bytes)
+        tmp_path = tmp.name
 
     return send_file(
-        temp_pdf.name,
-        mimetype='application/pdf',
-        as_attachment=True,
-        download_name='report.pdf',
+        tmp_path,
+        mimetype      = 'application/pdf',
+        as_attachment = True,
+        download_name = filename,
     )
 
 
 @bp.route('/generate-receipt', methods=['POST'])
 def generate_receipt():
-    """Générer un reçu PDF."""
-    data         = request.json
-    html_content = data.get('html')
+    """Génère un reçu PDF via Playwright — même logique que generate-pdf."""
+    data         = request.json or {}
+    html_content = data.get('html', '')
 
     if not html_content:
-        return {"error": "No HTML provided"}, 400
+        return jsonify({"error": "No HTML provided"}), 400
 
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_pdf:
-        HTML(string=html_content).write_pdf(temp_pdf.name)
+    try:
+        loop      = asyncio.new_event_loop()
+        pdf_bytes = loop.run_until_complete(_html_to_pdf_bytes(html_content))
+        loop.close()
+    except Exception as e:
+        print(f"❌ Playwright receipt error: {e}")
+        return jsonify({"error": f"PDF generation failed: {str(e)}"}), 500
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
+        tmp.write(pdf_bytes)
+        tmp_path = tmp.name
 
     return send_file(
-        temp_pdf.name,
-        mimetype='application/pdf',
-        as_attachment=True,
-        download_name='receipt.pdf',
+        tmp_path,
+        mimetype      = 'application/pdf',
+        as_attachment = True,
+        download_name = 'receipt.pdf',
     )
-
-
-# ── Utilitaire interne ───────────────────────────────────────────────────────
-
-def _group_by_dataset(dataset_results):
-    """Regroupe les résultats GFW par dataset (format standard)."""
-    report_by_dataset = {}
-    for item in dataset_results:
-        dataset = item['dataset']
-        if dataset not in report_by_dataset:
-            report_by_dataset[dataset] = []
-        report_by_dataset[dataset].append({
-            "pixel":       item["pixel"],
-            "data_fields": item["data_fields"],
-            "coordinates": item["coordinates"],
-        })
-    return report_by_dataset
