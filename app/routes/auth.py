@@ -162,3 +162,30 @@ def dashboard():
     else:
         flash('Invalid user type', 'danger')
         return redirect(url_for('auth.logout'))
+    
+# Dans app/routes/auth.py — ajouter après les imports existants
+
+@bp.route('/api/token/refresh', methods=['POST'])
+@jwt_required()
+def refresh_token():
+    """
+    Réémet un JWT avec les permissions fraîches depuis la DB.
+    Appelé silencieusement par le frontend à chaque navigation.
+    """
+    identity = get_jwt_identity()
+    user = User.query.get(identity['id'])
+
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+
+    access_token = create_access_token(
+        identity={
+            'id':              user.id,
+            'is_admin':        user.is_admin,
+            'user_type':       user.user_type,
+            'has_access_wbii': user.has_access_wbii,
+            'permissions':     user.permissions or {},
+        },
+        expires_delta=timedelta(days=7)
+    )
+    return jsonify(token=access_token), 200

@@ -1,4 +1,4 @@
-D:\project\farm_management\farm_management\
+D:\project\farm_management\farm_management
 ├── .gitignore
 ├── AlertMessaging.js
 ├── NDVI-calculation
@@ -59,8 +59,13 @@ D:\project\farm_management\farm_management\
 │   │   ├── geoBoundaries-UGA-ADM3.geojson
 │   │   ├── geoBoundaries-UGA-ADM4.geojson
 │   │   ├── geojson.js
-│   │   └── js
-│   │       └── plotly-2.27.0.min.js
+│   │   ├── js
+│   │   │   └── plotly-2.27.0.min.js
+│   │   ├── logo.jpg
+│   │   ├── parrotlogo.png
+│   │   ├── parrotlogo.svg
+│   │   ├── signature.jpg
+│   │   └── vite.svg
 │   ├── templates
 │   │   ├── index.html
 │   │   └── qrcode.html
@@ -79,6 +84,7 @@ D:\project\farm_management\farm_management\
 │       ├── forest_watch_utils.py
 │       ├── graph_utils.py
 │       ├── map_utils.py
+│       ├── pdf_reports.py
 │       ├── point_utils.py
 │       ├── producecategory_utils.py
 │       ├── qr_generator.py
