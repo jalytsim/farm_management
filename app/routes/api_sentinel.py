@@ -76,7 +76,7 @@ def farm_sat_index_pdf(farm_id):
 
     try:
         from weasyprint import HTML
-        # Générer le PDF directement en mémoire (évite les problèmes Windows)
+        # Générer le PDF directement en mémoire
         pdf_bytes = HTML(string=html_str).write_pdf()
         if not pdf_bytes:
             return jsonify({'error': 'PDF generation produced empty output'}), 500
@@ -159,7 +159,7 @@ def _build_chart_b64(history, forecast, index_name, color):
 
 
 def _build_pdf_html(data):
-    """Generate PDF HTML — includes charts, forecast table, historical table."""
+    """Generate PDF HTML — includes charts, forecast table, historical table, and Multi-Index LTV analysis."""
     from datetime import datetime
     now_str  = datetime.utcnow().strftime('%B %d, %Y')
     name     = data.get('name', 'N/A')
@@ -223,7 +223,7 @@ def _build_pdf_html(data):
                 f'</div>'
             )
 
-    # Forecast table header
+    # Forecast/History table headers
     th = ''.join(f'<th>{v[0]}</th>' for v in IDX_META.values())
 
     # Forecast rows
@@ -258,20 +258,81 @@ def _build_pdf_html(data):
     if not hist_body:
         hist_body = '<tr><td colspan="9" style="color:#4b5563;text-align:center;padding:10px">No data</td></tr>'
 
-    # LTV section
+    # ── CONSTRUIRE LA SECTION MULTI-INDEX LTV EN TABLEAU ──
     ltv_section = ''
-    if ltv:
-        ltv_section = (
-            '<div class="section"><h2>Financial Analysis (LTV)</h2>'
-            '<div class="ltv-grid">'
-            f'<div class="ltv-box"><p class="ltv-lbl">Area</p><p class="ltv-val">{ltv.get("area_ha","N/A")} ha</p></div>'
-            f'<div class="ltv-box"><p class="ltv-lbl">Adj. Yield</p><p class="ltv-val">{ltv.get("adjusted_yield_t_ha","N/A")} t/ha</p></div>'
-            f'<div class="ltv-box"><p class="ltv-lbl">Est. Crop Value</p><p class="ltv-val">USD {ltv.get("estimated_crop_value_usd",0):,.0f}</p></div>'
-            f'<div class="ltv-box"><p class="ltv-lbl">LTV Ratio</p><p class="ltv-val">{str(ltv.get("ltv_ratio_pct") or "N/A") + ("%" if ltv.get("ltv_ratio_pct") else "")}</p></div>'
-            f'<div class="ltv-box"><p class="ltv-lbl">Insurance Premium</p><p class="ltv-val">{ltv.get("insurance_premium_pct","N/A")}%</p></div>'
-            f'<div class="ltv-box"><p class="ltv-lbl">NDVI Factor</p><p class="ltv-val">{ltv.get("ndvi_factor","N/A")}</p></div>'
-            '</div></div>'
-        )
+    if ltv and 'indices' in ltv:
+        indices_data = ltv['indices']
+        composite_data = ltv.get('composite', {})
+        
+        ltv_table_rows = ''
+        # Parcourir chaque indice calculé par sentinel_utils.py
+        for idx_key, idx_ltv in indices_data.items():
+            val_raw = idx_ltv.get('index_value')
+            val_str = f"{val_raw:.4f}" if val_raw is not None else "N/A"
+            
+            ltv_pct = idx_ltv.get('ltv_ratio_pct')
+            ltv_str = f"{ltv_pct}%" if ltv_pct is not None else "N/A"
+            
+            ltv_table_rows += f"""
+            <tr>
+                <td style="text-align:left; font-weight:600; color:{idx_ltv['color']}">
+                    {idx_ltv['icon']} {idx_ltv['label'].split('—')[0].strip()}
+                </td>
+                <td>{val_str}</td>
+                <td>{idx_ltv.get('factor', 0.3):.4f}</td>
+                <td>{idx_ltv.get('adjusted_yield_t_ha', 0):.3f} t/ha</td>
+                <td style="text-align:right">USD {idx_ltv.get('estimated_crop_value_usd', 0):,.2f}</td>
+                <td style="font-weight:600; color:#6ee7b7">{ltv_str}</td>
+                <td>{idx_ltv.get('insurance_premium_pct', 3.0):.2f}%</td>
+                <td>{idx_ltv.get('weight', 0)*100:.0f}%</td>
+            </tr>
+            """
+            
+        # Ajouter la ligne de résumé Composite Pondéré tout en bas du tableau
+        comp_ltv = composite_data.get('ltv_ratio_pct')
+        comp_ltv_str = f"{comp_ltv}%" if comp_ltv is not None else "N/A"
+        
+        ltv_table_rows += f"""
+        <tr class="composite-row" style="background: #1e3a2a; border-top: 2px solid #34d399;">
+            <td style="text-align:left; font-weight:bold; color:#34d399;">🧮 COMPOSITE PONDÉRÉ</td>
+            <td>—</td>
+            <td style="font-weight:bold;">{composite_data.get('factor', 0.3):.4f}</td>
+            <td style="font-weight:bold;">{composite_data.get('adjusted_yield_t_ha', 0):.3f} t/ha</td>
+            <td style="text-align:right; font-weight:bold;">USD {composite_data.get('estimated_crop_value_usd', 0):,.2f}</td>
+            <td style="font-weight:bold; color:#34d399; font-size:9pt;">{comp_ltv_str}</td>
+            <td style="font-weight:bold;">{composite_data.get('insurance_premium_pct', 3.0):.2f}%</td>
+            <td style="font-weight:bold;">100%</td>
+        </tr>
+        """
+
+        ltv_section = f"""
+        <div class="section">
+          <h2>Financial Analysis (LTV) — Multi-Index Breakdown</h2>
+          <div class="ltv-meta-info" style="margin-bottom: 8px; font-size: 7.5pt; color: #94a3b8;">
+            <strong>Paramètres de base :</strong> Superficie: {data['ltv'].get('area_ha', 'N/A')} ha &nbsp;&middot;&nbsp; 
+            Rendement cible: {data['ltv'].get('yield_t_per_ha', 'N/A')} t/ha &nbsp;&middot;&nbsp; 
+            Prix du marché: USD {data['ltv'].get('price_per_t', 0):,.0f}/t &nbsp;&middot;&nbsp; 
+            Montant du prêt: USD {data['ltv'].get('loan_amount_usd', 0) or 0:,.0f}
+          </div>
+          <table class="ltv-table">
+            <thead>
+              <tr>
+                <th style="text-align:left">Satellite Index</th>
+                <th>Current Value</th>
+                <th>Prod. Factor</th>
+                <th>Adj. Yield</th>
+                <th style="text-align:right">Est. Crop Value</th>
+                <th>LTV Ratio</th>
+                <th>Insurance Prem.</th>
+                <th>Weight</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ltv_table_rows}
+            </tbody>
+          </table>
+        </div>
+        """
 
     no_charts_msg = ('<p style="color:#4b5563;font-size:8pt;padding:8px 0">'
                      'Charts unavailable — install matplotlib: pip install matplotlib</p>')
@@ -293,18 +354,13 @@ def _build_pdf_html(data):
   .idx-val{{font-size:12pt;font-weight:700;min-width:65px;text-align:right}}
   .idx-tier{{font-size:7pt;font-weight:700;padding:2px 7px;border-radius:20px;white-space:nowrap}}
   .chart-block{{margin-bottom:8px}}
-  table{{width:100%;border-collapse:collapse;font-size:7pt}}
+  table{{width:100%;border-collapse:collapse;font-size:7pt;margin-bottom:10px}}
   thead tr{{background:#1e3a2a}}
   th{{color:#6ee7b7;padding:5px 5px;text-align:center;font-weight:700;
       letter-spacing:.3px;text-transform:uppercase;white-space:nowrap}}
   th:first-child{{text-align:left}}
-  td{{padding:3.5px 5px;text-align:center;border-bottom:1px solid #1a2535}}
+  td{{padding:4px 5px;text-align:center;border-bottom:1px solid #1a2535}}
   td.qtr{{font-family:monospace;color:#94a3b8;text-align:left;white-space:nowrap}}
-  .ltv-grid{{display:flex;gap:7px;flex-wrap:wrap}}
-  .ltv-box{{flex:1;min-width:85px;background:#1e293b;border:1px solid #334155;
-            border-radius:7px;padding:7px;text-align:center}}
-  .ltv-lbl{{font-size:6.5pt;color:#4b5563;text-transform:uppercase;letter-spacing:.4px;margin:0 0 3px}}
-  .ltv-val{{font-size:11pt;font-weight:700;color:#34d399;margin:0}}
   .footer{{margin-top:20px;padding-top:7px;border-top:1px solid #1e293b;
            font-size:6.5pt;color:#4b5563;text-align:center}}
   @page{{size:A4;margin:0}}
@@ -318,6 +374,9 @@ def _build_pdf_html(data):
     <h2>Current Index Status</h2>
     {summaries}
   </div>
+  
+  {ltv_section}
+  
   <div class="section">
     <h2>Historical Trends &amp; Forecast &mdash; NDVI &middot; NDMI &middot; EVI &middot; NMDI</h2>
     {chart_rows if chart_rows else no_charts_msg}
@@ -330,7 +389,6 @@ def _build_pdf_html(data):
     <h2>Historical Data &mdash; 5 Years</h2>
     <table><thead><tr><th>Date</th>{th}</tr></thead><tbody>{hist_body}</tbody></table>
   </div>
-  {ltv_section}
   <div class="footer">
     NKUSU Farm Management &middot; Sentinel-2 L2A &middot; Statistical API &middot;
     Max cloud cover 30% &middot; Quarterly aggregation &middot; Prophet ML &middot; 80% confidence intervals

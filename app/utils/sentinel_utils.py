@@ -2,17 +2,12 @@
 sentinel_utils.py — Sentinel-2 + Prophet ML Forecast
 
 Changes in this version:
-  - _parse_response returns (data, out_of_bounds_log) tuple
-    · stores raw value alongside clamped value for every index
-    · logs and records every value that exceeded [-1, 1] before clamping
-  - get_sat_index_full — cache branch:
-    · LTV is always recomputed from live GPS points (pure math, no API call)
-    · no longer guarded by "if loan_amount or yield != default" condition
-    · out_of_bounds: [] included in all return paths for API consistency
-  - get_sat_index_full — fresh data branch:
-    · history_out includes 'raw' and 'oob' fields per index
-    · out_of_bounds list returned to frontend
-  - All stale-cache fallback paths also include out_of_bounds: []
+  - INDEX_LTV_CONFIG: per-index agronomic parameters (optimal, invert, weight, factor logic)
+  - _compute_index_factor: normalises any index value to a crop-productivity factor [0.3, 1.0]
+  - compute_ltv_multi: replaces compute_ltv — returns per-index breakdown + weighted composite
+    · backward-compatible keys kept at top level (ndvi_factor, adjusted_yield_t_ha, …)
+  - get_sat_index_full: both cache and fresh-data paths now call compute_ltv_multi
+  - _parse_response returns (data, out_of_bounds_log) tuple (unchanged from previous version)
 """
 
 import os, time, warnings, logging
@@ -104,12 +99,6 @@ def _parse_response(api_response):
     """
     Parse the Sentinel Statistics API response.
 
-    For each index and each time interval:
-      - Stores the raw float value from the API
-      - Detects values outside [-1, 1] (out-of-bounds) BEFORE clamping
-      - Logs and records every OOB occurrence in out_of_bounds_log
-      - Clamps the stored value to [-1, 1]
-
     Returns:
         (result, out_of_bounds_log)
         result           : list of row dicts  {date, idx, idx_raw, ...}
@@ -147,7 +136,7 @@ def _parse_response(api_response):
                         )
 
                     row[idx]          = round(max(-1.0, min(1.0, raw_val)), 4)
-                    row[f'{idx}_raw'] = round(raw_val, 4)  # raw value always preserved
+                    row[f'{idx}_raw'] = round(raw_val, 4)
 
             except Exception:
                 row[idx]          = None
@@ -160,59 +149,51 @@ def _parse_response(api_response):
 
 # ── Tiers ────────────────────────────────────────────────────────────────────
 TIERS = {
-    # NDVI — Normalized Difference Vegetation Index [-1, 1]
     'ndvi': [
-        {'max': -0.10, 'label': 'Water / Ice',          'color': '#0284c7', 'bg': '#eff6ff'},
-        {'max':  0.10, 'label': 'Barren Land',           'color': '#92400e', 'bg': '#fef3c7'},
-        {'max':  0.30, 'label': 'Sparse / Stressed',     'color': '#f97316', 'bg': '#fff7ed'},
-        {'max':  0.60, 'label': 'Moderate Vegetation',   'color': '#ca8a04', 'bg': '#fefce8'},
-        {'max':  1.00, 'label': 'Dense / Healthy',       'color': '#15803d', 'bg': '#dcfce7'},
+        {'max': -0.10, 'label': 'Water / Ice',               'color': '#0284c7', 'bg': '#eff6ff'},
+        {'max':  0.10, 'label': 'Barren Land',                'color': '#92400e', 'bg': '#fef3c7'},
+        {'max':  0.30, 'label': 'Sparse / Stressed',          'color': '#f97316', 'bg': '#fff7ed'},
+        {'max':  0.60, 'label': 'Moderate Vegetation',        'color': '#ca8a04', 'bg': '#fefce8'},
+        {'max':  1.00, 'label': 'Dense / Healthy',            'color': '#15803d', 'bg': '#dcfce7'},
     ],
-    # EVI — Enhanced Vegetation Index [-1, 1]
     'evi': [
-        {'max':  0.00, 'label': 'Water / Barren',        'color': '#0284c7', 'bg': '#eff6ff'},
-        {'max':  0.20, 'label': 'Dry / Stressed',        'color': '#f97316', 'bg': '#fff7ed'},
-        {'max':  1.00, 'label': 'Healthy Vegetation',    'color': '#15803d', 'bg': '#dcfce7'},
+        {'max':  0.00, 'label': 'Water / Barren',             'color': '#0284c7', 'bg': '#eff6ff'},
+        {'max':  0.20, 'label': 'Dry / Stressed',             'color': '#f97316', 'bg': '#fff7ed'},
+        {'max':  1.00, 'label': 'Healthy Vegetation',         'color': '#15803d', 'bg': '#dcfce7'},
     ],
-    # SAVI — Soil Adjusted Vegetation Index [-1, 1]
     'savi': [
-        {'max':  0.10, 'label': 'Non-Vegetated',         'color': '#92400e', 'bg': '#fef3c7'},
-        {'max':  0.30, 'label': 'Sparse / Stressed',     'color': '#f97316', 'bg': '#fff7ed'},
-        {'max':  1.00, 'label': 'Dense / Healthy',       'color': '#15803d', 'bg': '#dcfce7'},
+        {'max':  0.10, 'label': 'Non-Vegetated',              'color': '#92400e', 'bg': '#fef3c7'},
+        {'max':  0.30, 'label': 'Sparse / Stressed',          'color': '#f97316', 'bg': '#fff7ed'},
+        {'max':  1.00, 'label': 'Dense / Healthy',            'color': '#15803d', 'bg': '#dcfce7'},
     ],
-    # NDMI — Normalized Difference Moisture Index [-1, 1]
     'ndmi': [
         {'max': -0.60, 'label': 'Bare Soil / Severe Drought', 'color': '#7f1d1d', 'bg': '#fef2f2'},
         {'max': -0.20, 'label': 'Dry / Sparse Canopy',        'color': '#dc2626', 'bg': '#fef2f2'},
-        {'max':  0.00, 'label': 'Water Stress',                'color': '#f97316', 'bg': '#fff7ed'},
-        {'max':  0.20, 'label': 'Initial Water Stress',        'color': '#ca8a04', 'bg': '#fefce8'},
-        {'max':  0.40, 'label': 'Low Water Stress',            'color': '#16a34a', 'bg': '#f0fdf4'},
-        {'max':  1.00, 'label': 'High Moisture',               'color': '#0284c7', 'bg': '#eff6ff'},
+        {'max':  0.00, 'label': 'Water Stress',               'color': '#f97316', 'bg': '#fff7ed'},
+        {'max':  0.20, 'label': 'Initial Water Stress',       'color': '#ca8a04', 'bg': '#fefce8'},
+        {'max':  0.40, 'label': 'Low Water Stress',           'color': '#16a34a', 'bg': '#f0fdf4'},
+        {'max':  1.00, 'label': 'High Moisture',              'color': '#0284c7', 'bg': '#eff6ff'},
     ],
-    # NDWI — Normalized Difference Water Index [-1, 1]
     'ndwi': [
-        {'max': -0.30, 'label': 'High Water Stress',     'color': '#dc2626', 'bg': '#fef2f2'},
-        {'max':  0.00, 'label': 'Moderate Drought',      'color': '#f97316', 'bg': '#fff7ed'},
-        {'max':  0.30, 'label': 'Shallow / Wetland',     'color': '#16a34a', 'bg': '#f0fdf4'},
-        {'max':  1.00, 'label': 'Clear Water',           'color': '#0284c7', 'bg': '#eff6ff'},
+        {'max': -0.30, 'label': 'High Water Stress',          'color': '#dc2626', 'bg': '#fef2f2'},
+        {'max':  0.00, 'label': 'Moderate Drought',           'color': '#f97316', 'bg': '#fff7ed'},
+        {'max':  0.30, 'label': 'Shallow / Wetland',          'color': '#16a34a', 'bg': '#f0fdf4'},
+        {'max':  1.00, 'label': 'Clear Water',                'color': '#0284c7', 'bg': '#eff6ff'},
     ],
-    # NMDI — Normalized Multi-band Drought Index [-1, 1]
     'nmdi': [
-        {'max':  0.60, 'label': 'Wet Soil',              'color': '#0284c7', 'bg': '#eff6ff'},
-        {'max':  0.70, 'label': 'Moderate Drought',      'color': '#ca8a04', 'bg': '#fefce8'},
-        {'max':  1.00, 'label': 'Extremely Dry',         'color': '#dc2626', 'bg': '#fef2f2'},
+        {'max':  0.60, 'label': 'Wet Soil',                   'color': '#0284c7', 'bg': '#eff6ff'},
+        {'max':  0.70, 'label': 'Moderate Drought',           'color': '#ca8a04', 'bg': '#fefce8'},
+        {'max':  1.00, 'label': 'Extremely Dry',              'color': '#dc2626', 'bg': '#fef2f2'},
     ],
-    # NBR — Normalized Burn Ratio [-1, 1]
     'nbr': [
-        {'max': -0.10, 'label': 'Burned Area',           'color': '#7f1d1d', 'bg': '#fef2f2'},
-        {'max':  0.10, 'label': 'Bare / Dry Soil',       'color': '#ca8a04', 'bg': '#fefce8'},
-        {'max':  1.00, 'label': 'Healthy Vegetation',    'color': '#15803d', 'bg': '#dcfce7'},
+        {'max': -0.10, 'label': 'Burned Area',                'color': '#7f1d1d', 'bg': '#fef2f2'},
+        {'max':  0.10, 'label': 'Bare / Dry Soil',            'color': '#ca8a04', 'bg': '#fefce8'},
+        {'max':  1.00, 'label': 'Healthy Vegetation',         'color': '#15803d', 'bg': '#dcfce7'},
     ],
-    # BSI — Bare Soil Index [-1, 1]
     'bsi': [
-        {'max':  0.00, 'label': 'Good Vegetation',       'color': '#15803d', 'bg': '#dcfce7'},
-        {'max':  0.10, 'label': 'Sparse / Mixed',        'color': '#ca8a04', 'bg': '#fefce8'},
-        {'max':  1.00, 'label': 'Bare Soil',             'color': '#92400e', 'bg': '#fef3c7'},
+        {'max':  0.00, 'label': 'Good Vegetation',            'color': '#15803d', 'bg': '#dcfce7'},
+        {'max':  0.10, 'label': 'Sparse / Mixed',             'color': '#ca8a04', 'bg': '#fefce8'},
+        {'max':  1.00, 'label': 'Bare Soil',                  'color': '#92400e', 'bg': '#fef3c7'},
     ],
 }
 
@@ -227,10 +208,315 @@ def get_tier(index_name, value):
     return {'label': last['label'], 'color': last['color'], 'bg': last['bg']}
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# MULTI-INDEX LTV
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Per-index agronomic parameters used to derive a crop-productivity factor.
+#
+# optimal   : reference value at which factor = 1.0 (best expected crop output)
+# invert    : True  → lower index value = better agronomic condition (NMDI, BSI)
+#             False → higher index value = better (NDVI, EVI, SAVI, NDMI, NDWI, NBR)
+# range_lo  : natural lower bound of the index (used for normalisation)
+# range_hi  : natural upper bound
+# weight    : contribution to the weighted composite (must sum to 1.0)
+# icon / label / color: display metadata
+#
+# Agronomic rationale
+# -------------------
+# NDVI  (0.70) : dense, healthy canopy → strongest yield signal, highest weight
+# EVI   (0.50) : corrects atmospheric effects; independent NDVI complement
+# SAVI  (0.50) : soil-adjusted — crucial when canopy is sparse (young crops)
+# NDMI  (0.30) : canopy moisture; optimal = well-hydrated leaf tissue
+# NDWI  (0.15) : open-water / surface moisture; moderate positive = irrigation OK
+# NMDI  (0.65) : drought index; LOWER = wetter = better → invert=True
+#                at 0.65 soil is adequately moist; above 0.80 = drought stress
+# NBR   (0.40) : burn / senescence ratio; healthy vegetation > 0.40
+# BSI   (0.00) : bare-soil exposure; ideal = fully covered → invert=True,
+#                optimal=0 means 0 bare soil is best
+
+INDEX_LTV_CONFIG = {
+    'ndvi': {
+        'label':    'NDVI — Vegetation Health',
+        'icon':     '🌱',
+        'color':    '#16a34a',
+        'optimal':  0.70,
+        'range_lo': 0.0,   # only positive values are agronomically meaningful
+        'range_hi': 1.0,
+        'invert':   False,
+        'weight':   0.28,
+    },
+    'evi': {
+        'label':    'EVI — Enhanced Vegetation',
+        'icon':     '🌿',
+        'color':    '#0d9488',
+        'optimal':  0.50,
+        'range_lo': 0.0,
+        'range_hi': 1.0,
+        'invert':   False,
+        'weight':   0.18,
+    },
+    'savi': {
+        'label':    'SAVI — Soil-Adj Vegetation',
+        'icon':     '🌾',
+        'color':    '#65a30d',
+        'optimal':  0.50,
+        'range_lo': 0.0,
+        'range_hi': 1.0,
+        'invert':   False,
+        'weight':   0.14,
+    },
+    'ndmi': {
+        'label':    'NDMI — Canopy Moisture',
+        'icon':     '💧',
+        'color':    '#0284c7',
+        'optimal':  0.30,
+        'range_lo': -1.0,  # full [-1, 1] range
+        'range_hi':  1.0,
+        'invert':   False,
+        'weight':   0.18,
+    },
+    'ndwi': {
+        'label':    'NDWI — Water Content',
+        'icon':     '🌊',
+        'color':    '#0ea5e9',
+        'optimal':  0.15,
+        'range_lo': -1.0,
+        'range_hi':  1.0,
+        'invert':   False,
+        'weight':   0.10,
+    },
+    'nmdi': {
+        'label':    'NMDI — Drought Index',
+        'icon':     '☀️',
+        'color':    '#f97316',
+        'optimal':  0.65,
+        'range_lo':  0.0,
+        'range_hi':  1.0,
+        'invert':   True,   # lower = wetter soil = better
+        'weight':   0.06,
+    },
+    'nbr': {
+        'label':    'NBR — Burn Ratio',
+        'icon':     '🔥',
+        'color':    '#ef4444',
+        'optimal':  0.40,
+        'range_lo': -1.0,
+        'range_hi':  1.0,
+        'invert':   False,
+        'weight':   0.04,
+    },
+    'bsi': {
+        'label':    'BSI — Bare Soil Index',
+        'icon':     '⛰️',
+        'color':    '#92400e',
+        'optimal':  0.00,   # 0 bare soil = full canopy cover = best
+        'range_lo': -1.0,
+        'range_hi':  1.0,
+        'invert':   True,   # lower BSI = more vegetation = better
+        'weight':   0.02,
+    },
+}
+
+# Sanity check: weights must sum to 1.0
+assert abs(sum(c['weight'] for c in INDEX_LTV_CONFIG.values()) - 1.0) < 1e-9, \
+    'INDEX_LTV_CONFIG weights must sum to 1.0'
+
+
+def _compute_index_factor(idx_name: str, value) -> float:
+    """
+    Convert a satellite index value into a crop-productivity factor in [0.3, 1.0].
+
+    Logic
+    -----
+    For non-inverted indices (higher value = better):
+        - Shift value to [0, range_hi - range_lo] so negatives don't penalise
+        - Divide by shifted optimal to get a ratio; clamp to [0.3, 1.0]
+
+    For inverted indices (lower value = better, e.g. NMDI drought, BSI bare soil):
+        - Reflect around optimal: factor ∝ optimal / value
+        - At value == optimal, factor = 1.0; above optimal, factor < 1.0
+
+    A floor of 0.3 avoids zero-valued crop estimates that would cause
+    division-by-zero in LTV ratio calculations.
+    """
+    if value is None:
+        return 0.30
+
+    cfg      = INDEX_LTV_CONFIG.get(idx_name)
+    if not cfg:
+        return 0.30
+
+    optimal  = cfg['optimal']
+    range_lo = cfg['range_lo']
+    invert   = cfg['invert']
+
+    if invert:
+        # NMDI: optimal = 0.65; at value=0.65 → factor=1.0
+        #        at value=0.80 (drought) → factor=0.65/0.80=0.81 → clamped
+        # BSI:  optimal = 0.0; any positive value reduces factor
+        if optimal == 0.0:
+            # BSI special case: factor = 1 - |value| (max cover = factor 1)
+            raw = 1.0 - abs(value)
+        else:
+            raw = optimal / max(abs(value), 1e-4)
+    else:
+        # Shift to non-negative space then normalise to optimal
+        shifted_val     = value - range_lo          # e.g. NDMI: -0.5 → 0.5
+        shifted_optimal = optimal - range_lo        # e.g. NDMI: 0.30 - (-1) = 1.30
+        if shifted_optimal <= 0:
+            raw = 0.30
+        else:
+            raw = shifted_val / shifted_optimal
+
+    return round(max(0.30, min(1.0, raw)), 4)
+
+
+def compute_ltv_multi(history_out: list, area_ha: float,
+                      yield_t_per_ha: float = 1.5,
+                      price_per_t: float = 500.0,
+                      loan_amount: float = None) -> dict | None:
+    """
+    Compute LTV for *every* satellite index in INDEX_LTV_CONFIG.
+
+    For each index:
+      - Pulls the most recent non-null value from history_out
+      - Derives a productivity factor via _compute_index_factor
+      - Computes adjusted yield, estimated crop value, LTV ratio, insurance premium
+
+    Also computes a weighted composite across all indices.
+
+    Returns a dict with:
+      indices    : {idx_name: {label, icon, color, index_value, factor, ...}}
+      composite  : {factor, adjusted_yield_t_ha, crop_value_usd, ltv_ratio_pct, insurance_pct}
+      area_ha, yield_t_per_ha, price_per_t, loan_amount_usd
+      + backward-compat top-level keys (ndvi_factor, adjusted_yield_t_ha, ...)
+
+    Returns None if area_ha <= 0 or no history available.
+    """
+    if not history_out or area_ha <= 0:
+        return None
+
+    per_index      = {}
+    composite_factor_sum   = 0.0
+    composite_weight_sum   = 0.0
+
+    for idx_name, cfg in INDEX_LTV_CONFIG.items():
+        # ── Most recent non-null value ────────────────────────────────────────
+        recent_val = None
+        for row in reversed(history_out):
+            v = row.get(idx_name)
+            val = v.get('value') if isinstance(v, dict) else v
+            if val is not None:
+                recent_val = val
+                break
+
+        factor         = _compute_index_factor(idx_name, recent_val)
+        adj_yield      = round(yield_t_per_ha * factor, 3)
+        crop_value     = round(area_ha * adj_yield * price_per_t, 2)
+
+        ltv_ratio = (
+            round(loan_amount / crop_value * 100, 1)
+            if loan_amount and crop_value > 0
+            else None
+        )
+
+        # Insurance premium: base 3 % + risk premium derived from factor & LTV
+        base       = 3.0
+        # Vegetation / moisture deficit → extra premium
+        health_risk = max(0.0, (0.6 - factor) * 5.0)
+        # Leverage risk: each 1 % above 60 % LTV adds 0.05 %
+        ltv_risk    = max(0.0, ((ltv_ratio or 60.0) - 60.0) * 0.05) if ltv_ratio else 0.0
+        insurance   = round(base + health_risk + ltv_risk, 2)
+
+        per_index[idx_name] = {
+            'label':                    cfg['label'],
+            'icon':                     cfg['icon'],
+            'color':                    cfg['color'],
+            'index_value':              recent_val,
+            'factor':                   factor,
+            'adjusted_yield_t_ha':      adj_yield,
+            'estimated_crop_value_usd': crop_value,
+            'ltv_ratio_pct':            ltv_ratio,
+            'insurance_premium_pct':    insurance,
+            'weight':                   cfg['weight'],
+        }
+
+        composite_factor_sum  += factor * cfg['weight']
+        composite_weight_sum  += cfg['weight']
+
+    # ── Weighted composite ────────────────────────────────────────────────────
+    comp_factor = round(composite_factor_sum / max(composite_weight_sum, 1e-9), 4)
+    comp_yield  = round(yield_t_per_ha * comp_factor, 3)
+    comp_crop   = round(area_ha * comp_yield * price_per_t, 2)
+    comp_ltv    = (
+        round(loan_amount / comp_crop * 100, 1)
+        if loan_amount and comp_crop > 0
+        else None
+    )
+    comp_health_risk = max(0.0, (0.6 - comp_factor) * 5.0)
+    comp_ltv_risk    = max(0.0, ((comp_ltv or 60.0) - 60.0) * 0.05) if comp_ltv else 0.0
+    comp_insurance   = round(3.0 + comp_health_risk + comp_ltv_risk, 2)
+
+    # ── Build return dict (backward-compat top-level keys from NDVI) ──────────
+    ndvi_entry = per_index.get('ndvi', {})
+
+    return {
+        # ── New structure ──────────────────────────────────────────────────────
+        'indices':   per_index,
+        'composite': {
+            'factor':                   comp_factor,
+            'adjusted_yield_t_ha':      comp_yield,
+            'estimated_crop_value_usd': comp_crop,
+            'ltv_ratio_pct':            comp_ltv,
+            'insurance_premium_pct':    comp_insurance,
+        },
+        # ── Metadata ──────────────────────────────────────────────────────────
+        'area_ha':          round(area_ha, 2),
+        'yield_t_per_ha':   yield_t_per_ha,
+        'price_per_t':      price_per_t,
+        'loan_amount_usd':  loan_amount,
+        # ── Backward-compatible flat keys (previously from compute_ltv) ───────
+        'ndvi_factor':                  ndvi_entry.get('factor'),
+        'adjusted_yield_t_ha':          ndvi_entry.get('adjusted_yield_t_ha'),
+        'estimated_crop_value_usd':     ndvi_entry.get('estimated_crop_value_usd'),
+        'ltv_ratio_pct':                ndvi_entry.get('ltv_ratio_pct'),
+        'insurance_premium_pct':        ndvi_entry.get('insurance_premium_pct'),
+    }
+
+
+# Keep the old single-index function for any external callers, but delegate
+# to the multi-index logic for consistency.
+def compute_ltv(ndvi_mean, area_ha, yield_t_per_ha=1.5,
+                price_per_t=500, loan_amount=None):
+    """
+    Legacy single-index LTV (NDVI only).
+    Prefer compute_ltv_multi for the full multi-index breakdown.
+    """
+    synthetic_history = [{'ndvi': ndvi_mean}]
+    result = compute_ltv_multi(
+        synthetic_history, area_ha,
+        yield_t_per_ha=yield_t_per_ha,
+        price_per_t=price_per_t,
+        loan_amount=loan_amount,
+    )
+    if result is None:
+        return None
+    # Return the old flat dict shape
+    return {
+        'area_ha':                  result['area_ha'],
+        'ndvi_factor':              result['ndvi_factor'],
+        'adjusted_yield_t_ha':      result['adjusted_yield_t_ha'],
+        'estimated_crop_value_usd': result['estimated_crop_value_usd'],
+        'loan_amount_usd':          loan_amount,
+        'ltv_ratio_pct':            result['ltv_ratio_pct'],
+        'insurance_premium_pct':    result['insurance_premium_pct'],
+    }
+
+
 # ── Forecast ─────────────────────────────────────────────────────────────────
 
 def _extract_rows(data, index_name):
-    """Extract (date_str, float_value) pairs from raw or enriched history."""
     rows = []
     for d in data:
         raw = d.get(index_name)
@@ -243,15 +529,7 @@ def _extract_rows(data, index_name):
 
 
 def _seasonal_naive_forecast(df, index_name, periods=4):
-    """
-    Seasonal naive forecast.
-    Predicts each future quarter as the historical average of that same
-    quarter-of-year, blended with a small linear trend (10% weight).
-    Confidence intervals come from per-quarter standard deviation.
-    Always stays within the historical data range.
-    """
     import numpy as np
-
     df = df.copy()
     df['quarter'] = df['ds'].dt.quarter
     q_stats       = df.groupby('quarter')['y'].agg(['mean', 'std'])
@@ -270,7 +548,7 @@ def _seasonal_naive_forecast(df, index_name, periods=4):
             q_std = max(df['y'].std(), 0.005)
 
         val = round(max(-1.0, min(1.0, q_mean + slope * i * 0.1)), 4)
-        ci  = max(q_std * 1.28, 0.01)  # 80% CI  (z = 1.28)
+        ci  = max(q_std * 1.28, 0.01)
         lo  = round(max(-1.0, min(1.0, val - ci)), 4)
         hi  = round(max(-1.0, min(1.0, val + ci)), 4)
 
@@ -289,11 +567,6 @@ def _seasonal_naive_forecast(df, index_name, periods=4):
 
 
 def _prophet_forecast(data, index_name, periods=4):
-    """
-    Two-stage forecast:
-      Stage 1 — Prophet with data-driven logistic cap/floor.
-      Stage 2 — Seasonal naive fallback (Prophet not installed, error, or wild prediction).
-    """
     rows = _extract_rows(data, index_name)
     if len(rows) < 8:
         logger.warning(f'[Forecast] {index_name}: only {len(rows)} points (need ≥ 8) — skipping.')
@@ -387,13 +660,9 @@ def _run_forecast_all(history_data, indices):
     return result
 
 
-# ── LTV ──────────────────────────────────────────────────────────────────────
+# ── LTV / geometry helpers ────────────────────────────────────────────────────
 
 def _compute_area_ha_from_points(points):
-    """
-    Compute farm area in hectares from GPS polygon points.
-    Returns (area_ha, 'gps') or (0.0, None).
-    """
     if not points or len(points) < 3:
         return 0.0, None
     try:
@@ -423,37 +692,12 @@ def _compute_area_ha_from_points(points):
         return area_ha, 'gps'
 
     except ImportError:
-        logger.warning('[Sentinel] shapely/pyproj not installed. Run: pip install shapely pyproj')
+        logger.warning('[Sentinel] shapely/pyproj not installed.')
         return 0.0, None
     except Exception as e:
         logger.warning(f'[Sentinel] Area calculation failed: {e}')
         return 0.0, None
 
-
-def compute_ltv(ndvi_mean, area_ha, yield_t_per_ha=1.5,
-                price_per_t=500, loan_amount=None):
-    ndvi_factor    = max(0.3, min(1.0, ndvi_mean / 0.7))
-    adjusted_yield = yield_t_per_ha * ndvi_factor
-    crop_value     = round(area_ha * adjusted_yield * price_per_t, 2)
-    ltv_ratio      = round(loan_amount / crop_value * 100, 1) if loan_amount and crop_value > 0 else None
-
-    base          = 3.0
-    n_risk        = max(0, (0.5 - ndvi_mean) * 10)
-    l_risk        = max(0, ((ltv_ratio or 60) - 60) * 0.05)
-    insurance_pct = round(base + n_risk + l_risk, 2)
-
-    return {
-        'area_ha':                  round(area_ha, 2),
-        'ndvi_factor':              round(ndvi_factor, 3),
-        'adjusted_yield_t_ha':      round(adjusted_yield, 3),
-        'estimated_crop_value_usd': crop_value,
-        'loan_amount_usd':          loan_amount,
-        'ltv_ratio_pct':            ltv_ratio,
-        'insurance_premium_pct':    insurance_pct,
-    }
-
-
-# ── Geometry ─────────────────────────────────────────────────────────────────
 
 def _build_geometry(points, geolocation=None):
     if len(points) >= 3:
@@ -482,16 +726,8 @@ def get_sat_index_full(entity_type, entity_id,
     """
     Main entry point for Sat-Index data.
 
-    Flow:
-      1. Load entity + GPS points from DB.
-      2. Check SentinelCache:
-         a. Valid cache → serve history + recomputed forecast (if empty) + fresh LTV.
-         b. Stale / missing → call Sentinel Statistics API → enrich → forecast → LTV → save.
-      3. All return paths include out_of_bounds list (empty [] for cache paths).
-
-    LTV is always recomputed from live GPS points (pure arithmetic, no API call),
-    so area_ha, crop_value, and insurance_pct are always up to date even from cache.
-    ltv_ratio_pct requires loan_amount — it is None when no loan is provided.
+    LTV is always recomputed from live GPS points (pure arithmetic, no API call)
+    using the full multi-index breakdown (compute_ltv_multi).
     """
     from app.models import Farm, Forest, Point, SentinelCache
     from app import db
@@ -508,7 +744,7 @@ def get_sat_index_full(entity_type, entity_id,
         points   = Point.query.filter_by(owner_type='farmer', owner_id=str(entity_id)).order_by(Point.id).all()
         geometry = _build_geometry(points, entity.geolocation)
         name     = entity.name
-        logger.info(f'[Sentinel] Farm {entity_id}: {len(points)} polygon points (pk={entity.id})')
+        logger.info(f'[Sentinel] Farm {entity_id}: {len(points)} polygon points')
     else:
         entity = Forest.query.filter_by(id=entity_id).first()
         if not entity:
@@ -528,36 +764,29 @@ def get_sat_index_full(entity_type, entity_id,
         history_out  = cache.get_history()
         forecast_out = cache.get_forecast()
 
-        # Cache poison fix: recompute forecast if empty (Prophet was missing when cached)
         if _is_forecast_empty(forecast_out) and history_out:
-            logger.warning(
-                f'[SentinelCache] Empty forecast for {entity_id} — recomputing from '
-                f'{len(history_out)} cached history points (no API call).'
-            )
+            logger.warning(f'[SentinelCache] Empty forecast for {entity_id} — recomputing.')
             forecast_out = _run_forecast_all(history_out, indices)
             if not _is_forecast_empty(forecast_out):
                 try:
                     cache.forecast_json = json.dumps(forecast_out)
                     db.session.commit()
-                    logger.info(f'[SentinelCache] Recomputed forecast saved for {entity_id}.')
                 except Exception as e:
                     logger.error(f'[SentinelCache] Could not save recomputed forecast: {e}')
                     db.session.rollback()
 
-        # LTV: always recomputed from live GPS points (cheap — no API call)
+        # LTV: always recomputed from live GPS points using multi-index breakdown
         ltv_data = None
         if entity_type == 'farm':
             area_ha, _ = _compute_area_ha_from_points(points)
             if area_ha > 0:
-                recent_ndvi = next(
-                    (r.get('ndvi', {}).get('value') if isinstance(r.get('ndvi'), dict)
-                     else r.get('ndvi')
-                     for r in reversed(history_out) if r.get('ndvi') is not None),
-                    0.4,
+                ltv_data = compute_ltv_multi(
+                    history_out, area_ha,
+                    yield_t_per_ha=yield_t_per_ha,
+                    price_per_t=price_per_t,
+                    loan_amount=loan_amount,
                 )
-                ltv_data = compute_ltv(recent_ndvi, area_ha, yield_t_per_ha, price_per_t, loan_amount)
             else:
-                # No GPS polygon → fall back to cached LTV (may be None)
                 ltv_data = cache.get_ltv()
 
         return {
@@ -571,7 +800,7 @@ def get_sat_index_full(entity_type, entity_id,
             'tiers_meta':       TIERS,
             'from_cache':       True,
             'cache_updated_at': cache.updated_at.isoformat() if cache.updated_at else None,
-            'out_of_bounds':    [],  # No new Sentinel data → no new OOB events
+            'out_of_bounds':    [],
         }, None
 
     # ── Full Sentinel API call ────────────────────────────────────────────────
@@ -584,12 +813,23 @@ def get_sat_index_full(entity_type, entity_id,
         historical, out_of_bounds = _parse_response(raw)
     except Exception as e:
         logger.error(f'[Sentinel] API call failed for {entity_id}: {e}')
-        # Serve stale cache rather than an empty error response
         if cache:
             history_out  = cache.get_history()
             forecast_out = cache.get_forecast()
             if _is_forecast_empty(forecast_out) and history_out:
                 forecast_out = _run_forecast_all(history_out, indices)
+            ltv_data = None
+            if entity_type == 'farm':
+                area_ha, _ = _compute_area_ha_from_points(points)
+                if area_ha > 0:
+                    ltv_data = compute_ltv_multi(
+                        history_out, area_ha,
+                        yield_t_per_ha=yield_t_per_ha,
+                        price_per_t=price_per_t,
+                        loan_amount=loan_amount,
+                    )
+                else:
+                    ltv_data = cache.get_ltv()
             return {
                 'entity_id':        entity_id,
                 'entity_type':      entity_type,
@@ -597,7 +837,7 @@ def get_sat_index_full(entity_type, entity_id,
                 'period':           {'from': cache.period_from, 'to': cache.period_to},
                 'history':          history_out,
                 'forecast':         forecast_out,
-                'ltv':              cache.get_ltv(),
+                'ltv':              ltv_data,
                 'tiers_meta':       TIERS,
                 'from_cache':       True,
                 'cache_stale':      True,
@@ -609,7 +849,7 @@ def get_sat_index_full(entity_type, entity_id,
     if not historical:
         return None, 'No satellite data for this location'
 
-    # ── Enrich history (add tier + raw + oob flag per index) ─────────────────
+    # ── Enrich history ────────────────────────────────────────────────────────
     history_out = []
     for row in historical:
         out = {'date': row['date']}
@@ -626,22 +866,18 @@ def get_sat_index_full(entity_type, entity_id,
 
     # ── Forecast ─────────────────────────────────────────────────────────────
     forecast_out = _run_forecast_all(historical, indices)
-    if _is_forecast_empty(forecast_out):
-        logger.warning(
-            f'[SentinelForecast] All forecasts empty for {entity_id}. '
-            f'Install Prophet: pip install prophet'
-        )
 
-    # ── LTV ──────────────────────────────────────────────────────────────────
+    # ── Multi-index LTV ───────────────────────────────────────────────────────
     ltv_data = None
     if entity_type == 'farm':
         area_ha, _ = _compute_area_ha_from_points(points)
-        recent_ndvi = next(
-            (r.get('ndvi') for r in reversed(historical) if r.get('ndvi') is not None),
-            0.4,
-        )
         if area_ha > 0:
-            ltv_data = compute_ltv(recent_ndvi, area_ha, yield_t_per_ha, price_per_t, loan_amount)
+            ltv_data = compute_ltv_multi(
+                history_out, area_ha,
+                yield_t_per_ha=yield_t_per_ha,
+                price_per_t=price_per_t,
+                loan_amount=loan_amount,
+            )
 
     # ── Save to cache ─────────────────────────────────────────────────────────
     if entity_type == 'farm':
@@ -656,24 +892,19 @@ def get_sat_index_full(entity_type, entity_id,
             cache.period_to     = date_to[:10]
             cache.stale_after   = now + timedelta(days=90)
             db.session.commit()
-            logger.info(
-                f'[SentinelCache] Saved for {entity_id}. '
-                f'OOB events: {len(out_of_bounds)}. '
-                f'Forecast empty: {_is_forecast_empty(forecast_out)}.'
-            )
         except Exception as e:
             logger.error(f'[SentinelCache] Save error: {e}')
             db.session.rollback()
 
     return {
-        'entity_id':    entity_id,
-        'entity_type':  entity_type,
-        'name':         name,
-        'period':       {'from': date_from[:10], 'to': date_to[:10]},
-        'history':      history_out,
-        'forecast':     forecast_out,
-        'ltv':          ltv_data,
-        'tiers_meta':   TIERS,
-        'from_cache':   False,
-        'out_of_bounds': out_of_bounds,  # list of {date, index, raw, clamped_to}
+        'entity_id':     entity_id,
+        'entity_type':   entity_type,
+        'name':          name,
+        'period':        {'from': date_from[:10], 'to': date_to[:10]},
+        'history':       history_out,
+        'forecast':      forecast_out,
+        'ltv':           ltv_data,
+        'tiers_meta':    TIERS,
+        'from_cache':    False,
+        'out_of_bounds': out_of_bounds,
     }, None
