@@ -19,8 +19,8 @@ from dateutil.relativedelta import relativedelta
 warnings.filterwarnings('ignore')
 logger = logging.getLogger(__name__)
 
-SENTINEL_CLIENT_ID     = os.environ.get('SENTINEL_CLIENT_ID',     '0bfcba08-1240-451e-bf8f-93aa71eff6c1')
-SENTINEL_CLIENT_SECRET = os.environ.get('SENTINEL_CLIENT_SECRET', '2iJGb9PNYtCABXZOXHhWAxICOmTs4D9X')
+SENTINEL_CLIENT_ID     = os.environ.get('SENTINEL_CLIENT_ID',     '932e6314-b550-4211-9680-02c6c1b8acf6')
+SENTINEL_CLIENT_SECRET = os.environ.get('SENTINEL_CLIENT_SECRET', 'WghCT9aY9eA9fq6a6OsBw9zeYv4FTwhv')
 TOKEN_URL = 'https://services.sentinel-hub.com/auth/realms/main/protocol/openid-connect/token'
 STATS_URL = 'https://services.sentinel-hub.com/api/v1/statistics'
 
