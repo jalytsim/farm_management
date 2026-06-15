@@ -372,10 +372,86 @@ def _compute_index_factor(idx_name: str, value) -> float:
     return round(max(0.30, min(1.0, raw)), 4)
 
 
+def _regression_calibrate(ndvi_values: list, base_yields: list,
+                           hist_yield_1: float | None,
+                           hist_yield_2: float | None,
+                           current_ndvi: float | None) -> dict:
+    """
+    Fit a linear regression NDVI → Yield, optionally anchored by 1 or 2
+    historical ground-truth yields supplied by the analyst.
+
+    If hist_yield_1 / hist_yield_2 are provided they are paired with the
+    annual-mean NDVI of years N-2 and N-1 respectively, so the line is
+    pulled toward real field observations.
+
+    Returns:
+      slope, intercept, predicted_yield (for current_ndvi),
+      calibrated (bool), r2, ndvi_points, yield_points
+    """
+    import numpy as np
+
+    xs = list(ndvi_values)   # NDVI history (quarterly means)
+    ys = list(base_yields)   # model-estimated yields (same length)
+
+    # --- anchor with analyst ground-truth yields if provided ----------------
+    # We pair HY1 with the annual mean NDVI of 4 quarters-ago year,
+    # HY2 with the most recent full-year mean NDVI.
+    calibrated = False
+    n = len(xs)
+
+    if hist_yield_1 is not None and n >= 8:
+        # year N-2: quarters [-8..-5]
+        anchor_ndvi_1 = float(np.mean(xs[max(0, n-8):max(1, n-4)]))
+        xs.append(anchor_ndvi_1)
+        ys.append(hist_yield_1)
+        calibrated = True
+
+    if hist_yield_2 is not None and n >= 4:
+        # year N-1: quarters [-4..-1]
+        anchor_ndvi_2 = float(np.mean(xs[max(0, n-4):n]))
+        xs.append(anchor_ndvi_2)
+        ys.append(hist_yield_2)
+        calibrated = True
+
+    xs_arr = np.array(xs, dtype=float)
+    ys_arr = np.array(ys, dtype=float)
+
+    # least-squares fit
+    if len(xs_arr) >= 2 and xs_arr.std() > 1e-6:
+        coeffs   = np.polyfit(xs_arr, ys_arr, 1)
+        slope    = float(coeffs[0])
+        intercept = float(coeffs[1])
+        # R²
+        y_hat = slope * xs_arr + intercept
+        ss_res = float(np.sum((ys_arr - y_hat) ** 2))
+        ss_tot = float(np.sum((ys_arr - ys_arr.mean()) ** 2))
+        r2 = round(1 - ss_res / ss_tot, 4) if ss_tot > 0 else 1.0
+    else:
+        slope    = 0.0
+        intercept = float(np.mean(ys_arr)) if len(ys_arr) else 0.0
+        r2       = 0.0
+
+    predicted = None
+    if current_ndvi is not None:
+        predicted = round(max(0.0, slope * current_ndvi + intercept), 3)
+
+    return {
+        'slope':           round(slope, 4),
+        'intercept':       round(intercept, 4),
+        'r2':              r2,
+        'predicted_yield': predicted,
+        'calibrated':      calibrated,
+        'ndvi_points':     [round(x, 4) for x in list(ndvi_values)],
+        'yield_points':    [round(y, 4) for y in list(base_yields)],
+    }
+
+
 def compute_ltv_multi(history_out: list, area_ha: float,
                       yield_t_per_ha: float = 1.5,
                       price_per_t: float = 500.0,
-                      loan_amount: float = None) -> dict | None:
+                      loan_amount: float = None,
+                      hist_yield_1: float = None,
+                      hist_yield_2: float = None) -> dict | None:
     """
     Compute LTV for *every* satellite index in INDEX_LTV_CONFIG.
 
@@ -386,9 +462,14 @@ def compute_ltv_multi(history_out: list, area_ha: float,
 
     Also computes a weighted composite across all indices.
 
+    hist_yield_1 / hist_yield_2 (optional t/ha): analyst-supplied real yields
+    for years N-2 and N-1. When provided, they calibrate the NDVI→Yield
+    linear regression to local conditions.
+
     Returns a dict with:
       indices    : {idx_name: {label, icon, color, index_value, factor, ...}}
       composite  : {factor, adjusted_yield_t_ha, crop_value_usd, ltv_ratio_pct, insurance_pct}
+      regression : {slope, intercept, r2, predicted_yield, calibrated, ndvi_points, yield_points}
       area_ha, yield_t_per_ha, price_per_t, loan_amount_usd
       + backward-compat top-level keys (ndvi_factor, adjusted_yield_t_ha, ...)
 
@@ -458,6 +539,33 @@ def compute_ltv_multi(history_out: list, area_ha: float,
     comp_ltv_risk    = max(0.0, ((comp_ltv or 60.0) - 60.0) * 0.05) if comp_ltv else 0.0
     comp_insurance   = round(3.0 + comp_health_risk + comp_ltv_risk, 2)
 
+    # ── NDVI→Yield regression (with optional analyst calibration) ────────────
+    ndvi_history = []
+    yield_history = []
+    for row in history_out:
+        v = row.get('ndvi')
+        val = v.get('value') if isinstance(v, dict) else v
+        if val is not None:
+            ndvi_history.append(val)
+            # base model yield for that NDVI level
+            f = _compute_index_factor('ndvi', val)
+            yield_history.append(round(yield_t_per_ha * f, 3))
+
+    # current NDVI for prediction point
+    current_ndvi = None
+    for row in reversed(history_out):
+        v = row.get('ndvi')
+        val = v.get('value') if isinstance(v, dict) else v
+        if val is not None:
+            current_ndvi = val
+            break
+
+    regression = _regression_calibrate(
+        ndvi_history, yield_history,
+        hist_yield_1, hist_yield_2,
+        current_ndvi,
+    )
+
     # ── Build return dict (backward-compat top-level keys from NDVI) ──────────
     ndvi_entry = per_index.get('ndvi', {})
 
@@ -471,11 +579,15 @@ def compute_ltv_multi(history_out: list, area_ha: float,
             'ltv_ratio_pct':            comp_ltv,
             'insurance_premium_pct':    comp_insurance,
         },
+        # ── Regression ────────────────────────────────────────────────────────
+        'regression':       regression,
         # ── Metadata ──────────────────────────────────────────────────────────
         'area_ha':          round(area_ha, 2),
         'yield_t_per_ha':   yield_t_per_ha,
         'price_per_t':      price_per_t,
         'loan_amount_usd':  loan_amount,
+        'hist_yield_1':     hist_yield_1,
+        'hist_yield_2':     hist_yield_2,
         # ── Backward-compatible flat keys (previously from compute_ltv) ───────
         'ndvi_factor':                  ndvi_entry.get('factor'),
         'adjusted_yield_t_ha':          ndvi_entry.get('adjusted_yield_t_ha'),
@@ -722,7 +834,8 @@ def _build_geometry(points, geolocation=None):
 
 def get_sat_index_full(entity_type, entity_id,
                        loan_amount=None, yield_t_per_ha=1.5, price_per_t=500,
-                       force_refresh=False):
+                       force_refresh=False,
+                       hist_yield_1=None, hist_yield_2=None):
     """
     Main entry point for Sat-Index data.
 
@@ -785,6 +898,8 @@ def get_sat_index_full(entity_type, entity_id,
                     yield_t_per_ha=yield_t_per_ha,
                     price_per_t=price_per_t,
                     loan_amount=loan_amount,
+                    hist_yield_1=hist_yield_1,
+                    hist_yield_2=hist_yield_2,
                 )
             else:
                 ltv_data = cache.get_ltv()
@@ -827,6 +942,8 @@ def get_sat_index_full(entity_type, entity_id,
                         yield_t_per_ha=yield_t_per_ha,
                         price_per_t=price_per_t,
                         loan_amount=loan_amount,
+                        hist_yield_1=hist_yield_1,
+                        hist_yield_2=hist_yield_2,
                     )
                 else:
                     ltv_data = cache.get_ltv()
@@ -877,6 +994,8 @@ def get_sat_index_full(entity_type, entity_id,
                 yield_t_per_ha=yield_t_per_ha,
                 price_per_t=price_per_t,
                 loan_amount=loan_amount,
+                hist_yield_1=hist_yield_1,
+                hist_yield_2=hist_yield_2,
             )
 
     # ── Save to cache ─────────────────────────────────────────────────────────
@@ -907,4 +1026,4 @@ def get_sat_index_full(entity_type, entity_id,
         'tiers_meta':    TIERS,
         'from_cache':    False,
         'out_of_bounds': out_of_bounds,
-    }, None
+    }, Nones

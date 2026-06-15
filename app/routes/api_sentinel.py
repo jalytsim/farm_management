@@ -27,6 +27,8 @@ def farm_sat_index(farm_id):
     yield_t_per_ha = request.args.get('yield_t_per_ha', type=float, default=1.5)
     price_per_t    = request.args.get('price_per_t',    type=float, default=500)
     force_refresh  = request.args.get('refresh', '').lower() == 'true'
+    hist_yield_1   = request.args.get('hist_yield_1',   type=float)   # optional
+    hist_yield_2   = request.args.get('hist_yield_2',   type=float)   # optional
 
     result, error = get_sat_index_full(
         'farm', farm_id,
@@ -34,6 +36,8 @@ def farm_sat_index(farm_id):
         yield_t_per_ha=yield_t_per_ha,
         price_per_t=price_per_t,
         force_refresh=force_refresh,
+        hist_yield_1=hist_yield_1,
+        hist_yield_2=hist_yield_2,
     )
     if error:
         code = 404 if 'not found' in error.lower() else 500
@@ -62,12 +66,16 @@ def farm_sat_index_pdf(farm_id):
     loan_amount    = request.args.get('loan_amount',    type=float)
     yield_t_per_ha = request.args.get('yield_t_per_ha', type=float, default=1.5)
     price_per_t    = request.args.get('price_per_t',    type=float, default=500)
+    hist_yield_1   = request.args.get('hist_yield_1',   type=float)
+    hist_yield_2   = request.args.get('hist_yield_2',   type=float)
 
     result, error = get_sat_index_full(
         'farm', farm_id,
         loan_amount=loan_amount,
         yield_t_per_ha=yield_t_per_ha,
         price_per_t=price_per_t,
+        hist_yield_1=hist_yield_1,
+        hist_yield_2=hist_yield_2,
     )
     if error:
         return jsonify({'error': error}), 500
