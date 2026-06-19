@@ -19,10 +19,17 @@ from dateutil.relativedelta import relativedelta
 warnings.filterwarnings('ignore')
 logger = logging.getLogger(__name__)
 
-SENTINEL_CLIENT_ID     = os.environ.get('SENTINEL_CLIENT_ID',     '932e6314-b550-4211-9680-02c6c1b8acf6')
-SENTINEL_CLIENT_SECRET = os.environ.get('SENTINEL_CLIENT_SECRET', 'WghCT9aY9eA9fq6a6OsBw9zeYv4FTwhv')
-TOKEN_URL = 'https://services.sentinel-hub.com/auth/realms/main/protocol/openid-connect/token'
-STATS_URL = 'https://services.sentinel-hub.com/api/v1/statistics'
+# SENTINEL_CLIENT_ID     = os.environ.get('SENTINEL_CLIENT_ID',     '932e6314-b550-4211-9680-02c6c1b8acf6')
+# SENTINEL_CLIENT_SECRET = os.environ.get('SENTINEL_CLIENT_SECRET', 'WghCT9aY9eA9fq6a6OsBw9zeYv4FTwhv')
+# TOKEN_URL = 'https://services.sentinel-hub.com/auth/realms/main/protocol/openid-connect/token'
+# STATS_URL = 'https://services.sentinel-hub.com/api/v1/statistics'
+
+
+SENTINEL_CLIENT_ID     = os.environ.get('SENTINEL_CLIENT_ID',     'sh-07766274-9bf2-47ca-9396-9377b3fb4fbc')
+SENTINEL_CLIENT_SECRET = os.environ.get('SENTINEL_CLIENT_SECRET', 'AIYhNwWvbtCrSbSyLspjBEPBNiBZy79T')
+
+TOKEN_URL = 'https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token'
+STATS_URL = 'https://sh.dataspace.copernicus.eu/api/v1/statistics'
 
 _token_cache = {'token': None, 'expires_at': 0}
 
@@ -65,7 +72,7 @@ function evaluatePixel(s){
     evi:[clamp(evi,-1,1)],savi:[clamp(savi,-1,1)],nbr:[clamp(nbr,-1,1)],bsi:[clamp(bsi,-1,1)],
     dataMask:[s.dataMask]
   };
-}"""
+}"""  
 
 
 def _call_statistics(geometry, date_from, date_to):
@@ -469,7 +476,7 @@ def compute_ltv_multi(history_out: list, area_ha: float,
     Returns a dict with:
       indices    : {idx_name: {label, icon, color, index_value, factor, ...}}
       composite  : {factor, adjusted_yield_t_ha, crop_value_usd, ltv_ratio_pct, insurance_pct}
-      regression : {slope, intercept, r2, predicted_yield, calibrated, ndvi_points, yield_points}
+      regression : {ndvi: {slope, intercept, r2, predicted_yield, ...}, evi: {...}, ...}
       area_ha, yield_t_per_ha, price_per_t, loan_amount_usd
       + backward-compat top-level keys (ndvi_factor, adjusted_yield_t_ha, ...)
 
@@ -539,32 +546,32 @@ def compute_ltv_multi(history_out: list, area_ha: float,
     comp_ltv_risk    = max(0.0, ((comp_ltv or 60.0) - 60.0) * 0.05) if comp_ltv else 0.0
     comp_insurance   = round(3.0 + comp_health_risk + comp_ltv_risk, 2)
 
-    # ── NDVI→Yield regression (with optional analyst calibration) ────────────
-    ndvi_history = []
-    yield_history = []
-    for row in history_out:
-        v = row.get('ndvi')
-        val = v.get('value') if isinstance(v, dict) else v
-        if val is not None:
-            ndvi_history.append(val)
-            # base model yield for that NDVI level
-            f = _compute_index_factor('ndvi', val)
-            yield_history.append(round(yield_t_per_ha * f, 3))
+    # ── Per-index regression (dynamic — all indices, not just NDVI) ──────────
+    regressions = {}
+    for idx_name in INDEX_LTV_CONFIG:
+        idx_history  = []
+        yield_hist   = []
+        for row in history_out:
+            v = row.get(idx_name)
+            val = v.get('value') if isinstance(v, dict) else v
+            if val is not None:
+                idx_history.append(val)
+                f = _compute_index_factor(idx_name, val)
+                yield_hist.append(round(yield_t_per_ha * f, 3))
 
-    # current NDVI for prediction point
-    current_ndvi = None
-    for row in reversed(history_out):
-        v = row.get('ndvi')
-        val = v.get('value') if isinstance(v, dict) else v
-        if val is not None:
-            current_ndvi = val
-            break
+        current_val = None
+        for row in reversed(history_out):
+            v = row.get(idx_name)
+            val = v.get('value') if isinstance(v, dict) else v
+            if val is not None:
+                current_val = val
+                break
 
-    regression = _regression_calibrate(
-        ndvi_history, yield_history,
-        hist_yield_1, hist_yield_2,
-        current_ndvi,
-    )
+        regressions[idx_name] = _regression_calibrate(
+            idx_history, yield_hist,
+            hist_yield_1, hist_yield_2,
+            current_val,
+        )
 
     # ── Build return dict (backward-compat top-level keys from NDVI) ──────────
     ndvi_entry = per_index.get('ndvi', {})
@@ -579,8 +586,8 @@ def compute_ltv_multi(history_out: list, area_ha: float,
             'ltv_ratio_pct':            comp_ltv,
             'insurance_premium_pct':    comp_insurance,
         },
-        # ── Regression ────────────────────────────────────────────────────────
-        'regression':       regression,
+        # ── Regression (per-index) ────────────────────────────────────────────
+        'regression':       regressions,
         # ── Metadata ──────────────────────────────────────────────────────────
         'area_ha':          round(area_ha, 2),
         'yield_t_per_ha':   yield_t_per_ha,
@@ -1026,4 +1033,4 @@ def get_sat_index_full(entity_type, entity_id,
         'tiers_meta':    TIERS,
         'from_cache':    False,
         'out_of_bounds': out_of_bounds,
-    }, Nones
+    }, None
