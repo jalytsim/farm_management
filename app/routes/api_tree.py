@@ -533,3 +533,119 @@ def bulk_create_trees():
     except Exception as e:
         logging.error(f"Error in bulk create trees: {e}")
         return jsonify({"msg": f"Error processing file: {str(e)}"}), 500
+    
+@bp.route('/forest/<int:forest_id>/export/points', methods=['GET'])
+@jwt_required()
+def export_forest_tree_points(forest_id):
+    """Exporte les points (arbres) d'une forêt en GeoJSON — un Feature Point par arbre"""
+    identity = get_jwt_identity()
+    user_id  = identity['id']
+    user     = User.query.get(user_id)
+
+    if not user:
+        return jsonify({'status': 'error', 'message': 'User not found'}), 404
+
+    forest = Forest.query.get_or_404(forest_id)
+
+    if not user.is_admin and forest.created_by != user_id:
+        return jsonify({'status': 'error', 'message': 'Unauthorized'}), 403
+
+    trees = Tree.query.filter_by(forest_id=forest_id).all()
+
+    features = []
+    skipped  = []
+
+    for tree in trees:
+        point = Point.query.get(tree.point_id)
+        if not point:
+            skipped.append({"tree_id": tree.id, "name": tree.name, "reason": "missing_point"})
+            continue
+
+        features.append({
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [float(point.longitude), float(point.latitude)],
+            },
+            "properties": {
+                "tree_id":      tree.id,
+                "name":         tree.name,
+                "type":         tree.type,
+                "height":       tree.height,
+                "diameter":     tree.diameter,
+                "date_planted": tree.date_planted.isoformat() if tree.date_planted else None,
+                "date_cut":     tree.date_cut.isoformat() if tree.date_cut else None,
+            },
+        })
+
+    geojson = {
+        "type": "FeatureCollection",
+        "features": features,
+    }
+
+    return jsonify({
+        "status":  "success",
+        "geojson": geojson,
+        "total_exported": len(features),
+        "skipped": skipped,
+        "forest_name": forest.name,
+    })
+    
+@bp.route('/export/points', methods=['GET'])
+@jwt_required()
+def export_all_tree_points():
+    """Exporte tous les points-arbres visibles par l'utilisateur en GeoJSON"""
+    identity = get_jwt_identity()
+    user_id  = identity['id']
+    user     = User.query.get(user_id)
+
+    if not user:
+        return jsonify({'status': 'error', 'message': 'User not found'}), 404
+
+    query = Tree.query
+    if not user.is_admin:
+        query = query.filter_by(created_by=user_id)
+
+    trees = query.all()
+
+    features = []
+    skipped  = []
+
+    for tree in trees:
+        point  = Point.query.get(tree.point_id)
+        forest = Forest.query.get(tree.forest_id)
+
+        if not point:
+            skipped.append({"tree_id": tree.id, "name": tree.name, "reason": "missing_point"})
+            continue
+
+        features.append({
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [float(point.longitude), float(point.latitude)],
+            },
+            "properties": {
+                "tree_id":      tree.id,
+                "name":         tree.name,
+                "type":         tree.type,
+                "height":       tree.height,
+                "diameter":     tree.diameter,
+                "forest_id":    tree.forest_id,
+                "forest_name":  forest.name if forest else None,
+                "date_planted": tree.date_planted.isoformat() if tree.date_planted else None,
+                "date_cut":     tree.date_cut.isoformat() if tree.date_cut else None,
+            },
+        })
+
+    geojson = {
+        "type": "FeatureCollection",
+        "features": features,
+    }
+
+    return jsonify({
+        "status":  "success",
+        "geojson": geojson,
+        "total_exported": len(features),
+        "skipped": skipped,
+    })

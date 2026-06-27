@@ -108,10 +108,8 @@ D:\project\farm_management\farm_management
 │   │   └── dkdsnfkjndnfnf-903dcb.json
 │   └── test-17-avril-2026-981223.md
 ├── config.py
-├── detailed_project_documentation.docx
 ├── dump.sql
 ├── gunicorn_config.py
-├── project_documentation.docx
 ├── requirements.txt
 ├── run.py
 ├── schedulerpest.py
