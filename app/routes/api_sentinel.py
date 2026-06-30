@@ -402,3 +402,43 @@ def _build_pdf_html(data):
     Max cloud cover 30% &middot; Quarterly aggregation &middot; Prophet ML &middot; 80% confidence intervals
   </div>
 </div></body></html>"""
+
+@sentinel_bp.route('/farm/<string:farm_id>/classification/<string:index_name>', methods=['GET'])
+@jwt_required()
+def farm_classification_image(farm_id, index_name):
+    """Retourne l'image classifiée PNG + les surfaces par classe en JSON."""
+    from app.utils.sentinel_utils import (
+        _build_geometry, _compute_class_areas, CLASSIFICATION_THRESHOLDS
+    )
+    from app.models import Point, Farm
+    from datetime import datetime
+    from dateutil.relativedelta import relativedelta
+    import base64, io
+
+    if index_name not in CLASSIFICATION_THRESHOLDS:
+        return jsonify({'error': f'Index "{index_name}" non supporté'}), 400
+
+    entity = Farm.query.filter_by(farm_id=farm_id).first()
+    if not entity:
+        return jsonify({'error': 'Farm not found'}), 404
+
+    points = Point.query.filter_by(owner_type='farmer', owner_id=str(farm_id)).order_by(Point.id).all()
+    geometry = _build_geometry(points, entity.geolocation)
+    if not geometry:
+        return jsonify({'error': 'No geometry available'}), 400
+
+    now = datetime.utcnow()
+    date_to = now.strftime('%Y-%m-%dT23:59:59Z')
+    date_from = (now - relativedelta(months=1)).strftime('%Y-%m-%dT00:00:00Z')
+
+    try:
+        class_areas, png_bytes = _compute_class_areas(geometry, date_from, date_to, index_name, points=points)
+    except Exception as e:
+        return jsonify({'error': f'Classification failed: {str(e)}'}), 500
+
+    return jsonify({
+        'index':        index_name,
+        'classes':      class_areas,
+        'image_base64': base64.b64encode(png_bytes).decode('utf-8'),
+        'period':       {'from': date_from[:10], 'to': date_to[:10]},
+    }), 200

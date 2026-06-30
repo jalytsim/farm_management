@@ -1034,3 +1034,226 @@ def get_sat_index_full(entity_type, entity_id,
         'from_cache':    False,
         'out_of_bounds': out_of_bounds,
     }, None
+    
+# ── Evalscripts de classification (image colorée avec seuils) ────────────────
+
+# ── Evalscript générique de classification (tous indices, une seule bande active) ──
+# On calcule tous les indices en JS et on ne colorie que celui demandé via un paramètre.
+
+GENERIC_CLASSIFICATION_EVALSCRIPT = """//VERSION=3
+function setup() {
+  return {
+    input: ['B02','B03','B04','B05','B08','B11','B12','dataMask'],
+    output: { bands: 4 }
+  };
+}
+
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+function evaluatePixel(s) {
+  if (s.dataMask === 0) return [0, 0, 0, 0];
+
+  var indices = {};
+  indices.ndvi = (s.B08 - s.B04) / (s.B08 + s.B04 + 1e-10);
+  indices.ndmi = (s.B08 - s.B11) / (s.B08 + s.B11 + 1e-10);
+  indices.ndwi = (s.B03 - s.B08) / (s.B03 + s.B08 + 1e-10);
+  var nmdiD = s.B08 + (s.B11 - s.B12);
+  indices.nmdi = Math.abs(nmdiD) > 1e-6 ? (s.B08 - (s.B11 - s.B12)) / nmdiD : 0;
+  var eviD = s.B08 + 6*s.B04 - 7.5*s.B02 + 1;
+  indices.evi = Math.abs(eviD) > 1e-6 ? 2.5*(s.B08 - s.B04) / eviD : 0;
+  indices.savi = 1.5*(s.B08 - s.B04) / (s.B08 + s.B04 + 0.5 + 1e-10);
+  indices.nbr = (s.B08 - s.B12) / (s.B08 + s.B12 + 1e-10);
+  var bsiD = (s.B11 + s.B04) + (s.B08 + s.B02);
+  indices.bsi = Math.abs(bsiD) > 1e-6 ? ((s.B11 + s.B04) - (s.B08 + s.B02)) / bsiD : 0;
+  indices.ndre = (s.B08 - s.B05) / (s.B08 + s.B05 + 1e-10);
+
+  var TARGET = '__INDEX_PLACEHOLDER__';
+  var THRESHOLDS = __THRESHOLDS_PLACEHOLDER__;  // [{max, r, g, b}, ...] injecté en Python
+
+  var val = clamp(indices[TARGET], -1, 1);
+
+  for (var i = 0; i < THRESHOLDS.length; i++) {
+    if (val <= THRESHOLDS[i].max) {
+      return [THRESHOLDS[i].r, THRESHOLDS[i].g, THRESHOLDS[i].b, 1];
+    }
+  }
+  var last = THRESHOLDS[THRESHOLDS.length - 1];
+  return [last.r, last.g, last.b, 1];
+}
+"""
+
+# Seuils + labels + couleurs, réutilisés pour calculer les surfaces et la légende
+# Thresholds + labels + colors for the 9 satellite indices
+CLASSIFICATION_THRESHOLDS = {
+    'ndvi': [
+        {'max': 0.1, 'label': 'Bare Soil / Newly Planted',      'color': '#dc1414'},
+        {'max': 0.2, 'label': 'Very Sparse Vegetation',         'color': '#f28c1a'},
+        {'max': 0.3, 'label': 'Sparse Vegetation',              'color': '#f2e633'},
+        {'max': 0.5, 'label': 'Moderate Vegetation',            'color': '#8cbf40'},
+        {'max': 1.0, 'label': 'Dense Vegetation',               'color': '#0d7319'},
+    ],
+    'evi': [
+        {'max': 0.0, 'label': 'Bare Soil / Water',              'color': '#dc1414'},
+        {'max': 0.2, 'label': 'Dry / Stressed Vegetation',      'color': '#f28c1a'},
+        {'max': 0.4, 'label': 'Moderate Vegetation',            'color': '#f2e633'},
+        {'max': 0.6, 'label': 'Healthy Vegetation',             'color': '#8cbf40'},
+        {'max': 1.0, 'label': 'Very Healthy Vegetation',        'color': '#0d7319'},
+    ],
+    'savi': [
+        {'max': 0.1, 'label': 'Non-Vegetated Area',             'color': '#dc1414'},
+        {'max': 0.2, 'label': 'Very Sparse Vegetation',         'color': '#f28c1a'},
+        {'max': 0.3, 'label': 'Sparse Vegetation',              'color': '#f2e633'},
+        {'max': 0.5, 'label': 'Moderate Vegetation',            'color': '#8cbf40'},
+        {'max': 1.0, 'label': 'Dense Vegetation',               'color': '#0d7319'},
+    ],
+    'ndmi': [
+        {'max': -0.2, 'label': 'Very Dry / Non-Vegetated',      'color': '#dc1414'},
+        {'max':  0.0, 'label': 'Low Moisture',                  'color': '#f28c1a'},
+        {'max':  0.2, 'label': 'Moderate Moisture',             'color': '#f2e633'},
+        {'max':  0.4, 'label': 'High Moisture',                 'color': '#8cbf40'},
+        {'max':  1.0, 'label': 'Saturated',                     'color': '#0d7319'},
+    ],
+    'ndwi': [
+        {'max': -0.3, 'label': 'Severe Water Stress',           'color': '#dc1414'},
+        {'max':  0.0, 'label': 'Moderate Drought',              'color': '#f28c1a'},
+        {'max':  0.15, 'label': 'Normal Moisture',              'color': '#f2e633'},
+        {'max':  0.3, 'label': 'Wet Area',                      'color': '#8cbf40'},
+        {'max':  1.0, 'label': 'Open Water',                    'color': '#0d7319'},
+    ],
+    'nmdi': [
+        {'max': 0.6,  'label': 'Moist Soil',                    'color': '#0d7319'},
+        {'max': 0.65, 'label': 'Adequate Moisture',             'color': '#8cbf40'},
+        {'max': 0.7,  'label': 'Moderate Drought',              'color': '#f2e633'},
+        {'max': 0.8,  'label': 'Severe Drought',                'color': '#f28c1a'},
+        {'max': 1.0,  'label': 'Extreme Drought',               'color': '#dc1414'},
+    ],
+    'nbr': [
+        {'max': -0.1, 'label': 'Burned Area',                   'color': '#dc1414'},
+        {'max':  0.1, 'label': 'Bare / Dry Soil',               'color': '#f28c1a'},
+        {'max':  0.3, 'label': 'Moderate Vegetation',           'color': '#f2e633'},
+        {'max':  0.6, 'label': 'Healthy Vegetation',            'color': '#8cbf40'},
+        {'max':  1.0, 'label': 'Very Healthy Vegetation',       'color': '#0d7319'},
+    ],
+    'bsi': [
+        {'max': -0.3, 'label': 'Full Vegetation Cover',         'color': '#0d7319'},
+        {'max':  0.0, 'label': 'Healthy Vegetation',            'color': '#8cbf40'},
+        {'max':  0.1, 'label': 'Sparse Vegetation',             'color': '#f2e633'},
+        {'max':  0.3, 'label': 'Partially Exposed Soil',        'color': '#f28c1a'},
+        {'max':  1.0, 'label': 'Bare Soil',                     'color': '#dc1414'},
+    ],
+    'ndre': [
+        {'max': 0.1, 'label': 'No Vegetation',                  'color': '#dc1414'},
+        {'max': 0.2, 'label': 'Low Vegetation',                 'color': '#f28c1a'},
+        {'max': 0.3, 'label': 'Moderate Vegetation',            'color': '#f2e633'},
+        {'max': 0.4, 'label': 'High Vegetation',                'color': '#8cbf40'},
+        {'max': 1.0, 'label': 'Very High Vegetation',           'color': '#0d7319'},
+    ],
+}
+
+# For backward compatibility, we keep the name CLASSIFICATION_EVALSCRIPTS,
+# but as a function that dynamically generates the evalscript for any index.
+def _hex_to_rgb01(hexcolor):
+    h = hexcolor.lstrip('#')
+    return tuple(int(h[i:i+2], 16) / 255 for i in (0, 2, 4))
+
+
+def _build_classification_evalscript(index_name):
+    """Generate the JS evalscript for a given index by injecting its thresholds and colors."""
+    thresholds = CLASSIFICATION_THRESHOLDS[index_name]
+    js_thresholds = '[' + ','.join(
+        '{{max:{},r:{:.4f},g:{:.4f},b:{:.4f}}}'.format(
+            t['max'], *_hex_to_rgb01(t['color'])
+        ) for t in thresholds
+    ) + ']'
+
+    return (
+        GENERIC_CLASSIFICATION_EVALSCRIPT
+        .replace('__INDEX_PLACEHOLDER__', index_name)
+        .replace('__THRESHOLDS_PLACEHOLDER__', js_thresholds)
+    )
+
+def _call_process_image(geometry, date_from, date_to, index_name, width=1024, height=1024):
+    """
+    Appelle l'API Process de Copernicus pour obtenir une image PNG classifiée.
+    """
+    if index_name not in CLASSIFICATION_THRESHOLDS:
+        raise ValueError(f'Index "{index_name}" non supporté pour la classification')
+
+    token = _get_token()
+    evalscript = _build_classification_evalscript(index_name)
+
+    payload = {
+        'input': {
+            'bounds': {
+                'geometry': geometry,
+                'properties': {'crs': 'http://www.opengis.net/def/crs/EPSG/0/4326'}
+            },
+            'data': [{
+                'type': 'sentinel-2-l2a',
+                'dataFilter': {
+                    'timeRange': {'from': date_from, 'to': date_to},
+                    'maxCloudCoverage': 30,
+                    'mosaickingOrder': 'leastCC',
+                }
+            }],
+        },
+        'output': {
+            'width': width,
+            'height': height,
+            'responses': [{
+                'identifier': 'default',
+                'format': {'type': 'image/png'}
+            }]
+        },
+        'evalscript': evalscript,
+    }
+
+    resp = requests.post(
+        'https://sh.dataspace.copernicus.eu/api/v1/process',
+        json=payload,
+        headers={'Authorization': f'Bearer {token}'},
+        timeout=60,
+    )
+    resp.raise_for_status()
+    return resp.content
+
+def _compute_class_areas(geometry, date_from, date_to, index_name, points=None, width=1024, height=1024):
+    from PIL import Image
+    import io
+    import numpy as np
+
+    png_bytes = _call_process_image(geometry, date_from, date_to, index_name, width, height)
+    img = Image.open(io.BytesIO(png_bytes)).convert('RGBA')
+    arr = np.array(img)
+
+    thresholds = CLASSIFICATION_THRESHOLDS[index_name]
+
+    # Surface réelle projetée (ha → km²)
+    if points:
+        area_ha, _ = _compute_area_ha_from_points(points)
+        poly_area_km2 = area_ha / 100.0
+    else:
+        poly_area_km2 = 0.0
+
+    valid_mask = arr[:, :, 3] > 0
+    total_valid_px = valid_mask.sum()
+
+    results = []
+    for t in thresholds:
+        color_rgb = tuple(int(t['color'].lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
+        match = (
+            (np.abs(arr[:, :, 0].astype(int) - color_rgb[0]) < 10) &
+            (np.abs(arr[:, :, 1].astype(int) - color_rgb[1]) < 10) &
+            (np.abs(arr[:, :, 2].astype(int) - color_rgb[2]) < 10) &
+            valid_mask
+        )
+        px_count = int(match.sum())
+        pct = px_count / total_valid_px if total_valid_px > 0 else 0
+        results.append({
+            'label':    t['label'],
+            'color':    t['color'],
+            'area_km2': round(pct * poly_area_km2, 4),
+            'pct':      round(pct * 100, 2),
+        })
+
+    return results, png_bytes
