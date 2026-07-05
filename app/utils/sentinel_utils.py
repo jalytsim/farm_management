@@ -74,20 +74,23 @@ function evaluatePixel(s){
   };
 }"""  
 
-
-def _call_statistics(geometry, date_from, date_to):
+def _call_statistics(geometry, date_from, date_to, interval='P3M', mosaicking_order=None):
     token   = _get_token()
+    data_filter = {
+        'timeRange':       {'from': date_from, 'to': date_to},
+        'maxCloudCoverage': 30,
+    }
+    if mosaicking_order:
+        data_filter['mosaickingOrder'] = mosaicking_order
+
     payload = {
         'input': {
             'bounds': {'geometry': geometry},
-            'data': [{'type': 'sentinel-2-l2a', 'dataFilter': {
-                'timeRange':       {'from': date_from, 'to': date_to},
-                'maxCloudCoverage': 30,
-            }}],
+            'data': [{'type': 'sentinel-2-l2a', 'dataFilter': data_filter}],
         },
         'aggregation': {
             'timeRange':           {'from': date_from, 'to': date_to},
-            'aggregationInterval': {'of': 'P3M'},
+            'aggregationInterval': {'of': interval},
             'resx': 0.0001, 'resy': 0.0001,
             'evalscript': EVALSCRIPT,
         },
@@ -100,7 +103,6 @@ def _call_statistics(geometry, date_from, date_to):
     )
     resp.raise_for_status()
     return resp.json()
-
 
 def _parse_response(api_response):
     """
@@ -974,19 +976,7 @@ def get_sat_index_full(entity_type, entity_id,
         return None, 'No satellite data for this location'
 
     # ── Enrich history ────────────────────────────────────────────────────────
-    history_out = []
-    for row in historical:
-        out = {'date': row['date']}
-        for idx in indices:
-            val     = row.get(idx)
-            raw_val = row.get(f'{idx}_raw')
-            out[idx] = {
-                'value': val,
-                'raw':   raw_val,
-                'oob':   raw_val is not None and (raw_val < -1.0 or raw_val > 1.0),
-                'tier':  get_tier(idx, val),
-            }
-        history_out.append(out)
+    history_out = _build_history_rows(historical, indices)
 
     # ── Forecast ─────────────────────────────────────────────────────────────
     forecast_out = _run_forecast_all(historical, indices)
@@ -1035,6 +1025,87 @@ def get_sat_index_full(entity_type, entity_id,
         'out_of_bounds': out_of_bounds,
     }, None
     
+    
+def get_weekly_trend(entity_type, entity_id, weeks=13):
+    from app.models import Farm, Forest, Point
+    from datetime import timedelta
+
+    indices = ['ndvi', 'ndmi', 'ndwi', 'nmdi', 'evi', 'savi', 'nbr', 'bsi']
+
+    if entity_type == 'farm':
+        entity = Farm.query.filter_by(farm_id=entity_id).first()
+        if not entity:
+            return None, 'Farm not found'
+        points   = Point.query.filter_by(owner_type='farmer', owner_id=str(entity_id)).order_by(Point.id).all()
+        geometry = _build_geometry(points, entity.geolocation)
+        name     = entity.name
+    else:
+        entity = Forest.query.filter_by(id=entity_id).first()
+        if not entity:
+            return None, 'Forest not found'
+        points   = Point.query.filter_by(owner_type='forest', owner_id=str(entity_id)).order_by(Point.id).all()
+        geometry = _build_geometry(points)
+        name     = entity.name
+
+    if not geometry:
+        return None, 'No geometry available — add polygon points first'
+
+    now       = datetime.utcnow()
+    date_to   = now.strftime('%Y-%m-%dT23:59:59Z')
+    date_from = (now - timedelta(weeks=weeks)).strftime('%Y-%m-%dT00:00:00Z')
+
+    try:
+        # mosaickingOrder='leastCC' : privilégie la scène la moins nuageuse
+        # disponible dans chaque fenêtre de 7 jours, au lieu du choix par défaut
+        # (mostRecent), qui augmente les chances qu'une semaine soit rejetée
+        # entièrement si la scène la plus récente est trop nuageuse.
+        raw = _call_statistics(
+            geometry, date_from, date_to,
+            interval='P1W', mosaicking_order='leastCC',
+        )
+        historical, out_of_bounds = _parse_response(raw)
+    except Exception as e:
+        logger.error(f'[Sentinel] Weekly trend API call failed for {entity_id}: {e}')
+        return None, f'Sentinel API error: {e}'
+
+    # ── Reconstruire la grille complète de semaines ─────────────────────────
+    # L'API omet purement et simplement les semaines sans scène exploitable
+    # (elle ne renvoie pas une ligne à valeur null, elle ne renvoie rien).
+    # On reconstruit donc nous-même les 13 créneaux attendus, et on comble
+    # les trous avec des valeurs null pour que le graphique affiche toujours
+    # une grille temporelle régulière (semaine par semaine), avec des trous
+    # visibles là où Sentinel-2 n'a pas pu fournir d'image utilisable.
+    by_date = {row['date']: row for row in historical}
+    start   = datetime.strptime(date_from[:10], '%Y-%m-%d')
+
+    full_weeks = []
+    for i in range(weeks):
+        week_date = (start + timedelta(weeks=i)).strftime('%Y-%m-%d')
+        if week_date in by_date:
+            full_weeks.append(by_date[week_date])
+        else:
+            empty_row = {'date': week_date}
+            for idx in indices:
+                empty_row[idx]          = None
+                empty_row[f'{idx}_raw'] = None
+            full_weeks.append(empty_row)
+
+    history_out    = _build_history_rows(full_weeks, indices)
+    weeks_with_data = sum(1 for r in full_weeks if r.get('ndvi') is not None)
+
+    return {
+        'entity_id':       entity_id,
+        'entity_type':     entity_type,
+        'name':            name,
+        'granularity':     'weekly',
+        'weeks':           weeks,
+        'weeks_with_data': weeks_with_data,   # ex: 4 sur 13
+        'period':          {'from': date_from[:10], 'to': date_to[:10]},
+        'history':         history_out,
+        'tiers_meta':      TIERS,
+        'out_of_bounds':   out_of_bounds,
+    }, None
+
 # ── Evalscripts de classification (image colorée avec seuils) ────────────────
 
 # ── Evalscript générique de classification (tous indices, une seule bande active) ──
@@ -1257,3 +1328,111 @@ def _compute_class_areas(geometry, date_from, date_to, index_name, points=None, 
         })
 
     return results, png_bytes
+
+def _build_history_rows(historical, indices):
+    """
+    Convertit une liste de lignes brutes {date, idx, idx_raw, ...} (sortie de
+    _parse_response) en lignes enrichies {date, idx: {value, raw, oob, tier}}.
+    Factorisé pour être réutilisé par get_sat_index_full (P3M) et
+    get_weekly_trend (P1W).
+    """
+    history_out = []
+    for row in historical:
+        out = {'date': row['date']}
+        for idx in indices:
+            val     = row.get(idx)
+            raw_val = row.get(f'{idx}_raw')
+            out[idx] = {
+                'value': val,
+                'raw':   raw_val,
+                'oob':   raw_val is not None and (raw_val < -1.0 or raw_val > 1.0),
+                'tier':  get_tier(idx, val),
+            }
+        history_out.append(out)
+    return history_out
+
+
+def get_monthly_trend(entity_type, entity_id, months=12):
+    """
+    Vue mensuelle (P1M), pour superposer NDVI/NDMI/etc. à la pluviométrie
+    Open-Meteo (récupérée côté frontend). Grille de mois calendaires
+    reconstruite comme pour get_weekly_trend, pour éviter le décalage
+    visuel quand un mois n'a aucune image Sentinel-2 exploitable.
+    """
+    from app.models import Farm, Forest, Point
+
+    indices = ['ndvi', 'ndmi', 'ndwi', 'nmdi', 'evi', 'savi', 'nbr', 'bsi']
+    geolocation = None
+
+    if entity_type == 'farm':
+        entity = Farm.query.filter_by(farm_id=entity_id).first()
+        if not entity:
+            return None, 'Farm not found'
+        points      = Point.query.filter_by(owner_type='farmer', owner_id=str(entity_id)).order_by(Point.id).all()
+        geometry    = _build_geometry(points, entity.geolocation)
+        name        = entity.name
+        geolocation = entity.geolocation   # ex: "-18.8792,47.5079" — réutilisé par le frontend pour Open-Meteo
+    else:
+        entity = Forest.query.filter_by(id=entity_id).first()
+        if not entity:
+            return None, 'Forest not found'
+        points   = Point.query.filter_by(owner_type='forest', owner_id=str(entity_id)).order_by(Point.id).all()
+        geometry = _build_geometry(points)
+        name     = entity.name
+
+    if not geometry:
+        return None, 'No geometry available — add polygon points first'
+
+    now = datetime.utcnow()
+    # Grille alignée sur des mois calendaires pleins : du 1er du mois il y a
+    # (months-1) mois, jusqu'à aujourd'hui.
+    first_of_this_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    start_month = first_of_this_month - relativedelta(months=months - 1)
+
+    date_from = start_month.strftime('%Y-%m-%dT00:00:00Z')
+    date_to   = now.strftime('%Y-%m-%dT23:59:59Z')
+
+    try:
+        raw = _call_statistics(
+            geometry, date_from, date_to,
+            interval='P1M', mosaicking_order='leastCC',
+        )
+        historical, out_of_bounds = _parse_response(raw)
+    except Exception as e:
+        logger.error(f'[Sentinel] Monthly trend API call failed for {entity_id}: {e}')
+        return None, f'Sentinel API error: {e}'
+
+    # ── Reconstruire la grille complète de mois (même logique que le hebdo) ──
+    by_month = {row['date'][:7]: row for row in historical}  # clé "YYYY-MM"
+
+    full_months = []
+    for i in range(months):
+        month_dt  = start_month + relativedelta(months=i)
+        month_key = month_dt.strftime('%Y-%m')
+        if month_key in by_month:
+            row = dict(by_month[month_key])
+            row['date'] = month_dt.strftime('%Y-%m-01')
+            full_months.append(row)
+        else:
+            empty_row = {'date': month_dt.strftime('%Y-%m-01')}
+            for idx in indices:
+                empty_row[idx]          = None
+                empty_row[f'{idx}_raw'] = None
+            full_months.append(empty_row)
+
+    history_out       = _build_history_rows(full_months, indices)
+    months_with_data  = sum(1 for r in full_months if r.get('ndvi') is not None)
+
+    return {
+        'entity_id':        entity_id,
+        'entity_type':      entity_type,
+        'name':             name,
+        'geolocation':      geolocation,
+        'granularity':      'monthly',
+        'months':           months,
+        'months_with_data': months_with_data,
+        'period':           {'from': date_from[:10], 'to': date_to[:10]},
+        'history':          history_out,
+        'tiers_meta':       TIERS,
+        'out_of_bounds':    out_of_bounds,
+    }, None

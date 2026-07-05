@@ -442,3 +442,57 @@ def farm_classification_image(farm_id, index_name):
         'image_base64': base64.b64encode(png_bytes).decode('utf-8'),
         'period':       {'from': date_from[:10], 'to': date_to[:10]},
     }), 200
+    
+@sentinel_bp.route('/farm/<string:farm_id>/weekly-trend', methods=['GET'])
+@jwt_required()
+def farm_weekly_trend(farm_id):
+    from app.utils.sentinel_utils import get_weekly_trend
+    weeks = request.args.get('weeks', type=int, default=13)
+    weeks = max(1, min(weeks, 260))  # garde-fou : 1 semaine à 5 ans max
+
+    result, error = get_weekly_trend('farm', farm_id, weeks=weeks)
+    if error:
+        code = 404 if 'not found' in error.lower() else 500
+        return jsonify({'error': error}), code
+    return jsonify(result), 200
+
+
+@sentinel_bp.route('/forest/<int:forest_id>/weekly-trend', methods=['GET'])
+@jwt_required()
+def forest_weekly_trend(forest_id):
+    from app.utils.sentinel_utils import get_weekly_trend
+    weeks = request.args.get('weeks', type=int, default=13)
+    weeks = max(1, min(weeks, 260))
+
+    result, error = get_weekly_trend('forest', forest_id, weeks=weeks)
+    if error:
+        code = 404 if 'not found' in error.lower() else 500
+        return jsonify({'error': error}), code
+    return jsonify(result), 200
+
+@sentinel_bp.route('/farm/<string:farm_id>/monthly-trend', methods=['GET'])
+@jwt_required()
+def farm_monthly_trend(farm_id):
+    from app.utils.sentinel_utils import get_monthly_trend
+    months = request.args.get('months', type=int, default=12)
+    months = max(1, min(months, 60))  # garde-fou : 1 mois à 5 ans max
+
+    result, error = get_monthly_trend('farm', farm_id, months=months)
+    if error:
+        code = 404 if 'not found' in error.lower() else 500
+        return jsonify({'error': error}), code
+    return jsonify(result), 200
+
+
+@sentinel_bp.route('/forest/<int:forest_id>/monthly-trend', methods=['GET'])
+@jwt_required()
+def forest_monthly_trend(forest_id):
+    from app.utils.sentinel_utils import get_monthly_trend
+    months = request.args.get('months', type=int, default=12)
+    months = max(1, min(months, 60))
+
+    result, error = get_monthly_trend('forest', forest_id, months=months)
+    if error:
+        code = 404 if 'not found' in error.lower() else 500
+        return jsonify({'error': error}), code
+    return jsonify(result), 200
