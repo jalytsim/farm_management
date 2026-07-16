@@ -318,9 +318,10 @@ def _compliance_badge_table(status: str, description: str) -> Table:
     if status == '100% Compliant':
         bg, fc = GREEN_LIGHT, colors.HexColor('#1b5e20')
         icon = '✓'
-    elif status == 'Likely Compliant':
-        bg, fc = ORANGE_LIGHT, ORANGE
-        icon = '⚠'
+    elif status == 'Compliant':
+        # No forest cover, but tree cover loss detected — compliant, shade-tree planting recommended
+        bg, fc = GREEN_LIGHT, colors.HexColor('#2e7d32')
+        icon = '✓'
     elif status == 'Not Compliant':
         bg, fc = RED_LIGHT, RED
         icon = '✗'
@@ -410,22 +411,33 @@ def _calc_area_ha_simple(coordinates: list) -> tuple[float, float]:
 
 
 def _compliance_status(tree_cover_loss: float, has_forest: bool) -> dict:
-    if tree_cover_loss == 0 and not has_forest:
-        return {
-            'status':      '100% Compliant',
-            'description': 'No tree cover loss detected and no forest cover. Fully compliant with EUDR.',
-        }
-    elif (tree_cover_loss == 0 and has_forest) or (tree_cover_loss > 0 and not has_forest):
-        return {
-            'status':      'Likely Compliant',
-            'description': 'Partial compliance indicators detected. Requires further assessment.',
-        }
-    elif tree_cover_loss > 0:
+    """
+    Règles (ordre de priorité strict — corrigé) :
+    1) Forest cover detected (JRC 2020)            -> Not Compliant, quel que soit le tree cover loss
+    2) No forest cover AND no tree cover loss       -> 100% Compliant
+    3) No forest cover AND tree cover loss detected -> Compliant, plantation d'arbres d'ombrage recommandée
+    """
+    if has_forest:
         return {
             'status':      'Not Compliant',
-            'description': 'Tree cover loss detected. Potential EUDR violation.',
+            'description': 'Forest cover detected on this plot (EUDR Article 2). Not compliant with EUDR regulations, regardless of tree cover loss status.',
         }
-    return {'status': 'Assessment Pending', 'description': 'Insufficient data.'}
+
+    if tree_cover_loss == 0:
+        return {
+            'status':      '100% Compliant',
+            'description': 'No forest cover and no tree cover loss detected. Fully compliant with EUDR regulations.',
+        }
+
+    return {
+        'status':      'Compliant',
+        'description': (
+            'No forest cover detected, but tree cover loss was recorded since 2020. Before finalizing this '
+            'status, verify whether the loss results from cyclical agroforestry practices (e.g. routine canopy '
+            'pruning, tree stumping, or shade-tree rejuvenation/cutting for pest mitigation) rather than '
+            'deforestation. Planting shade trees is recommended.'
+        ),
+    }
 
 
 def _extract_eudr_metrics(gfw_data: dict) -> dict:
@@ -446,7 +458,25 @@ def _extract_eudr_metrics(gfw_data: dict) -> dict:
 
     # Tree cover loss
     tcl = gfw_data.get('tree cover loss', [{}])[0].get('data_fields', {})
-    m['tree_cover_loss_ha'] = tcl.get('area__ha', 0) or 0
+    raw_tcl_ha = tcl.get('area__ha', 0) or 0
+
+    # ✅ FIX (annotation PDF) : la perte de couverture ne peut pas dépasser la surface
+    # totale de la parcelle. On plafonne et on calcule le ratio (%) une seule fois ici,
+    # pour l'afficher sur la ligne "Tree Cover Loss" plutôt que sur "Country Deforestation Risk".
+    m['tree_cover_loss_capped'] = False
+    if m['area_ha'] > 0 and raw_tcl_ha > m['area_ha']:
+        print(
+            f"[EUDR] ⚠ Tree cover loss ({raw_tcl_ha} ha) exceeds plot area "
+            f"({m['area_ha']:.2f} ha). Capping to plot area — verify upstream data."
+        )
+        m['tree_cover_loss_ha'] = m['area_ha']
+        m['tree_cover_loss_capped'] = True
+    else:
+        m['tree_cover_loss_ha'] = raw_tcl_ha
+
+    m['tree_cover_loss_ratio'] = (
+        min(m['tree_cover_loss_ha'] / m['area_ha'] * 100, 100) if m['area_ha'] else 0
+    )
 
     # JRC Forest cover
     jrc = gfw_data.get('jrc global forest cover', [{}])[0].get('data_fields', {})
@@ -557,7 +587,7 @@ def _eudr_compliance_table(m: dict) -> Table:
     radd_color = GREEN if m['radd_ha'] == 0 else RED
     cs         = m['compliance']
     cs_color   = (colors.HexColor('#1b5e20') if cs['status'] == '100% Compliant'
-                  else ORANGE if cs['status'] == 'Likely Compliant' else RED)
+                  else colors.HexColor('#2e7d32') if cs['status'] == 'Compliant' else RED)
     fc_color   = ORANGE if m['has_forest'] else GREEN
 
     prot_text = '\n'.join(f'{k}: {v}' for k, v in m['protected_pct'].items())
@@ -565,7 +595,17 @@ def _eudr_compliance_table(m: dict) -> Table:
         f'Decile {r["decile"]}: {r["count"]}'
         for r in m['val_counts'] if r['count'] > 0
     ) or 'No data'
-    loss_ratio = (m['tree_cover_loss_ha'] / m['area_ha'] * 100) if m['area_ha'] else 0
+
+    # ✅ FIX (annotation PDF) : le ratio n'est plus recalculé/affiché ici sur la ligne
+    # "Country Deforestation Risk" — il est déjà calculé (et plafonné) dans
+    # _extract_eudr_metrics et affiché sur la ligne "Tree Cover Loss" ci-dessous.
+    loss_ratio_text = f"{m['tree_cover_loss_ha']} ha — "
+    if m['tree_cover_loss_ha'] == 0:
+        loss_ratio_text += 'No loss detected ✓'
+    else:
+        loss_ratio_text += f"Loss detected ⚠ — Tree loss ratio: {m['tree_cover_loss_ratio']:.2f}% of plot area"
+        if m.get('tree_cover_loss_capped'):
+            loss_ratio_text += ' (capped — source value exceeded plot area, please verify)'
 
     rows = [
         # Header
@@ -575,16 +615,14 @@ def _eudr_compliance_table(m: dict) -> Table:
          cell(f"{m['area_ha']:.2f} ha  ({m['area_m2']:.0f} m²)")],
 
         [cell('Country Deforestation Risk'),
-         cell(f"STANDARD  —  Tree loss ratio: {loss_ratio:.2f}%")],
+         cell('STANDARD')],
 
         [cell('RADD Alert'),
          cell(f"{m['radd_ha']} ha — {'No alert ✓' if m['radd_ha']==0 else 'Alert detected ⚠'}",
               color=radd_color)],
 
         [cell('Tree Cover Loss (since 2020)'),
-         cell(f"{m['tree_cover_loss_ha']} ha — "
-              f"{'No loss detected ✓' if m['tree_cover_loss_ha']==0 else 'Loss detected ⚠'}",
-              color=tcl_color)],
+         cell(loss_ratio_text, color=tcl_color)],
 
         [cell('Forest Cover (JRC 2020)'),
          cell(m['forest_cover_text'], color=fc_color)],
@@ -779,7 +817,7 @@ def build_eudr_farm_pdf(
     elems += _section_bar('Risk Assessment Breakdown', st)
     risk_rows = [
         ('Farm Area',               f"{m['area_ha']:.2f} ha"),
-        ('Tree Cover Loss',         f"{m['tree_cover_loss_ha']} ha"),
+        ('Tree Cover Loss',         f"{m['tree_cover_loss_ha']} ha ({m['tree_cover_loss_ratio']:.2f}%)"),
         ('Average Tree Cover',      f"{m['avg_cover']:.1f}%"),
         ('RADD Alerts',             f"{m['radd_ha']} ha"),
         ('Primary Driver',          m['primary_driver_label']),
