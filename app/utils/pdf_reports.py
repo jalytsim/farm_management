@@ -743,7 +743,7 @@ def build_eudr_farm_pdf(
         )
     else:
         # Texte de repli (Fallback) si les informations de la ferme sont incomplètes
-        intro_text = "This report outlines the farm's activities, challenges, and opportunities to support its continued growth and sustainability."
+        intro_text = "This report outlines the farm's activities, challenges, natural disaster and opportunities to support its continued growth and sustainability."
 
     # 3. Ajout au flux ReportLab
     elems.append(Paragraph(intro_text, st['body']))
