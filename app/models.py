@@ -678,3 +678,74 @@ class SentinelCache(db.Model):
 
     def __repr__(self):
         return f'<SentinelCache farm={self.farm_id} stale={self.is_stale()}>'
+    
+class GuestSentinelCache(db.Model):
+    __tablename__ = 'guestsentinelcache'
+    id                  = db.Column(db.Integer, primary_key=True)
+    guest_phone_number  = db.Column(db.String(20), nullable=False, index=True)
+    polygon_hash        = db.Column(db.String(32), nullable=False, index=True)
+    history_json        = db.Column(LONGTEXT, nullable=True)
+    forecast_json       = db.Column(LONGTEXT, nullable=True)
+    ltv_json            = db.Column(db.Text, nullable=True)
+    period_from         = db.Column(db.String(20), nullable=True)
+    period_to           = db.Column(db.String(20), nullable=True)
+    stale_after         = db.Column(db.DateTime, nullable=True)
+    created_at          = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at          = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint('guest_phone_number', 'polygon_hash', name='uq_guest_phone_polygon'),
+    )
+
+    def is_stale(self):
+        if not self.stale_after:
+            return True
+        return datetime.utcnow() > self.stale_after
+
+    def get_history(self):
+        import json
+        return json.loads(self.history_json) if self.history_json else []
+
+    def get_forecast(self):
+        import json
+        return json.loads(self.forecast_json) if self.forecast_json else {}
+
+    def get_ltv(self):
+        import json
+        return json.loads(self.ltv_json) if self.ltv_json else None
+
+    def __repr__(self):
+        return f'<GuestSentinelCache phone={self.guest_phone_number} hash={self.polygon_hash[:8]} stale={self.is_stale()}>'
+    
+    
+crop_hscode = db.Table(
+    'crop_hscode',
+    db.Column('crop_id', db.Integer, db.ForeignKey('crop.id'), primary_key=True),
+    db.Column('hscode_id', db.Integer, db.ForeignKey('hscode.id'), primary_key=True),
+)
+
+class HSCode(db.Model):
+    __tablename__ = 'hscode'
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(10), nullable=False, unique=True)       # ex: "1801", "ex 4101"
+    description = db.Column(db.String(500), nullable=False)
+    eudr_commodity = db.Column(db.String(50), nullable=False)          # Cattle, Cocoa, Coffee, Oil palm, Rubber, Soya, Wood
+    is_ex_code = db.Column(db.Boolean, default=False)                  # True si "ex" (couverture partielle du code)
+    date_created = db.Column(db.DateTime, default=datetime.utcnow)
+    date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+ 
+    crops = db.relationship('Crop', secondary=crop_hscode, backref=db.backref('hs_codes', lazy=True))
+ 
+    def __repr__(self):
+        return f"<HSCode(code={self.code}, commodity={self.eudr_commodity})>"
+ 
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'code': self.code,
+            'description': self.description,
+            'eudr_commodity': self.eudr_commodity,
+            'is_ex_code': self.is_ex_code,
+        }

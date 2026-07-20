@@ -783,23 +783,21 @@ def _run_forecast_all(history_data, indices):
 
 # ── LTV / geometry helpers ────────────────────────────────────────────────────
 
-def _compute_area_ha_from_points(points):
-    if not points or len(points) < 3:
+def _compute_area_ha_from_coords(coords):
+    if not coords or len(coords) < 3:
         return 0.0, None
     try:
         from shapely.geometry import Polygon
         import pyproj
         from shapely.ops import transform as shapely_transform
 
-        coords  = [(p.longitude, p.latitude) for p in points]
         polygon = Polygon(coords)
         if not polygon.is_valid:
             polygon = polygon.buffer(0)
         if polygon.is_empty:
             return 0.0, None
 
-        cx   = polygon.centroid.x
-        cy   = polygon.centroid.y
+        cx, cy = polygon.centroid.x, polygon.centroid.y
         zone = int((cx + 180) / 6) + 1
         hemi = 'north' if cy >= 0 else 'south'
         epsg = 32600 + zone if hemi == 'north' else 32700 + zone
@@ -808,16 +806,23 @@ def _compute_area_ha_from_points(points):
             pyproj.CRS('EPSG:4326'), pyproj.CRS(f'EPSG:{epsg}'), always_xy=True
         )
         projected = shapely_transform(transformer.transform, polygon)
-        area_ha   = round(projected.area / 10_000, 4)
-        logger.info(f'[Sentinel] GPS area computed: {area_ha} ha ({len(points)} points)')
-        return area_ha, 'gps'
-
+        return round(projected.area / 10_000, 4), 'gps'
     except ImportError:
         logger.warning('[Sentinel] shapely/pyproj not installed.')
         return 0.0, None
     except Exception as e:
         logger.warning(f'[Sentinel] Area calculation failed: {e}')
         return 0.0, None
+
+
+def _compute_area_ha_from_points(points):
+    if not points or len(points) < 3:
+        return 0.0, None
+    coords = [(p.longitude, p.latitude) for p in points]
+    area_ha, source = _compute_area_ha_from_coords(coords)
+    if source:
+        logger.info(f'[Sentinel] GPS area computed: {area_ha} ha ({len(points)} points)')
+    return area_ha, source
 
 
 def _build_geometry(points, geolocation=None):
@@ -1022,6 +1027,143 @@ def get_sat_index_full(entity_type, entity_id,
         'ltv':           ltv_data,
         'tiers_meta':    TIERS,
         'from_cache':    False,
+        'out_of_bounds': out_of_bounds,
+    }, None
+    
+    
+def get_sat_index_full_guest(geojson, guest_phone_number,
+                              loan_amount=None, yield_t_per_ha=1.5, price_per_t=500,
+                              force_refresh=False,
+                              hist_yield_1=None, hist_yield_2=None):
+    """
+    Variante guest de get_sat_index_full : geometrie fournie directement par le
+    frontend (PolygonDrawer), pas de lookup Farm/Point en DB. Cache indexe par
+    (guest_phone_number, polygon_hash) via GuestSentinelCache.
+    """
+    from app.models import GuestSentinelCache
+    from app import db
+    import json
+    from datetime import timedelta
+
+    indices = ['ndvi', 'ndmi', 'ndwi', 'nmdi', 'evi', 'savi', 'nbr', 'bsi']
+
+    coords = _extract_polygon_coords(geojson)
+    if not coords:
+        return None, 'Invalid or missing polygon geometry'
+
+    ring = list(coords)
+    if ring[0] != ring[-1]:
+        ring.append(ring[0])
+    geometry = {'type': 'Polygon', 'coordinates': [ring]}
+    polygon_hash = _polygon_hash(coords)
+
+    cache = GuestSentinelCache.query.filter_by(
+        guest_phone_number=guest_phone_number, polygon_hash=polygon_hash
+    ).first()
+
+    def _ltv_from_area(history_out):
+        area_ha, _ = _compute_area_ha_from_coords(coords)
+        if area_ha > 0:
+            return compute_ltv_multi(
+                history_out, area_ha,
+                yield_t_per_ha=yield_t_per_ha,
+                price_per_t=price_per_t,
+                loan_amount=loan_amount,
+                hist_yield_1=hist_yield_1,
+                hist_yield_2=hist_yield_2,
+            )
+        return None
+
+    if cache and not cache.is_stale() and not force_refresh:
+        history_out = cache.get_history()
+        forecast_out = cache.get_forecast()
+
+        if _is_forecast_empty(forecast_out) and history_out:
+            forecast_out = _run_forecast_all(history_out, indices)
+            if not _is_forecast_empty(forecast_out):
+                try:
+                    cache.forecast_json = json.dumps(forecast_out)
+                    db.session.commit()
+                except Exception as e:
+                    logger.error(f'[GuestSentinelCache] Could not save recomputed forecast: {e}')
+                    db.session.rollback()
+
+        ltv_data = _ltv_from_area(history_out) or cache.get_ltv()
+
+        return {
+            'entity_type': 'guest',
+            'name': 'Guest polygon',
+            'period': {'from': cache.period_from, 'to': cache.period_to},
+            'history': history_out,
+            'forecast': forecast_out,
+            'ltv': ltv_data,
+            'tiers_meta': TIERS,
+            'from_cache': True,
+            'cache_updated_at': cache.updated_at.isoformat() if cache.updated_at else None,
+            'out_of_bounds': [],
+        }, None
+
+    now = datetime.utcnow()
+    date_to = now.strftime('%Y-%m-%dT23:59:59Z')
+    date_from = (now - relativedelta(years=5)).strftime('%Y-%m-%dT00:00:00Z')
+
+    try:
+        raw = _call_statistics(geometry, date_from, date_to)
+        historical, out_of_bounds = _parse_response(raw)
+    except Exception as e:
+        logger.error(f'[Sentinel] Guest API call failed for phone={guest_phone_number}: {e}')
+        if cache:
+            history_out = cache.get_history()
+            forecast_out = cache.get_forecast()
+            if _is_forecast_empty(forecast_out) and history_out:
+                forecast_out = _run_forecast_all(history_out, indices)
+            ltv_data = _ltv_from_area(history_out) or cache.get_ltv()
+            return {
+                'entity_type': 'guest',
+                'name': 'Guest polygon',
+                'period': {'from': cache.period_from, 'to': cache.period_to},
+                'history': history_out,
+                'forecast': forecast_out,
+                'ltv': ltv_data,
+                'tiers_meta': TIERS,
+                'from_cache': True,
+                'cache_stale': True,
+                'cache_updated_at': cache.updated_at.isoformat() if cache.updated_at else None,
+                'out_of_bounds': [],
+            }, None
+        return None, f'Sentinel API error: {e}'
+
+    if not historical:
+        return None, 'No satellite data for this location'
+
+    history_out = _build_history_rows(historical, indices)
+    forecast_out = _run_forecast_all(historical, indices)
+    ltv_data = _ltv_from_area(history_out)
+
+    try:
+        if not cache:
+            cache = GuestSentinelCache(guest_phone_number=guest_phone_number, polygon_hash=polygon_hash)
+            db.session.add(cache)
+        cache.history_json = json.dumps(history_out)
+        cache.forecast_json = json.dumps(forecast_out)
+        cache.ltv_json = json.dumps(ltv_data) if ltv_data else None
+        cache.period_from = date_from[:10]
+        cache.period_to = date_to[:10]
+        cache.stale_after = now + timedelta(days=90)
+        db.session.commit()
+    except Exception as e:
+        logger.error(f'[GuestSentinelCache] Save error: {e}')
+        db.session.rollback()
+
+    return {
+        'entity_type': 'guest',
+        'name': 'Guest polygon',
+        'period': {'from': date_from[:10], 'to': date_to[:10]},
+        'history': history_out,
+        'forecast': forecast_out,
+        'ltv': ltv_data,
+        'tiers_meta': TIERS,
+        'from_cache': False,
         'out_of_bounds': out_of_bounds,
     }, None
     
@@ -1436,3 +1578,28 @@ def get_monthly_trend(entity_type, entity_id, months=12):
         'tiers_meta':       TIERS,
         'out_of_bounds':    out_of_bounds,
     }, None
+    
+def _extract_polygon_coords(geojson):
+    """Normalise Polygon / Feature / FeatureCollection en liste [[lon, lat], ...]."""
+    if not geojson:
+        return None
+    geom = geojson
+    if geom.get('type') == 'FeatureCollection':
+        features = geom.get('features') or []
+        if not features:
+            return None
+        geom = features[0].get('geometry')
+    if geom and geom.get('type') == 'Feature':
+        geom = geom.get('geometry')
+    if not geom or geom.get('type') != 'Polygon':
+        return None
+    coords = geom.get('coordinates')
+    if not coords or not coords[0] or len(coords[0]) < 3:
+        return None
+    return coords[0]
+
+
+def _polygon_hash(coords):
+    import hashlib, json
+    rounded = [[round(lon, 6), round(lat, 6)] for lon, lat in coords]
+    return hashlib.md5(json.dumps(rounded, separators=(',', ':')).encode('utf-8')).hexdigest()

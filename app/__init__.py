@@ -142,7 +142,7 @@ def register_blueprints(app):
         api_payments, api_features, api_notifications, api_farmreport,
         api_certificate, api_forestreport, api_tree,
         api_sentinel,
-        api_blog,  
+        api_blog,  api_hscode,
     )
 
     blueprints = [
@@ -160,7 +160,7 @@ def register_blueprints(app):
         api_farmreport.api_farmreport_bp, api_certificate.certificate_bp,
         api_forestreport.api_forestreport_bp, api_tree.bp,
         api_sentinel.sentinel_bp,
-        api_blog.bp, 
+        api_blog.bp, api_hscode.bp,
     ]
 
     for blueprint in blueprints:
