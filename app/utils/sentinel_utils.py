@@ -19,10 +19,17 @@ from dateutil.relativedelta import relativedelta
 warnings.filterwarnings('ignore')
 logger = logging.getLogger(__name__)
 
-SENTINEL_CLIENT_ID     = os.environ.get('SENTINEL_CLIENT_ID',     '932e6314-b550-4211-9680-02c6c1b8acf6')
-SENTINEL_CLIENT_SECRET = os.environ.get('SENTINEL_CLIENT_SECRET', 'WghCT9aY9eA9fq6a6OsBw9zeYv4FTwhv')
-TOKEN_URL = 'https://services.sentinel-hub.com/auth/realms/main/protocol/openid-connect/token'
-STATS_URL = 'https://services.sentinel-hub.com/api/v1/statistics'
+# SENTINEL_CLIENT_ID     = os.environ.get('SENTINEL_CLIENT_ID',     '932e6314-b550-4211-9680-02c6c1b8acf6')
+# SENTINEL_CLIENT_SECRET = os.environ.get('SENTINEL_CLIENT_SECRET', 'WghCT9aY9eA9fq6a6OsBw9zeYv4FTwhv')
+# TOKEN_URL = 'https://services.sentinel-hub.com/auth/realms/main/protocol/openid-connect/token'
+# STATS_URL = 'https://services.sentinel-hub.com/api/v1/statistics'
+
+
+SENTINEL_CLIENT_ID     = os.environ.get('SENTINEL_CLIENT_ID',     'sh-07766274-9bf2-47ca-9396-9377b3fb4fbc')
+SENTINEL_CLIENT_SECRET = os.environ.get('SENTINEL_CLIENT_SECRET', 'AIYhNwWvbtCrSbSyLspjBEPBNiBZy79T')
+
+TOKEN_URL = 'https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token'
+STATS_URL = 'https://sh.dataspace.copernicus.eu/api/v1/statistics'
 
 _token_cache = {'token': None, 'expires_at': 0}
 
@@ -65,22 +72,25 @@ function evaluatePixel(s){
     evi:[clamp(evi,-1,1)],savi:[clamp(savi,-1,1)],nbr:[clamp(nbr,-1,1)],bsi:[clamp(bsi,-1,1)],
     dataMask:[s.dataMask]
   };
-}"""
+}"""  
 
-
-def _call_statistics(geometry, date_from, date_to):
+def _call_statistics(geometry, date_from, date_to, interval='P3M', mosaicking_order=None):
     token   = _get_token()
+    data_filter = {
+        'timeRange':       {'from': date_from, 'to': date_to},
+        'maxCloudCoverage': 30,
+    }
+    if mosaicking_order:
+        data_filter['mosaickingOrder'] = mosaicking_order
+
     payload = {
         'input': {
             'bounds': {'geometry': geometry},
-            'data': [{'type': 'sentinel-2-l2a', 'dataFilter': {
-                'timeRange':       {'from': date_from, 'to': date_to},
-                'maxCloudCoverage': 30,
-            }}],
+            'data': [{'type': 'sentinel-2-l2a', 'dataFilter': data_filter}],
         },
         'aggregation': {
             'timeRange':           {'from': date_from, 'to': date_to},
-            'aggregationInterval': {'of': 'P3M'},
+            'aggregationInterval': {'of': interval},
             'resx': 0.0001, 'resy': 0.0001,
             'evalscript': EVALSCRIPT,
         },
@@ -93,7 +103,6 @@ def _call_statistics(geometry, date_from, date_to):
     )
     resp.raise_for_status()
     return resp.json()
-
 
 def _parse_response(api_response):
     """
@@ -372,10 +381,86 @@ def _compute_index_factor(idx_name: str, value) -> float:
     return round(max(0.30, min(1.0, raw)), 4)
 
 
+def _regression_calibrate(ndvi_values: list, base_yields: list,
+                           hist_yield_1: float | None,
+                           hist_yield_2: float | None,
+                           current_ndvi: float | None) -> dict:
+    """
+    Fit a linear regression NDVI → Yield, optionally anchored by 1 or 2
+    historical ground-truth yields supplied by the analyst.
+
+    If hist_yield_1 / hist_yield_2 are provided they are paired with the
+    annual-mean NDVI of years N-2 and N-1 respectively, so the line is
+    pulled toward real field observations.
+
+    Returns:
+      slope, intercept, predicted_yield (for current_ndvi),
+      calibrated (bool), r2, ndvi_points, yield_points
+    """
+    import numpy as np
+
+    xs = list(ndvi_values)   # NDVI history (quarterly means)
+    ys = list(base_yields)   # model-estimated yields (same length)
+
+    # --- anchor with analyst ground-truth yields if provided ----------------
+    # We pair HY1 with the annual mean NDVI of 4 quarters-ago year,
+    # HY2 with the most recent full-year mean NDVI.
+    calibrated = False
+    n = len(xs)
+
+    if hist_yield_1 is not None and n >= 8:
+        # year N-2: quarters [-8..-5]
+        anchor_ndvi_1 = float(np.mean(xs[max(0, n-8):max(1, n-4)]))
+        xs.append(anchor_ndvi_1)
+        ys.append(hist_yield_1)
+        calibrated = True
+
+    if hist_yield_2 is not None and n >= 4:
+        # year N-1: quarters [-4..-1]
+        anchor_ndvi_2 = float(np.mean(xs[max(0, n-4):n]))
+        xs.append(anchor_ndvi_2)
+        ys.append(hist_yield_2)
+        calibrated = True
+
+    xs_arr = np.array(xs, dtype=float)
+    ys_arr = np.array(ys, dtype=float)
+
+    # least-squares fit
+    if len(xs_arr) >= 2 and xs_arr.std() > 1e-6:
+        coeffs   = np.polyfit(xs_arr, ys_arr, 1)
+        slope    = float(coeffs[0])
+        intercept = float(coeffs[1])
+        # R²
+        y_hat = slope * xs_arr + intercept
+        ss_res = float(np.sum((ys_arr - y_hat) ** 2))
+        ss_tot = float(np.sum((ys_arr - ys_arr.mean()) ** 2))
+        r2 = round(1 - ss_res / ss_tot, 4) if ss_tot > 0 else 1.0
+    else:
+        slope    = 0.0
+        intercept = float(np.mean(ys_arr)) if len(ys_arr) else 0.0
+        r2       = 0.0
+
+    predicted = None
+    if current_ndvi is not None:
+        predicted = round(max(0.0, slope * current_ndvi + intercept), 3)
+
+    return {
+        'slope':           round(slope, 4),
+        'intercept':       round(intercept, 4),
+        'r2':              r2,
+        'predicted_yield': predicted,
+        'calibrated':      calibrated,
+        'ndvi_points':     [round(x, 4) for x in list(ndvi_values)],
+        'yield_points':    [round(y, 4) for y in list(base_yields)],
+    }
+
+
 def compute_ltv_multi(history_out: list, area_ha: float,
                       yield_t_per_ha: float = 1.5,
                       price_per_t: float = 500.0,
-                      loan_amount: float = None) -> dict | None:
+                      loan_amount: float = None,
+                      hist_yield_1: float = None,
+                      hist_yield_2: float = None) -> dict | None:
     """
     Compute LTV for *every* satellite index in INDEX_LTV_CONFIG.
 
@@ -386,9 +471,14 @@ def compute_ltv_multi(history_out: list, area_ha: float,
 
     Also computes a weighted composite across all indices.
 
+    hist_yield_1 / hist_yield_2 (optional t/ha): analyst-supplied real yields
+    for years N-2 and N-1. When provided, they calibrate the NDVI→Yield
+    linear regression to local conditions.
+
     Returns a dict with:
       indices    : {idx_name: {label, icon, color, index_value, factor, ...}}
       composite  : {factor, adjusted_yield_t_ha, crop_value_usd, ltv_ratio_pct, insurance_pct}
+      regression : {ndvi: {slope, intercept, r2, predicted_yield, ...}, evi: {...}, ...}
       area_ha, yield_t_per_ha, price_per_t, loan_amount_usd
       + backward-compat top-level keys (ndvi_factor, adjusted_yield_t_ha, ...)
 
@@ -458,6 +548,33 @@ def compute_ltv_multi(history_out: list, area_ha: float,
     comp_ltv_risk    = max(0.0, ((comp_ltv or 60.0) - 60.0) * 0.05) if comp_ltv else 0.0
     comp_insurance   = round(3.0 + comp_health_risk + comp_ltv_risk, 2)
 
+    # ── Per-index regression (dynamic — all indices, not just NDVI) ──────────
+    regressions = {}
+    for idx_name in INDEX_LTV_CONFIG:
+        idx_history  = []
+        yield_hist   = []
+        for row in history_out:
+            v = row.get(idx_name)
+            val = v.get('value') if isinstance(v, dict) else v
+            if val is not None:
+                idx_history.append(val)
+                f = _compute_index_factor(idx_name, val)
+                yield_hist.append(round(yield_t_per_ha * f, 3))
+
+        current_val = None
+        for row in reversed(history_out):
+            v = row.get(idx_name)
+            val = v.get('value') if isinstance(v, dict) else v
+            if val is not None:
+                current_val = val
+                break
+
+        regressions[idx_name] = _regression_calibrate(
+            idx_history, yield_hist,
+            hist_yield_1, hist_yield_2,
+            current_val,
+        )
+
     # ── Build return dict (backward-compat top-level keys from NDVI) ──────────
     ndvi_entry = per_index.get('ndvi', {})
 
@@ -471,11 +588,15 @@ def compute_ltv_multi(history_out: list, area_ha: float,
             'ltv_ratio_pct':            comp_ltv,
             'insurance_premium_pct':    comp_insurance,
         },
+        # ── Regression (per-index) ────────────────────────────────────────────
+        'regression':       regressions,
         # ── Metadata ──────────────────────────────────────────────────────────
         'area_ha':          round(area_ha, 2),
         'yield_t_per_ha':   yield_t_per_ha,
         'price_per_t':      price_per_t,
         'loan_amount_usd':  loan_amount,
+        'hist_yield_1':     hist_yield_1,
+        'hist_yield_2':     hist_yield_2,
         # ── Backward-compatible flat keys (previously from compute_ltv) ───────
         'ndvi_factor':                  ndvi_entry.get('factor'),
         'adjusted_yield_t_ha':          ndvi_entry.get('adjusted_yield_t_ha'),
@@ -662,23 +783,21 @@ def _run_forecast_all(history_data, indices):
 
 # ── LTV / geometry helpers ────────────────────────────────────────────────────
 
-def _compute_area_ha_from_points(points):
-    if not points or len(points) < 3:
+def _compute_area_ha_from_coords(coords):
+    if not coords or len(coords) < 3:
         return 0.0, None
     try:
         from shapely.geometry import Polygon
         import pyproj
         from shapely.ops import transform as shapely_transform
 
-        coords  = [(p.longitude, p.latitude) for p in points]
         polygon = Polygon(coords)
         if not polygon.is_valid:
             polygon = polygon.buffer(0)
         if polygon.is_empty:
             return 0.0, None
 
-        cx   = polygon.centroid.x
-        cy   = polygon.centroid.y
+        cx, cy = polygon.centroid.x, polygon.centroid.y
         zone = int((cx + 180) / 6) + 1
         hemi = 'north' if cy >= 0 else 'south'
         epsg = 32600 + zone if hemi == 'north' else 32700 + zone
@@ -687,16 +806,23 @@ def _compute_area_ha_from_points(points):
             pyproj.CRS('EPSG:4326'), pyproj.CRS(f'EPSG:{epsg}'), always_xy=True
         )
         projected = shapely_transform(transformer.transform, polygon)
-        area_ha   = round(projected.area / 10_000, 4)
-        logger.info(f'[Sentinel] GPS area computed: {area_ha} ha ({len(points)} points)')
-        return area_ha, 'gps'
-
+        return round(projected.area / 10_000, 4), 'gps'
     except ImportError:
         logger.warning('[Sentinel] shapely/pyproj not installed.')
         return 0.0, None
     except Exception as e:
         logger.warning(f'[Sentinel] Area calculation failed: {e}')
         return 0.0, None
+
+
+def _compute_area_ha_from_points(points):
+    if not points or len(points) < 3:
+        return 0.0, None
+    coords = [(p.longitude, p.latitude) for p in points]
+    area_ha, source = _compute_area_ha_from_coords(coords)
+    if source:
+        logger.info(f'[Sentinel] GPS area computed: {area_ha} ha ({len(points)} points)')
+    return area_ha, source
 
 
 def _build_geometry(points, geolocation=None):
@@ -722,7 +848,8 @@ def _build_geometry(points, geolocation=None):
 
 def get_sat_index_full(entity_type, entity_id,
                        loan_amount=None, yield_t_per_ha=1.5, price_per_t=500,
-                       force_refresh=False):
+                       force_refresh=False,
+                       hist_yield_1=None, hist_yield_2=None):
     """
     Main entry point for Sat-Index data.
 
@@ -785,6 +912,8 @@ def get_sat_index_full(entity_type, entity_id,
                     yield_t_per_ha=yield_t_per_ha,
                     price_per_t=price_per_t,
                     loan_amount=loan_amount,
+                    hist_yield_1=hist_yield_1,
+                    hist_yield_2=hist_yield_2,
                 )
             else:
                 ltv_data = cache.get_ltv()
@@ -827,6 +956,8 @@ def get_sat_index_full(entity_type, entity_id,
                         yield_t_per_ha=yield_t_per_ha,
                         price_per_t=price_per_t,
                         loan_amount=loan_amount,
+                        hist_yield_1=hist_yield_1,
+                        hist_yield_2=hist_yield_2,
                     )
                 else:
                     ltv_data = cache.get_ltv()
@@ -850,19 +981,7 @@ def get_sat_index_full(entity_type, entity_id,
         return None, 'No satellite data for this location'
 
     # ── Enrich history ────────────────────────────────────────────────────────
-    history_out = []
-    for row in historical:
-        out = {'date': row['date']}
-        for idx in indices:
-            val     = row.get(idx)
-            raw_val = row.get(f'{idx}_raw')
-            out[idx] = {
-                'value': val,
-                'raw':   raw_val,
-                'oob':   raw_val is not None and (raw_val < -1.0 or raw_val > 1.0),
-                'tier':  get_tier(idx, val),
-            }
-        history_out.append(out)
+    history_out = _build_history_rows(historical, indices)
 
     # ── Forecast ─────────────────────────────────────────────────────────────
     forecast_out = _run_forecast_all(historical, indices)
@@ -877,6 +996,8 @@ def get_sat_index_full(entity_type, entity_id,
                 yield_t_per_ha=yield_t_per_ha,
                 price_per_t=price_per_t,
                 loan_amount=loan_amount,
+                hist_yield_1=hist_yield_1,
+                hist_yield_2=hist_yield_2,
             )
 
     # ── Save to cache ─────────────────────────────────────────────────────────
@@ -908,3 +1029,577 @@ def get_sat_index_full(entity_type, entity_id,
         'from_cache':    False,
         'out_of_bounds': out_of_bounds,
     }, None
+    
+    
+def get_sat_index_full_guest(geojson, guest_phone_number,
+                              loan_amount=None, yield_t_per_ha=1.5, price_per_t=500,
+                              force_refresh=False,
+                              hist_yield_1=None, hist_yield_2=None):
+    """
+    Variante guest de get_sat_index_full : geometrie fournie directement par le
+    frontend (PolygonDrawer), pas de lookup Farm/Point en DB. Cache indexe par
+    (guest_phone_number, polygon_hash) via GuestSentinelCache.
+    """
+    from app.models import GuestSentinelCache
+    from app import db
+    import json
+    from datetime import timedelta
+
+    indices = ['ndvi', 'ndmi', 'ndwi', 'nmdi', 'evi', 'savi', 'nbr', 'bsi']
+
+    coords = _extract_polygon_coords(geojson)
+    if not coords:
+        return None, 'Invalid or missing polygon geometry'
+
+    ring = list(coords)
+    if ring[0] != ring[-1]:
+        ring.append(ring[0])
+    geometry = {'type': 'Polygon', 'coordinates': [ring]}
+    polygon_hash = _polygon_hash(coords)
+
+    cache = GuestSentinelCache.query.filter_by(
+        guest_phone_number=guest_phone_number, polygon_hash=polygon_hash
+    ).first()
+
+    def _ltv_from_area(history_out):
+        area_ha, _ = _compute_area_ha_from_coords(coords)
+        if area_ha > 0:
+            return compute_ltv_multi(
+                history_out, area_ha,
+                yield_t_per_ha=yield_t_per_ha,
+                price_per_t=price_per_t,
+                loan_amount=loan_amount,
+                hist_yield_1=hist_yield_1,
+                hist_yield_2=hist_yield_2,
+            )
+        return None
+
+    if cache and not cache.is_stale() and not force_refresh:
+        history_out = cache.get_history()
+        forecast_out = cache.get_forecast()
+
+        if _is_forecast_empty(forecast_out) and history_out:
+            forecast_out = _run_forecast_all(history_out, indices)
+            if not _is_forecast_empty(forecast_out):
+                try:
+                    cache.forecast_json = json.dumps(forecast_out)
+                    db.session.commit()
+                except Exception as e:
+                    logger.error(f'[GuestSentinelCache] Could not save recomputed forecast: {e}')
+                    db.session.rollback()
+
+        ltv_data = _ltv_from_area(history_out) or cache.get_ltv()
+
+        return {
+            'entity_type': 'guest',
+            'name': 'Guest polygon',
+            'period': {'from': cache.period_from, 'to': cache.period_to},
+            'history': history_out,
+            'forecast': forecast_out,
+            'ltv': ltv_data,
+            'tiers_meta': TIERS,
+            'from_cache': True,
+            'cache_updated_at': cache.updated_at.isoformat() if cache.updated_at else None,
+            'out_of_bounds': [],
+        }, None
+
+    now = datetime.utcnow()
+    date_to = now.strftime('%Y-%m-%dT23:59:59Z')
+    date_from = (now - relativedelta(years=5)).strftime('%Y-%m-%dT00:00:00Z')
+
+    try:
+        raw = _call_statistics(geometry, date_from, date_to)
+        historical, out_of_bounds = _parse_response(raw)
+    except Exception as e:
+        logger.error(f'[Sentinel] Guest API call failed for phone={guest_phone_number}: {e}')
+        if cache:
+            history_out = cache.get_history()
+            forecast_out = cache.get_forecast()
+            if _is_forecast_empty(forecast_out) and history_out:
+                forecast_out = _run_forecast_all(history_out, indices)
+            ltv_data = _ltv_from_area(history_out) or cache.get_ltv()
+            return {
+                'entity_type': 'guest',
+                'name': 'Guest polygon',
+                'period': {'from': cache.period_from, 'to': cache.period_to},
+                'history': history_out,
+                'forecast': forecast_out,
+                'ltv': ltv_data,
+                'tiers_meta': TIERS,
+                'from_cache': True,
+                'cache_stale': True,
+                'cache_updated_at': cache.updated_at.isoformat() if cache.updated_at else None,
+                'out_of_bounds': [],
+            }, None
+        return None, f'Sentinel API error: {e}'
+
+    if not historical:
+        return None, 'No satellite data for this location'
+
+    history_out = _build_history_rows(historical, indices)
+    forecast_out = _run_forecast_all(historical, indices)
+    ltv_data = _ltv_from_area(history_out)
+
+    try:
+        if not cache:
+            cache = GuestSentinelCache(guest_phone_number=guest_phone_number, polygon_hash=polygon_hash)
+            db.session.add(cache)
+        cache.history_json = json.dumps(history_out)
+        cache.forecast_json = json.dumps(forecast_out)
+        cache.ltv_json = json.dumps(ltv_data) if ltv_data else None
+        cache.period_from = date_from[:10]
+        cache.period_to = date_to[:10]
+        cache.stale_after = now + timedelta(days=90)
+        db.session.commit()
+    except Exception as e:
+        logger.error(f'[GuestSentinelCache] Save error: {e}')
+        db.session.rollback()
+
+    return {
+        'entity_type': 'guest',
+        'name': 'Guest polygon',
+        'period': {'from': date_from[:10], 'to': date_to[:10]},
+        'history': history_out,
+        'forecast': forecast_out,
+        'ltv': ltv_data,
+        'tiers_meta': TIERS,
+        'from_cache': False,
+        'out_of_bounds': out_of_bounds,
+    }, None
+    
+    
+def get_weekly_trend(entity_type, entity_id, weeks=13):
+    from app.models import Farm, Forest, Point
+    from datetime import timedelta
+
+    indices = ['ndvi', 'ndmi', 'ndwi', 'nmdi', 'evi', 'savi', 'nbr', 'bsi']
+
+    if entity_type == 'farm':
+        entity = Farm.query.filter_by(farm_id=entity_id).first()
+        if not entity:
+            return None, 'Farm not found'
+        points   = Point.query.filter_by(owner_type='farmer', owner_id=str(entity_id)).order_by(Point.id).all()
+        geometry = _build_geometry(points, entity.geolocation)
+        name     = entity.name
+    else:
+        entity = Forest.query.filter_by(id=entity_id).first()
+        if not entity:
+            return None, 'Forest not found'
+        points   = Point.query.filter_by(owner_type='forest', owner_id=str(entity_id)).order_by(Point.id).all()
+        geometry = _build_geometry(points)
+        name     = entity.name
+
+    if not geometry:
+        return None, 'No geometry available — add polygon points first'
+
+    now       = datetime.utcnow()
+    date_to   = now.strftime('%Y-%m-%dT23:59:59Z')
+    date_from = (now - timedelta(weeks=weeks)).strftime('%Y-%m-%dT00:00:00Z')
+
+    try:
+        # mosaickingOrder='leastCC' : privilégie la scène la moins nuageuse
+        # disponible dans chaque fenêtre de 7 jours, au lieu du choix par défaut
+        # (mostRecent), qui augmente les chances qu'une semaine soit rejetée
+        # entièrement si la scène la plus récente est trop nuageuse.
+        raw = _call_statistics(
+            geometry, date_from, date_to,
+            interval='P1W', mosaicking_order='leastCC',
+        )
+        historical, out_of_bounds = _parse_response(raw)
+    except Exception as e:
+        logger.error(f'[Sentinel] Weekly trend API call failed for {entity_id}: {e}')
+        return None, f'Sentinel API error: {e}'
+
+    # ── Reconstruire la grille complète de semaines ─────────────────────────
+    # L'API omet purement et simplement les semaines sans scène exploitable
+    # (elle ne renvoie pas une ligne à valeur null, elle ne renvoie rien).
+    # On reconstruit donc nous-même les 13 créneaux attendus, et on comble
+    # les trous avec des valeurs null pour que le graphique affiche toujours
+    # une grille temporelle régulière (semaine par semaine), avec des trous
+    # visibles là où Sentinel-2 n'a pas pu fournir d'image utilisable.
+    by_date = {row['date']: row for row in historical}
+    start   = datetime.strptime(date_from[:10], '%Y-%m-%d')
+
+    full_weeks = []
+    for i in range(weeks):
+        week_date = (start + timedelta(weeks=i)).strftime('%Y-%m-%d')
+        if week_date in by_date:
+            full_weeks.append(by_date[week_date])
+        else:
+            empty_row = {'date': week_date}
+            for idx in indices:
+                empty_row[idx]          = None
+                empty_row[f'{idx}_raw'] = None
+            full_weeks.append(empty_row)
+
+    history_out    = _build_history_rows(full_weeks, indices)
+    weeks_with_data = sum(1 for r in full_weeks if r.get('ndvi') is not None)
+
+    return {
+        'entity_id':       entity_id,
+        'entity_type':     entity_type,
+        'name':            name,
+        'granularity':     'weekly',
+        'weeks':           weeks,
+        'weeks_with_data': weeks_with_data,   # ex: 4 sur 13
+        'period':          {'from': date_from[:10], 'to': date_to[:10]},
+        'history':         history_out,
+        'tiers_meta':      TIERS,
+        'out_of_bounds':   out_of_bounds,
+    }, None
+
+# ── Evalscripts de classification (image colorée avec seuils) ────────────────
+
+# ── Evalscript générique de classification (tous indices, une seule bande active) ──
+# On calcule tous les indices en JS et on ne colorie que celui demandé via un paramètre.
+
+GENERIC_CLASSIFICATION_EVALSCRIPT = """//VERSION=3
+function setup() {
+  return {
+    input: ['B02','B03','B04','B05','B08','B11','B12','dataMask'],
+    output: { bands: 4 }
+  };
+}
+
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+function evaluatePixel(s) {
+  if (s.dataMask === 0) return [0, 0, 0, 0];
+
+  var indices = {};
+  indices.ndvi = (s.B08 - s.B04) / (s.B08 + s.B04 + 1e-10);
+  indices.ndmi = (s.B08 - s.B11) / (s.B08 + s.B11 + 1e-10);
+  indices.ndwi = (s.B03 - s.B08) / (s.B03 + s.B08 + 1e-10);
+  var nmdiD = s.B08 + (s.B11 - s.B12);
+  indices.nmdi = Math.abs(nmdiD) > 1e-6 ? (s.B08 - (s.B11 - s.B12)) / nmdiD : 0;
+  var eviD = s.B08 + 6*s.B04 - 7.5*s.B02 + 1;
+  indices.evi = Math.abs(eviD) > 1e-6 ? 2.5*(s.B08 - s.B04) / eviD : 0;
+  indices.savi = 1.5*(s.B08 - s.B04) / (s.B08 + s.B04 + 0.5 + 1e-10);
+  indices.nbr = (s.B08 - s.B12) / (s.B08 + s.B12 + 1e-10);
+  var bsiD = (s.B11 + s.B04) + (s.B08 + s.B02);
+  indices.bsi = Math.abs(bsiD) > 1e-6 ? ((s.B11 + s.B04) - (s.B08 + s.B02)) / bsiD : 0;
+  indices.ndre = (s.B08 - s.B05) / (s.B08 + s.B05 + 1e-10);
+
+  var TARGET = '__INDEX_PLACEHOLDER__';
+  var THRESHOLDS = __THRESHOLDS_PLACEHOLDER__;  // [{max, r, g, b}, ...] injecté en Python
+
+  var val = clamp(indices[TARGET], -1, 1);
+
+  for (var i = 0; i < THRESHOLDS.length; i++) {
+    if (val <= THRESHOLDS[i].max) {
+      return [THRESHOLDS[i].r, THRESHOLDS[i].g, THRESHOLDS[i].b, 1];
+    }
+  }
+  var last = THRESHOLDS[THRESHOLDS.length - 1];
+  return [last.r, last.g, last.b, 1];
+}
+"""
+
+# Seuils + labels + couleurs, réutilisés pour calculer les surfaces et la légende
+# Thresholds + labels + colors for the 9 satellite indices
+CLASSIFICATION_THRESHOLDS = {
+    'ndvi': [
+        {'max': 0.1, 'label': 'Bare Soil / Newly Planted',      'color': '#dc1414'},
+        {'max': 0.2, 'label': 'Very Sparse Vegetation',         'color': '#f28c1a'},
+        {'max': 0.3, 'label': 'Sparse Vegetation',              'color': '#f2e633'},
+        {'max': 0.5, 'label': 'Moderate Vegetation',            'color': '#8cbf40'},
+        {'max': 1.0, 'label': 'Dense Vegetation',               'color': '#0d7319'},
+    ],
+    'evi': [
+        {'max': 0.0, 'label': 'Bare Soil / Water',              'color': '#dc1414'},
+        {'max': 0.2, 'label': 'Dry / Stressed Vegetation',      'color': '#f28c1a'},
+        {'max': 0.4, 'label': 'Moderate Vegetation',            'color': '#f2e633'},
+        {'max': 0.6, 'label': 'Healthy Vegetation',             'color': '#8cbf40'},
+        {'max': 1.0, 'label': 'Very Healthy Vegetation',        'color': '#0d7319'},
+    ],
+    'savi': [
+        {'max': 0.1, 'label': 'Non-Vegetated Area',             'color': '#dc1414'},
+        {'max': 0.2, 'label': 'Very Sparse Vegetation',         'color': '#f28c1a'},
+        {'max': 0.3, 'label': 'Sparse Vegetation',              'color': '#f2e633'},
+        {'max': 0.5, 'label': 'Moderate Vegetation',            'color': '#8cbf40'},
+        {'max': 1.0, 'label': 'Dense Vegetation',               'color': '#0d7319'},
+    ],
+    'ndmi': [
+        {'max': -0.2, 'label': 'Very Dry / Non-Vegetated',      'color': '#dc1414'},
+        {'max':  0.0, 'label': 'Low Moisture',                  'color': '#f28c1a'},
+        {'max':  0.2, 'label': 'Moderate Moisture',             'color': '#f2e633'},
+        {'max':  0.4, 'label': 'High Moisture',                 'color': '#8cbf40'},
+        {'max':  1.0, 'label': 'Saturated',                     'color': '#0d7319'},
+    ],
+    'ndwi': [
+        {'max': -0.3, 'label': 'Severe Water Stress',           'color': '#dc1414'},
+        {'max':  0.0, 'label': 'Moderate Drought',              'color': '#f28c1a'},
+        {'max':  0.15, 'label': 'Normal Moisture',              'color': '#f2e633'},
+        {'max':  0.3, 'label': 'Wet Area',                      'color': '#8cbf40'},
+        {'max':  1.0, 'label': 'Open Water',                    'color': '#0d7319'},
+    ],
+    'nmdi': [
+        {'max': 0.6,  'label': 'Moist Soil',                    'color': '#0d7319'},
+        {'max': 0.65, 'label': 'Adequate Moisture',             'color': '#8cbf40'},
+        {'max': 0.7,  'label': 'Moderate Drought',              'color': '#f2e633'},
+        {'max': 0.8,  'label': 'Severe Drought',                'color': '#f28c1a'},
+        {'max': 1.0,  'label': 'Extreme Drought',               'color': '#dc1414'},
+    ],
+    'nbr': [
+        {'max': -0.1, 'label': 'Burned Area',                   'color': '#dc1414'},
+        {'max':  0.1, 'label': 'Bare / Dry Soil',               'color': '#f28c1a'},
+        {'max':  0.3, 'label': 'Moderate Vegetation',           'color': '#f2e633'},
+        {'max':  0.6, 'label': 'Healthy Vegetation',            'color': '#8cbf40'},
+        {'max':  1.0, 'label': 'Very Healthy Vegetation',       'color': '#0d7319'},
+    ],
+    'bsi': [
+        {'max': -0.3, 'label': 'Full Vegetation Cover',         'color': '#0d7319'},
+        {'max':  0.0, 'label': 'Healthy Vegetation',            'color': '#8cbf40'},
+        {'max':  0.1, 'label': 'Sparse Vegetation',             'color': '#f2e633'},
+        {'max':  0.3, 'label': 'Partially Exposed Soil',        'color': '#f28c1a'},
+        {'max':  1.0, 'label': 'Bare Soil',                     'color': '#dc1414'},
+    ],
+    'ndre': [
+        {'max': 0.1, 'label': 'No Vegetation',                  'color': '#dc1414'},
+        {'max': 0.2, 'label': 'Low Vegetation',                 'color': '#f28c1a'},
+        {'max': 0.3, 'label': 'Moderate Vegetation',            'color': '#f2e633'},
+        {'max': 0.4, 'label': 'High Vegetation',                'color': '#8cbf40'},
+        {'max': 1.0, 'label': 'Very High Vegetation',           'color': '#0d7319'},
+    ],
+}
+
+# For backward compatibility, we keep the name CLASSIFICATION_EVALSCRIPTS,
+# but as a function that dynamically generates the evalscript for any index.
+def _hex_to_rgb01(hexcolor):
+    h = hexcolor.lstrip('#')
+    return tuple(int(h[i:i+2], 16) / 255 for i in (0, 2, 4))
+
+
+def _build_classification_evalscript(index_name):
+    """Generate the JS evalscript for a given index by injecting its thresholds and colors."""
+    thresholds = CLASSIFICATION_THRESHOLDS[index_name]
+    js_thresholds = '[' + ','.join(
+        '{{max:{},r:{:.4f},g:{:.4f},b:{:.4f}}}'.format(
+            t['max'], *_hex_to_rgb01(t['color'])
+        ) for t in thresholds
+    ) + ']'
+
+    return (
+        GENERIC_CLASSIFICATION_EVALSCRIPT
+        .replace('__INDEX_PLACEHOLDER__', index_name)
+        .replace('__THRESHOLDS_PLACEHOLDER__', js_thresholds)
+    )
+
+def _call_process_image(geometry, date_from, date_to, index_name, width=1024, height=1024):
+    """
+    Appelle l'API Process de Copernicus pour obtenir une image PNG classifiée.
+    """
+    if index_name not in CLASSIFICATION_THRESHOLDS:
+        raise ValueError(f'Index "{index_name}" non supporté pour la classification')
+
+    token = _get_token()
+    evalscript = _build_classification_evalscript(index_name)
+
+    payload = {
+        'input': {
+            'bounds': {
+                'geometry': geometry,
+                'properties': {'crs': 'http://www.opengis.net/def/crs/EPSG/0/4326'}
+            },
+            'data': [{
+                'type': 'sentinel-2-l2a',
+                'dataFilter': {
+                    'timeRange': {'from': date_from, 'to': date_to},
+                    'maxCloudCoverage': 30,
+                    'mosaickingOrder': 'leastCC',
+                }
+            }],
+        },
+        'output': {
+            'width': width,
+            'height': height,
+            'responses': [{
+                'identifier': 'default',
+                'format': {'type': 'image/png'}
+            }]
+        },
+        'evalscript': evalscript,
+    }
+
+    resp = requests.post(
+        'https://sh.dataspace.copernicus.eu/api/v1/process',
+        json=payload,
+        headers={'Authorization': f'Bearer {token}'},
+        timeout=60,
+    )
+    resp.raise_for_status()
+    return resp.content
+
+def _compute_class_areas(geometry, date_from, date_to, index_name, points=None, width=1024, height=1024):
+    from PIL import Image
+    import io
+    import numpy as np
+
+    png_bytes = _call_process_image(geometry, date_from, date_to, index_name, width, height)
+    img = Image.open(io.BytesIO(png_bytes)).convert('RGBA')
+    arr = np.array(img)
+
+    thresholds = CLASSIFICATION_THRESHOLDS[index_name]
+
+    # Surface réelle projetée (ha → km²)
+    if points:
+        area_ha, _ = _compute_area_ha_from_points(points)
+        poly_area_km2 = area_ha / 100.0
+    else:
+        poly_area_km2 = 0.0
+
+    valid_mask = arr[:, :, 3] > 0
+    total_valid_px = valid_mask.sum()
+
+    results = []
+    for t in thresholds:
+        color_rgb = tuple(int(t['color'].lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
+        match = (
+            (np.abs(arr[:, :, 0].astype(int) - color_rgb[0]) < 10) &
+            (np.abs(arr[:, :, 1].astype(int) - color_rgb[1]) < 10) &
+            (np.abs(arr[:, :, 2].astype(int) - color_rgb[2]) < 10) &
+            valid_mask
+        )
+        px_count = int(match.sum())
+        pct = px_count / total_valid_px if total_valid_px > 0 else 0
+        results.append({
+            'label':    t['label'],
+            'color':    t['color'],
+            'area_km2': round(pct * poly_area_km2, 4),
+            'pct':      round(pct * 100, 2),
+        })
+
+    return results, png_bytes
+
+def _build_history_rows(historical, indices):
+    """
+    Convertit une liste de lignes brutes {date, idx, idx_raw, ...} (sortie de
+    _parse_response) en lignes enrichies {date, idx: {value, raw, oob, tier}}.
+    Factorisé pour être réutilisé par get_sat_index_full (P3M) et
+    get_weekly_trend (P1W).
+    """
+    history_out = []
+    for row in historical:
+        out = {'date': row['date']}
+        for idx in indices:
+            val     = row.get(idx)
+            raw_val = row.get(f'{idx}_raw')
+            out[idx] = {
+                'value': val,
+                'raw':   raw_val,
+                'oob':   raw_val is not None and (raw_val < -1.0 or raw_val > 1.0),
+                'tier':  get_tier(idx, val),
+            }
+        history_out.append(out)
+    return history_out
+
+
+def get_monthly_trend(entity_type, entity_id, months=12):
+    """
+    Vue mensuelle (P1M), pour superposer NDVI/NDMI/etc. à la pluviométrie
+    Open-Meteo (récupérée côté frontend). Grille de mois calendaires
+    reconstruite comme pour get_weekly_trend, pour éviter le décalage
+    visuel quand un mois n'a aucune image Sentinel-2 exploitable.
+    """
+    from app.models import Farm, Forest, Point
+
+    indices = ['ndvi', 'ndmi', 'ndwi', 'nmdi', 'evi', 'savi', 'nbr', 'bsi']
+    geolocation = None
+
+    if entity_type == 'farm':
+        entity = Farm.query.filter_by(farm_id=entity_id).first()
+        if not entity:
+            return None, 'Farm not found'
+        points      = Point.query.filter_by(owner_type='farmer', owner_id=str(entity_id)).order_by(Point.id).all()
+        geometry    = _build_geometry(points, entity.geolocation)
+        name        = entity.name
+        geolocation = entity.geolocation   # ex: "-18.8792,47.5079" — réutilisé par le frontend pour Open-Meteo
+    else:
+        entity = Forest.query.filter_by(id=entity_id).first()
+        if not entity:
+            return None, 'Forest not found'
+        points   = Point.query.filter_by(owner_type='forest', owner_id=str(entity_id)).order_by(Point.id).all()
+        geometry = _build_geometry(points)
+        name     = entity.name
+
+    if not geometry:
+        return None, 'No geometry available — add polygon points first'
+
+    now = datetime.utcnow()
+    # Grille alignée sur des mois calendaires pleins : du 1er du mois il y a
+    # (months-1) mois, jusqu'à aujourd'hui.
+    first_of_this_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    start_month = first_of_this_month - relativedelta(months=months - 1)
+
+    date_from = start_month.strftime('%Y-%m-%dT00:00:00Z')
+    date_to   = now.strftime('%Y-%m-%dT23:59:59Z')
+
+    try:
+        raw = _call_statistics(
+            geometry, date_from, date_to,
+            interval='P1M', mosaicking_order='leastCC',
+        )
+        historical, out_of_bounds = _parse_response(raw)
+    except Exception as e:
+        logger.error(f'[Sentinel] Monthly trend API call failed for {entity_id}: {e}')
+        return None, f'Sentinel API error: {e}'
+
+    # ── Reconstruire la grille complète de mois (même logique que le hebdo) ──
+    by_month = {row['date'][:7]: row for row in historical}  # clé "YYYY-MM"
+
+    full_months = []
+    for i in range(months):
+        month_dt  = start_month + relativedelta(months=i)
+        month_key = month_dt.strftime('%Y-%m')
+        if month_key in by_month:
+            row = dict(by_month[month_key])
+            row['date'] = month_dt.strftime('%Y-%m-01')
+            full_months.append(row)
+        else:
+            empty_row = {'date': month_dt.strftime('%Y-%m-01')}
+            for idx in indices:
+                empty_row[idx]          = None
+                empty_row[f'{idx}_raw'] = None
+            full_months.append(empty_row)
+
+    history_out       = _build_history_rows(full_months, indices)
+    months_with_data  = sum(1 for r in full_months if r.get('ndvi') is not None)
+
+    return {
+        'entity_id':        entity_id,
+        'entity_type':      entity_type,
+        'name':             name,
+        'geolocation':      geolocation,
+        'granularity':      'monthly',
+        'months':           months,
+        'months_with_data': months_with_data,
+        'period':           {'from': date_from[:10], 'to': date_to[:10]},
+        'history':          history_out,
+        'tiers_meta':       TIERS,
+        'out_of_bounds':    out_of_bounds,
+    }, None
+    
+def _extract_polygon_coords(geojson):
+    """Normalise Polygon / Feature / FeatureCollection en liste [[lon, lat], ...]."""
+    if not geojson:
+        return None
+    geom = geojson
+    if geom.get('type') == 'FeatureCollection':
+        features = geom.get('features') or []
+        if not features:
+            return None
+        geom = features[0].get('geometry')
+    if geom and geom.get('type') == 'Feature':
+        geom = geom.get('geometry')
+    if not geom or geom.get('type') != 'Polygon':
+        return None
+    coords = geom.get('coordinates')
+    if not coords or not coords[0] or len(coords[0]) < 3:
+        return None
+    return coords[0]
+
+
+def _polygon_hash(coords):
+    import hashlib, json
+    rounded = [[round(lon, 6), round(lat, 6)] for lon, lat in coords]
+    return hashlib.md5(json.dumps(rounded, separators=(',', ':')).encode('utf-8')).hexdigest()

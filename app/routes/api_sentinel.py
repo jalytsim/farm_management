@@ -27,6 +27,8 @@ def farm_sat_index(farm_id):
     yield_t_per_ha = request.args.get('yield_t_per_ha', type=float, default=1.5)
     price_per_t    = request.args.get('price_per_t',    type=float, default=500)
     force_refresh  = request.args.get('refresh', '').lower() == 'true'
+    hist_yield_1   = request.args.get('hist_yield_1',   type=float)   # optional
+    hist_yield_2   = request.args.get('hist_yield_2',   type=float)   # optional
 
     result, error = get_sat_index_full(
         'farm', farm_id,
@@ -34,6 +36,8 @@ def farm_sat_index(farm_id):
         yield_t_per_ha=yield_t_per_ha,
         price_per_t=price_per_t,
         force_refresh=force_refresh,
+        hist_yield_1=hist_yield_1,
+        hist_yield_2=hist_yield_2,
     )
     if error:
         code = 404 if 'not found' in error.lower() else 500
@@ -62,12 +66,16 @@ def farm_sat_index_pdf(farm_id):
     loan_amount    = request.args.get('loan_amount',    type=float)
     yield_t_per_ha = request.args.get('yield_t_per_ha', type=float, default=1.5)
     price_per_t    = request.args.get('price_per_t',    type=float, default=500)
+    hist_yield_1   = request.args.get('hist_yield_1',   type=float)
+    hist_yield_2   = request.args.get('hist_yield_2',   type=float)
 
     result, error = get_sat_index_full(
         'farm', farm_id,
         loan_amount=loan_amount,
         yield_t_per_ha=yield_t_per_ha,
         price_per_t=price_per_t,
+        hist_yield_1=hist_yield_1,
+        hist_yield_2=hist_yield_2,
     )
     if error:
         return jsonify({'error': error}), 500
@@ -394,3 +402,165 @@ def _build_pdf_html(data):
     Max cloud cover 30% &middot; Quarterly aggregation &middot; Prophet ML &middot; 80% confidence intervals
   </div>
 </div></body></html>"""
+
+@sentinel_bp.route('/farm/<string:farm_id>/classification/<string:index_name>', methods=['GET'])
+@jwt_required()
+def farm_classification_image(farm_id, index_name):
+    """Retourne l'image classifiée PNG + les surfaces par classe en JSON."""
+    from app.utils.sentinel_utils import (
+        _build_geometry, _compute_class_areas, CLASSIFICATION_THRESHOLDS
+    )
+    from app.models import Point, Farm
+    from datetime import datetime
+    from dateutil.relativedelta import relativedelta
+    import base64, io
+
+    if index_name not in CLASSIFICATION_THRESHOLDS:
+        return jsonify({'error': f'Index "{index_name}" non supporté'}), 400
+
+    entity = Farm.query.filter_by(farm_id=farm_id).first()
+    if not entity:
+        return jsonify({'error': 'Farm not found'}), 404
+
+    points = Point.query.filter_by(owner_type='farmer', owner_id=str(farm_id)).order_by(Point.id).all()
+    geometry = _build_geometry(points, entity.geolocation)
+    if not geometry:
+        return jsonify({'error': 'No geometry available'}), 400
+
+    now = datetime.utcnow()
+    date_to = now.strftime('%Y-%m-%dT23:59:59Z')
+    date_from = (now - relativedelta(months=1)).strftime('%Y-%m-%dT00:00:00Z')
+
+    try:
+        class_areas, png_bytes = _compute_class_areas(geometry, date_from, date_to, index_name, points=points)
+    except Exception as e:
+        return jsonify({'error': f'Classification failed: {str(e)}'}), 500
+
+    return jsonify({
+        'index':        index_name,
+        'classes':      class_areas,
+        'image_base64': base64.b64encode(png_bytes).decode('utf-8'),
+        'period':       {'from': date_from[:10], 'to': date_to[:10]},
+    }), 200
+
+
+@sentinel_bp.route('/forest/<int:forest_id>/classification/<string:index_name>', methods=['GET'])
+@jwt_required()
+def forest_classification_image(forest_id, index_name):
+    """Retourne l'image classifiée PNG + les surfaces par classe en JSON (forêt)."""
+    from app.utils.sentinel_utils import (
+        _build_geometry, _compute_class_areas, CLASSIFICATION_THRESHOLDS
+    )
+    from app.models import Point, Forest
+    from datetime import datetime
+    from dateutil.relativedelta import relativedelta
+    import base64, io
+
+    if index_name not in CLASSIFICATION_THRESHOLDS:
+        return jsonify({'error': f'Index "{index_name}" non supporté'}), 400
+
+    entity = Forest.query.get(forest_id)
+    if not entity:
+        return jsonify({'error': 'Forest not found'}), 404
+
+    points = Point.query.filter_by(owner_type='forest', owner_id=str(forest_id)).order_by(Point.id).all()
+    geometry = _build_geometry(points, None)
+    if not geometry:
+        return jsonify({'error': 'No geometry available'}), 400
+
+    now = datetime.utcnow()
+    date_to = now.strftime('%Y-%m-%dT23:59:59Z')
+    date_from = (now - relativedelta(months=1)).strftime('%Y-%m-%dT00:00:00Z')
+
+    try:
+        class_areas, png_bytes = _compute_class_areas(geometry, date_from, date_to, index_name, points=points)
+    except Exception as e:
+        return jsonify({'error': f'Classification failed: {str(e)}'}), 500
+
+    return jsonify({
+        'index':        index_name,
+        'classes':      class_areas,
+        'image_base64': base64.b64encode(png_bytes).decode('utf-8'),
+        'period':       {'from': date_from[:10], 'to': date_to[:10]},
+    }), 200
+@jwt_required()
+def farm_weekly_trend(farm_id):
+    from app.utils.sentinel_utils import get_weekly_trend
+    weeks = request.args.get('weeks', type=int, default=13)
+    weeks = max(1, min(weeks, 260))  # garde-fou : 1 semaine à 5 ans max
+
+    result, error = get_weekly_trend('farm', farm_id, weeks=weeks)
+    if error:
+        code = 404 if 'not found' in error.lower() else 500
+        return jsonify({'error': error}), code
+    return jsonify(result), 200
+
+
+@sentinel_bp.route('/forest/<int:forest_id>/weekly-trend', methods=['GET'])
+@jwt_required()
+def forest_weekly_trend(forest_id):
+    from app.utils.sentinel_utils import get_weekly_trend
+    weeks = request.args.get('weeks', type=int, default=13)
+    weeks = max(1, min(weeks, 260))
+
+    result, error = get_weekly_trend('forest', forest_id, weeks=weeks)
+    if error:
+        code = 404 if 'not found' in error.lower() else 500
+        return jsonify({'error': error}), code
+    return jsonify(result), 200
+
+@sentinel_bp.route('/farm/<string:farm_id>/monthly-trend', methods=['GET'])
+@jwt_required()
+def farm_monthly_trend(farm_id):
+    from app.utils.sentinel_utils import get_monthly_trend
+    months = request.args.get('months', type=int, default=12)
+    months = max(1, min(months, 60))  # garde-fou : 1 mois à 5 ans max
+
+    result, error = get_monthly_trend('farm', farm_id, months=months)
+    if error:
+        code = 404 if 'not found' in error.lower() else 500
+        return jsonify({'error': error}), code
+    return jsonify(result), 200
+
+
+@sentinel_bp.route('/forest/<int:forest_id>/monthly-trend', methods=['GET'])
+@jwt_required()
+def forest_monthly_trend(forest_id):
+    from app.utils.sentinel_utils import get_monthly_trend
+    months = request.args.get('months', type=int, default=12)
+    months = max(1, min(months, 60))
+
+    result, error = get_monthly_trend('forest', forest_id, months=months)
+    if error:
+        code = 404 if 'not found' in error.lower() else 500
+        return jsonify({'error': error}), code
+    return jsonify(result), 200
+
+@sentinel_bp.route('/guest/sat-index', methods=['POST'])
+def guest_sat_index():
+    from app.utils.sentinel_utils import get_sat_index_full_guest
+    from app.utils.feature_payment_utils import has_guest_access
+
+    data    = request.get_json(silent=True) or {}
+    phone   = data.get('phone')
+    geojson = data.get('geojson')
+
+    if not phone or not geojson:
+        return jsonify({'error': 'phone and geojson are required'}), 400
+
+    if not has_guest_access(phone, 'reportndviguest'):
+        return jsonify({'error': 'No active paid access for this phone number'}), 403
+
+    result, error = get_sat_index_full_guest(
+        geojson, phone,
+        loan_amount    = data.get('loan_amount'),
+        yield_t_per_ha = data.get('yield_t_per_ha', 1.5),
+        price_per_t    = data.get('price_per_t', 500),
+        force_refresh  = bool(data.get('refresh', False)),
+        hist_yield_1   = data.get('hist_yield_1'),
+        hist_yield_2   = data.get('hist_yield_2'),
+    )
+    if error:
+        code = 400 if 'polygon' in error.lower() else 500
+        return jsonify({'error': error}), code
+    return jsonify(result), 200

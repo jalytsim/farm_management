@@ -2,7 +2,7 @@ import os
 from flask import Blueprint, jsonify, request
 from flask_cors import cross_origin
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from app.models import Forest, User
+from app.models import Forest, User, Point
 from app.utils import forest_utils
 from werkzeug.utils import secure_filename
 
@@ -215,3 +215,127 @@ def delete_forest(forest_id):
     forest = Forest.query.get_or_404(forest_id)
     forest_utils.delete_forest(forest.id)
     return jsonify(success=True)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GET /api/forest/<forest_id>/export/polygon
+# Exporte le polygone d'une seule forêt en GeoJSON (geometry: MultiPolygon)
+# ─────────────────────────────────────────────────────────────────────────────
+@bp.route('/<int:forest_id>/export/polygon', methods=['GET'])
+@jwt_required()
+def export_forest_polygon(forest_id):
+    identity = get_jwt_identity()
+    user_id  = identity['id']
+    user     = User.query.get(user_id)
+
+    if not user:
+        return jsonify({'status': 'error', 'message': 'User not found'}), 404
+
+    forest = Forest.query.get_or_404(forest_id)
+
+    if not user.is_admin and forest.created_by != user_id:
+        return jsonify({'status': 'error', 'message': 'Unauthorized'}), 403
+
+    points = (
+        Point.query
+        .filter_by(owner_type='forest', owner_id=str(forest.id))
+        .order_by(Point.id.asc())
+        .all()
+    )
+
+    if len(points) < 3:
+        return jsonify({
+            'status':  'error',
+            'message': 'Not enough points to build a polygon for this forest',
+        }), 400
+
+    ring = [[float(p.longitude), float(p.latitude)] for p in points]
+    if ring[0] != ring[-1]:
+        ring.append(ring[0])
+
+    feature = {
+        "type": "Feature",
+        "geometry": {
+            "type": "MultiPolygon",
+            "coordinates": [[ring]],
+        },
+        "properties": {
+            "forest_id":    forest.id,
+            "name":         forest.name,
+            "tree_type":    forest.tree_type,
+            "vertex_count": len(ring) - 1,
+        },
+    }
+
+    geojson = {
+        "type": "FeatureCollection",
+        "features": [feature],
+    }
+
+    return jsonify({
+        "status":  "success",
+        "geojson": geojson,
+    })
+    
+# ─────────────────────────────────────────────────────────────────────────────
+# GET /api/forest/export/polygons
+# Exporte les polygones de toutes les forêts visibles en un seul GeoJSON
+# ─────────────────────────────────────────────────────────────────────────────
+@bp.route('/export/polygons', methods=['GET'])
+@jwt_required()
+def export_all_forest_polygons():
+    identity = get_jwt_identity()
+    user_id  = identity['id']
+    user     = User.query.get(user_id)
+
+    if not user:
+        return jsonify({'status': 'error', 'message': 'User not found'}), 404
+
+    if user.is_admin:
+        forests = Forest.query.all()
+    else:
+        forests = Forest.query.filter_by(created_by=user_id).all()
+
+    features = []
+    skipped  = []
+
+    for forest in forests:
+        points = (
+            Point.query
+            .filter_by(owner_type='forest', owner_id=str(forest.id))
+            .order_by(Point.id.asc())
+            .all()
+        )
+
+        if len(points) < 3:
+            skipped.append({"forest_id": forest.id, "name": forest.name, "reason": "not_enough_points"})
+            continue
+
+        ring = [[float(p.longitude), float(p.latitude)] for p in points]
+        if ring[0] != ring[-1]:
+            ring.append(ring[0])
+
+        features.append({
+            "type": "Feature",
+            "geometry": {
+                "type": "MultiPolygon",
+                "coordinates": [[ring]],
+            },
+            "properties": {
+                "forest_id":    forest.id,
+                "name":         forest.name,
+                "tree_type":    forest.tree_type,
+                "vertex_count": len(ring) - 1,
+            },
+        })
+
+    geojson = {
+        "type": "FeatureCollection",
+        "features": features,
+    }
+
+    return jsonify({
+        "status":  "success",
+        "geojson": geojson,
+        "total_exported": len(features),
+        "skipped": skipped,
+    })

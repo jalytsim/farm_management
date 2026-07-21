@@ -12,6 +12,7 @@ from app.utils import farm_utils
 import logging
 from datetime import datetime, date
 import datetime
+from app.models import Point
 
 
 bp = Blueprint('api_farm', __name__, url_prefix='/api/farm')
@@ -887,3 +888,133 @@ def get_area_by_compliance():
         })
 
     return jsonify({'status': 'success', 'data': data})
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GET /api/farm/export/polygons
+# Exporte les polygones de toutes les fermes visibles en un seul GeoJSON
+# ─────────────────────────────────────────────────────────────────────────────
+@bp.route('/export/polygons', methods=['GET'])
+@jwt_required()
+def export_farm_polygons():
+    identity = get_jwt_identity()
+    user_id  = identity['id']
+    user     = User.query.get(user_id)
+
+    if not user:
+        return jsonify({'status': 'error', 'message': 'User not found'}), 404
+
+    if user.is_admin:
+        farms = Farm.query.all()
+    else:
+        farms = Farm.query.filter_by(created_by=user_id).all()
+
+    features = []
+    skipped  = []
+
+    for farm in farms:
+        points = (
+            Point.query
+            .filter_by(owner_type='farmer', owner_id=farm.farm_id)
+            .order_by(Point.id.asc())
+            .all()
+        )
+
+        if len(points) < 3:
+            skipped.append({"farm_id": farm.farm_id, "name": farm.name, "reason": "not_enough_points"})
+            continue
+
+        ring = [[float(p.longitude), float(p.latitude)] for p in points]
+        # Fermer l'anneau si besoin (même logique que MapView.jsx)
+        if ring[0] != ring[-1]:
+            ring.append(ring[0])
+
+        features.append({
+            "type": "Feature",
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [ring],
+            },
+            "properties": {
+                "farm_id":     farm.farm_id,
+                "name":        farm.name,
+                "subcounty":   farm.subcounty,
+                "district_id": farm.district_id,
+                "cin":         farm.cin,
+                "gender":      farm.gender,
+            },
+        })
+
+    geojson = {
+        "type": "FeatureCollection",
+        "features": features,
+    }
+
+    return jsonify({
+        "status":  "success",
+        "geojson": geojson,
+        "total_exported": len(features),
+        "skipped": skipped,
+    })
+    
+    # ─────────────────────────────────────────────────────────────────────────────
+# GET /api/farm/<farm_id>/export/polygon
+# Exporte le polygone d'une seule ferme en GeoJSON (geometry: MultiPolygon)
+# ─────────────────────────────────────────────────────────────────────────────
+@bp.route('/<farm_id>/export/polygon', methods=['GET'])
+@jwt_required()
+def export_single_farm_polygon(farm_id):
+    identity = get_jwt_identity()
+    user_id  = identity['id']
+    user     = User.query.get(user_id)
+
+    if not user:
+        return jsonify({'status': 'error', 'message': 'User not found'}), 404
+
+    farm = Farm.query.filter_by(farm_id=farm_id).first_or_404()
+
+    if not user.is_admin and farm.created_by != user_id:
+        return jsonify({'status': 'error', 'message': 'Unauthorized'}), 403
+
+    points = (
+        Point.query
+        .filter_by(owner_type='farmer', owner_id=farm.farm_id)
+        .order_by(Point.id.asc())
+        .all()
+    )
+
+    if len(points) < 3:
+        return jsonify({
+            'status':  'error',
+            'message': 'Not enough points to build a polygon for this farm',
+        }), 400
+
+    ring = [[float(p.longitude), float(p.latitude)] for p in points]
+    if ring[0] != ring[-1]:
+        ring.append(ring[0])
+
+    feature = {
+        "type": "Feature",
+        "geometry": {
+            "type": "MultiPolygon",
+            "coordinates": [[ring]],   # un seul polygone dans le tableau, extensible plus tard
+        },
+        "properties": {
+            "farm_id":     farm.farm_id,
+            "name":        farm.name,
+            "subcounty":   farm.subcounty,
+            "district_id": farm.district_id,
+            "cin":         farm.cin,
+            "gender":      farm.gender,
+            "vertex_count": len(ring) - 1,
+        },
+    }
+
+    geojson = {
+        "type": "FeatureCollection",
+        "features": [feature],
+    }
+
+    return jsonify({
+        "status":  "success",
+        "geojson": geojson,
+    })
