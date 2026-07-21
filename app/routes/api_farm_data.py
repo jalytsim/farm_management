@@ -47,11 +47,19 @@ def create_farmdata():
     user = User.query.get(user_id)
 
     data = request.json
+    if not data:
+        return jsonify({"msg": "Request body is empty or not valid JSON."}), 400
+
     # Ensure hs_code is included if provided
     data['hs_code'] = data.get('hs_code')
 
-    farmdata_utils.create_farmdata(data, user)
-    return jsonify({"msg": "FarmData created successfully."}), 201
+    try:
+        farmdata_utils.create_farmdata(data, user)
+        return jsonify({"msg": "FarmData created successfully."}), 201
+    except ValueError as e:
+        return jsonify({"msg": str(e)}), 400
+    except Exception as e:
+        return jsonify({"msg": "An unexpected error occurred while creating farm data.", "error": str(e)}), 500
 
 @bp.route('/<int:id>/edit', methods=['PUT'])
 @jwt_required()
@@ -62,13 +70,17 @@ def edit_farmdata(id):
     farmdata = farmdata_utils.get_farmdata_by_id(id)
     data = request.json or {}
 
-    # Évite de modifier les champs sensibles depuis le frontend
     data.pop('timestamp', None)
     data.pop('date_created', None)
     data.pop('created_by', None)
 
-    farmdata_utils.update_farmdata(farmdata, data, user)
-    return jsonify({"msg": "FarmData updated successfully."})
+    try:
+        farmdata_utils.update_farmdata(farmdata, data, user)
+        return jsonify({"msg": "FarmData updated successfully."})
+    except ValueError as e:
+        return jsonify({"msg": str(e)}), 400
+    except Exception as e:
+        return jsonify({"msg": "An unexpected error occurred while updating farm data.", "error": str(e)}), 500
 
 
 @bp.route('/<int:id>', methods=['GET'])
