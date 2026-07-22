@@ -1016,3 +1016,72 @@ def export_single_farm_polygon(farm_id):
         "status":  "success",
         "geojson": geojson,
     })
+    
+@bp.route('/bulk-create-geojson', methods=['POST'])
+@jwt_required()
+def bulk_create_farms_geojson():
+    identity = get_jwt_identity()
+    user_id = identity['id']
+    user = User.query.get(user_id)
+
+    if not user or not user.id_start:
+        return jsonify({"msg": "User id_start is not defined"}), 400
+    if 'file' not in request.files:
+        return jsonify({"msg": "No file provided"}), 400
+
+    file = request.files['file']
+    try:
+        geojson = json.loads(file.stream.read().decode('utf-8'))
+    except Exception as e:
+        return jsonify({"msg": f"Invalid GeoJSON file: {e}"}), 400
+
+    features = geojson.get('features', [])
+    if not features:
+        return jsonify({"msg": "No features found in GeoJSON"}), 400
+
+    results = {'success': 0, 'errors': 0, 'skipped': 0, 'details': []}
+
+    for row_num, feature in enumerate(features, start=1):
+        props = feature.get('properties', {}) or {}
+        name = (props.get('name') or '').strip()
+        try:
+            if not name:
+                raise ValueError('Name is required')
+
+            district_id = props.get('district_id')
+            farmergroup_id = props.get('farmergroup_id')
+            cin = props.get('cin')
+
+            ring = point_utils.ring_from_geometry(feature.get('geometry') or {})
+            if len(ring) < 3:
+                raise ValueError('Polygon needs at least 3 vertices')
+            lon, lat = point_utils.polygon_centroid(ring)
+            geolocation = f"{lat:.6f}, {lon:.6f}"
+
+            existing_farm = Farm.query.filter_by(name=name, district_id=district_id, cin=cin).first()
+            if existing_farm:
+                results['skipped'] += 1
+                results['details'].append({'row': row_num, 'name': name, 'farm_id': existing_farm.farm_id,
+                                             'status': 'skipped', 'reason': 'Farm already exists for this district/CIN'})
+                continue
+
+            new_farm = farm_utils.create_farm(
+                user=user, name=name, subcounty=props.get('subcounty'),
+                farmergroup_id=farmergroup_id, district_id=district_id, geolocation=geolocation,
+                phonenumber1=props.get('phonenumber1') or props.get('phonenumber'),
+                phonenumber2=props.get('phonenumber2', ''), gender=props.get('gender'), cin=cin,
+            )
+
+            for lng, lat_pt in ring:
+                point_utils.create_point(longitude=lng, latitude=lat_pt, owner_type='farmer',
+                                          district_id=district_id, farmer_id=new_farm.farm_id, user=user)
+
+            results['success'] += 1
+            results['details'].append({'row': row_num, 'name': name, 'farm_id': new_farm.farm_id,
+                                         'points_created': len(ring), 'status': 'created'})
+        except Exception as e:
+            db.session.rollback()
+            results['errors'] += 1
+            results['details'].append({'row': row_num, 'name': name or 'N/A', 'error': str(e)})
+
+    return jsonify(results), 200

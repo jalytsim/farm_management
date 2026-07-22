@@ -1,9 +1,10 @@
+import json
 import os
 from flask import Blueprint, jsonify, request
 from flask_cors import cross_origin
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.models import Forest, User, Point
-from app.utils import forest_utils
+from app.utils import forest_utils, point_utils
 from werkzeug.utils import secure_filename
 
 import logging
@@ -339,3 +340,61 @@ def export_all_forest_polygons():
         "total_exported": len(features),
         "skipped": skipped,
     })
+    
+@bp.route('/bulk-create-geojson', methods=['POST'])
+@jwt_required()
+def bulk_create_forests_geojson():
+    identity = get_jwt_identity()
+    user_id = identity['id']
+    user = User.query.get(user_id)
+
+    if 'file' not in request.files:
+        return jsonify({"msg": "No file provided"}), 400
+
+    file = request.files['file']
+    try:
+        geojson = json.loads(file.stream.read().decode('utf-8'))
+    except Exception as e:
+        return jsonify({"msg": f"Invalid GeoJSON file: {e}"}), 400
+
+    features = geojson.get('features', [])
+    if not features:
+        return jsonify({"msg": "No features found in GeoJSON"}), 400
+
+    results = {'success': 0, 'errors': 0, 'skipped': 0, 'details': []}
+
+    for row_num, feature in enumerate(features, start=1):
+        props = feature.get('properties', {}) or {}
+        name = (props.get('name') or '').strip()
+        tree_type = (props.get('tree_type') or '').strip()
+        try:
+            if not name or not tree_type:
+                raise ValueError('name and tree_type are required')
+
+            ring = point_utils.ring_from_geometry(feature.get('geometry') or {})
+            if len(ring) < 3:
+                raise ValueError('Polygon needs at least 3 vertices')
+
+            existing_forest = Forest.query.filter_by(name=name, tree_type=tree_type, created_by=user_id).first()
+            if existing_forest:
+                results['skipped'] += 1
+                results['details'].append({'row': row_num, 'name': name, 'tree_type': tree_type,
+                                             'forest_id': existing_forest.id, 'status': 'skipped',
+                                             'reason': 'Forest already exists with this name/tree type'})
+                continue
+
+            new_forest = forest_utils.create_forest(name=name, tree_type=tree_type, user=user)
+
+            for lng, lat_pt in ring:
+                point_utils.create_point(longitude=lng, latitude=lat_pt, owner_type='forest',
+                                          forest_id=new_forest.id, user=user)
+
+            results['success'] += 1
+            results['details'].append({'row': row_num, 'name': name, 'tree_type': tree_type,
+                                         'forest_id': new_forest.id, 'points_created': len(ring), 'status': 'created'})
+        except Exception as e:
+            db.session.rollback()
+            results['errors'] += 1
+            results['details'].append({'row': row_num, 'name': name or 'N/A', 'error': str(e)})
+
+    return jsonify(results), 200

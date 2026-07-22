@@ -218,3 +218,36 @@ def calculate_area(vertices):
 
     area = abs(area) / 2.0
     return area
+
+def ring_from_geometry(geometry):
+    """Extrait le 1er anneau [lon,lat] d'une géométrie Polygon/MultiPolygon, sans point de fermeture."""
+    gtype = geometry.get('type')
+    coords = geometry.get('coordinates')
+    if gtype == 'Polygon':
+        ring = coords[0]
+    elif gtype == 'MultiPolygon':
+        ring = coords[0][0]
+    else:
+        raise ValueError(f'Geometry type not supported: {gtype}')
+    if len(ring) >= 2 and ring[0] == ring[-1]:
+        ring = ring[:-1]
+    return ring
+
+
+def polygon_centroid(ring):
+    """Centroïde area-weighted d'un polygone simple (ring non fermé)."""
+    n = len(ring)
+    if n < 3:
+        raise ValueError('A polygon needs at least 3 vertices')
+    area = cx = cy = 0.0
+    for i in range(n):
+        x0, y0 = ring[i]
+        x1, y1 = ring[(i + 1) % n]
+        cross = x0 * y1 - x1 * y0
+        area += cross
+        cx += (x0 + x1) * cross
+        cy += (y0 + y1) * cross
+    area /= 2.0
+    if abs(area) < 1e-12:
+        return sum(p[0] for p in ring) / n, sum(p[1] for p in ring) / n
+    return cx / (6.0 * area), cy / (6.0 * area)
