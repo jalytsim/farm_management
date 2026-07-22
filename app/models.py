@@ -678,6 +678,122 @@ class SentinelCache(db.Model):
 
     def __repr__(self):
         return f'<SentinelCache farm={self.farm_id} stale={self.is_stale()}>'
+<<<<<<< HEAD
+class ProductCategory(db.Model):
+    __tablename__ = 'productcategory'
+    id           = db.Column(db.Integer, primary_key=True)
+    name         = db.Column(db.String(100), nullable=False, unique=True)
+    slug         = db.Column(db.String(100), unique=True, nullable=False)
+    description  = db.Column(db.Text, nullable=True)
+    date_created = db.Column(db.DateTime, default=datetime.utcnow)
+    created_by   = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+
+    def to_dict(self):
+        return {'id': self.id, 'name': self.name, 'slug': self.slug, 'description': self.description}
+
+
+class EcoProduct(db.Model):
+    __tablename__ = 'ecoproduct'
+    id                     = db.Column(db.Integer, primary_key=True)
+    name                   = db.Column(db.String(255), nullable=False)
+    slug                   = db.Column(db.String(191), unique=True, nullable=False)
+    description            = db.Column(db.Text, nullable=True)
+    category_id            = db.Column(db.Integer, db.ForeignKey('productcategory.id'), nullable=False)
+
+    price                  = db.Column(db.Float, nullable=False)
+    compare_at_price       = db.Column(db.Float, nullable=True)
+    currency               = db.Column(db.String(10), default='USD')
+    unit                   = db.Column(db.String(20), default='kg')
+    stock                  = db.Column(db.Integer, default=0)
+    sku                    = db.Column(db.String(100), unique=True, nullable=True)
+
+    origin_country         = db.Column(db.String(100), nullable=True)
+    is_deforestation_free  = db.Column(db.Boolean, default=False)
+    certification_labels   = db.Column(db.JSON, default=list)
+
+    origin_story  = db.Column(db.Text, nullable=True)
+    farmer_name   = db.Column(db.String(150), nullable=True)
+    harvest_year  = db.Column(db.Integer, nullable=True)
+
+    is_active              = db.Column(db.Boolean, default=True)
+    is_featured            = db.Column(db.Boolean, default=False)
+    date_created           = db.Column(db.DateTime, default=datetime.utcnow)
+    date_updated           = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by             = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+
+    category = db.relationship('ProductCategory', backref='products')
+    images   = db.relationship('EcoProductImage', backref='product', lazy=True,
+                                cascade='all, delete-orphan', order_by='EcoProductImage.position')
+
+    def to_dict(self):
+        return {
+            'id': self.id, 'name': self.name, 'slug': self.slug,
+            'description': self.description,
+            'category_id': self.category_id,
+            'category': self.category.name if self.category else None,
+            'price': self.price, 'compare_at_price': self.compare_at_price,
+            'currency': self.currency, 'unit': self.unit, 'stock': self.stock,
+            'sku': self.sku,
+            'origin_country': self.origin_country,
+            'is_deforestation_free': self.is_deforestation_free,
+            'certification_labels': self.certification_labels or [],
+            'images': [img.url for img in self.images],
+            'origin_story': self.origin_story,
+            'farmer_name': self.farmer_name,
+            'harvest_year': self.harvest_year,      
+            'is_active': self.is_active,
+            'is_featured': self.is_featured,
+        }
+
+
+class EcoProductImage(db.Model):
+    __tablename__ = 'ecoproductimage'
+    id         = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(db.Integer, db.ForeignKey('ecoproduct.id'), nullable=False)
+    url        = db.Column(db.String(500), nullable=False)
+    is_primary = db.Column(db.Boolean, default=False)
+    position   = db.Column(db.Integer, default=0)
+
+
+class EcoOrder(db.Model):
+    __tablename__ = 'ecoorder'
+    id                = db.Column(db.Integer, primary_key=True)
+    user_id           = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    guest_email       = db.Column(db.String(255), nullable=True)
+    guest_name        = db.Column(db.String(255), nullable=True)
+    guest_phone       = db.Column(db.String(20), nullable=True)
+    shipping_address  = db.Column(db.Text, nullable=True)
+    total_amount      = db.Column(db.Float, nullable=False)
+    currency          = db.Column(db.String(10), default='UGX')
+    status            = db.Column(db.String(50), default='pending')  # pending, paid, shipped, cancelled
+    payment_method    = db.Column(db.String(50), default='dpo')
+    dpo_trans_token   = db.Column(db.String(100), nullable=True, unique=True)   # ★ AJOUT
+    dpo_trans_ref     = db.Column(db.String(100), nullable=True)                # ★ AJOUT
+    date_created      = db.Column(db.DateTime, default=datetime.utcnow)
+
+    items = db.relationship('EcoOrderItem', backref='order', lazy=True, cascade='all, delete-orphan')
+
+    def to_dict(self):
+        return {
+            'id': self.id, 'status': self.status, 'total_amount': self.total_amount,
+            'currency': self.currency, 'payment_method': self.payment_method,
+            'date_created': self.date_created.isoformat() if self.date_created else None,
+            'items': [i.to_dict() for i in self.items],
+        }
+
+class EcoOrderItem(db.Model):
+    __tablename__ = 'ecoorderitem'
+    id         = db.Column(db.Integer, primary_key=True)
+    order_id   = db.Column(db.Integer, db.ForeignKey('ecoorder.id'), nullable=False)
+    product_id = db.Column(db.Integer, db.ForeignKey('ecoproduct.id'), nullable=False)
+    quantity   = db.Column(db.Integer, nullable=False)
+    unit_price = db.Column(db.Float, nullable=False)
+
+    def to_dict(self):
+        return {
+            'id': self.id, 'product_id': self.product_id,
+            'quantity': self.quantity, 'unit_price': self.unit_price,
+=======
     
 class GuestSentinelCache(db.Model):
     __tablename__ = 'guestsentinelcache'
@@ -748,4 +864,5 @@ class HSCode(db.Model):
             'description': self.description,
             'eudr_commodity': self.eudr_commodity,
             'is_ex_code': self.is_ex_code,
+>>>>>>> f11dada3188f553023245c852dbfcc2cf03a53ad
         }
