@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify, send_file, render_template
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from app.models import QRCode
+from app.models import QRCode, User
 from app import db
 import hashlib, base64, tempfile, json
 from playwright.sync_api import sync_playwright
@@ -106,6 +106,30 @@ def save_qr_in_db(data: dict, user_id: int, description: str = None, qr_type: st
 
 
 # -----------------------------------------------------------
+# 🔹 UTILS : Gestion du scope admin (mine|all)
+# -----------------------------------------------------------
+def _is_admin(user_id):
+    """Vérifie is_admin directement en DB (fiable, indépendant du contenu du JWT)."""
+    user = User.query.get(user_id)
+    return bool(user and user.is_admin)
+
+
+def _resolve_scope(user_id):
+    """
+    Lit ?scope=mine|all dans la query string.
+    'all' n'est honoré que si l'utilisateur est admin ; sinon on retombe sur 'mine'.
+    Retourne (scope, is_admin).
+    """
+    is_admin = _is_admin(user_id)
+    scope = request.args.get('scope', 'mine')
+    if scope not in ('mine', 'all'):
+        scope = 'mine'
+    if scope == 'all' and not is_admin:
+        scope = 'mine'
+    return scope, is_admin
+
+
+# -----------------------------------------------------------
 # 🔹 API : Génération PDF de QR Codes
 # -----------------------------------------------------------
 @bp.route('/generate_pdf', methods=['POST'])
@@ -140,7 +164,7 @@ def generate_pdfs():
 
     except Exception as e:
         import traceback
-        traceback.print_exc()   # ← ajoute cette ligne
+        traceback.print_exc()
         return jsonify({"error": f"Error generating PDF: {str(e)}"}), 500
 
 
@@ -152,8 +176,14 @@ def generate_pdfs():
 def qr_count():
     identity = get_jwt_identity()
     user_id = identity['id']
-    count = QRCode.query.filter_by(created_by=user_id).count()
-    return jsonify({"user_id": user_id, "count": count})
+    scope, is_admin = _resolve_scope(user_id)
+
+    query = QRCode.query
+    if scope == 'mine':
+        query = query.filter_by(created_by=user_id)
+    count = query.count()
+
+    return jsonify({"user_id": user_id, "count": count, "scope": scope, "is_admin": is_admin})
 
 
 @bp.route('/stats/list', methods=['GET'])
@@ -161,13 +191,38 @@ def qr_count():
 def qr_list():
     identity = get_jwt_identity()
     user_id = identity['id']
-    qrs = QRCode.query.filter_by(created_by=user_id).all()
+    scope, is_admin = _resolve_scope(user_id)
+
+    # Pagination simple (utile pour le dashboard, évite de charger toute la table)
+    try:
+        limit = min(int(request.args.get('limit', 100)), 200)
+    except ValueError:
+        limit = 100
+    try:
+        offset = max(int(request.args.get('offset', 0)), 0)
+    except ValueError:
+        offset = 0
+
+    query = QRCode.query
+    if scope == 'mine':
+        query = query.filter_by(created_by=user_id)
+    qrs = query.order_by(QRCode.date_created.desc()).offset(offset).limit(limit).all()
+
+    # Map created_by -> username utile seulement en vue admin ("all")
+    creators = {}
+    if scope == 'all':
+        user_ids = {qr.created_by for qr in qrs if qr.created_by}
+        if user_ids:
+            creators = {u.id: u.username for u in User.query.filter(User.id.in_(user_ids)).all()}
+
     return jsonify([
         {
             "hash": qr.hash_md5,
             "type": qr.qr_type,
             "description": qr.description,
-            "batch_number": qr.data_dict.get("batch_number"),  # 🔹 Ajout du batch
+            "batch_number": qr.data_dict.get("batch_number"),
+            "created_by": qr.created_by,
+            "created_by_username": creators.get(qr.created_by) if scope == 'all' else None,
             "created_at": qr.date_created.isoformat()
         }
         for qr in qrs
@@ -179,10 +234,79 @@ def qr_list():
 def qr_by_type():
     identity = get_jwt_identity()
     user_id = identity['id']
-    stats = db.session.query(QRCode.qr_type, func.count(QRCode.id)) \
-        .filter(QRCode.created_by == user_id) \
-        .group_by(QRCode.qr_type).all()
+    scope, is_admin = _resolve_scope(user_id)
+
+    q = db.session.query(QRCode.qr_type, func.count(QRCode.id))
+    if scope == 'mine':
+        q = q.filter(QRCode.created_by == user_id)
+    stats = q.group_by(QRCode.qr_type).all()
+
     return jsonify({t or "unknown": c for t, c in stats})
+
+
+# -----------------------------------------------------------
+# 🔹 API : Dashboard agrégé (1 seul appel pour toute la vue)
+# -----------------------------------------------------------
+@bp.route('/dashboard', methods=['GET'])
+@jwt_required()
+def qr_dashboard():
+    identity = get_jwt_identity()
+    user_id = identity['id']
+    scope, is_admin = _resolve_scope(user_id)
+
+    try:
+        recent_limit = min(int(request.args.get('limit', 20)), 100)
+    except ValueError:
+        recent_limit = 20
+
+    base_query = QRCode.query
+    if scope == 'mine':
+        base_query = base_query.filter(QRCode.created_by == user_id)
+
+    total_count = base_query.count()
+
+    # Répartition par type
+    type_q = db.session.query(QRCode.qr_type, func.count(QRCode.id))
+    if scope == 'mine':
+        type_q = type_q.filter(QRCode.created_by == user_id)
+    type_stats = type_q.group_by(QRCode.qr_type).all()
+
+    # Répartition par lot (description)
+    lot_q = db.session.query(QRCode.description, func.count(QRCode.id))
+    if scope == 'mine':
+        lot_q = lot_q.filter(QRCode.created_by == user_id)
+    lot_stats = lot_q.filter(QRCode.description.isnot(None)).group_by(QRCode.description).all()
+    top_lots = sorted(lot_stats, key=lambda x: x[1], reverse=True)[:10]
+
+    # Derniers QR générés
+    recent = base_query.order_by(QRCode.date_created.desc()).limit(recent_limit).all()
+
+    creators = {}
+    if scope == 'all':
+        user_ids = {qr.created_by for qr in recent if qr.created_by}
+        if user_ids:
+            creators = {u.id: u.username for u in User.query.filter(User.id.in_(user_ids)).all()}
+
+    return jsonify({
+        "scope": scope,
+        "is_admin": is_admin,
+        "total_count": total_count,
+        "distinct_lots": len(lot_stats),
+        "by_type": {t or "unknown": c for t, c in type_stats},
+        "top_lots": [{"description": d, "count": c} for d, c in top_lots],
+        "recent": [
+            {
+                "hash": qr.hash_md5,
+                "type": qr.qr_type,
+                "description": qr.description,
+                "batch_number": qr.data_dict.get("batch_number"),
+                "created_by": qr.created_by,
+                "created_by_username": creators.get(qr.created_by) if scope == 'all' else None,
+                "created_at": qr.date_created.isoformat(),
+            }
+            for qr in recent
+        ],
+    })
 
 
 # -----------------------------------------------------------
@@ -196,7 +320,6 @@ def check_qr():
     if not qr_data:
         return jsonify({"error": "qr_data is required"}), 400
 
-    # Assurer la conversion dict -> JSON
     if isinstance(qr_data, dict):
         qr_str = json.dumps(qr_data, sort_keys=True)
     else:
@@ -213,7 +336,7 @@ def check_qr():
         "hash": qr.hash_md5,
         "type": qr.qr_type,
         "description": qr.description,
-        "batch_number": qr.data_dict.get("batch_number"),  # 🔹 Renvoi du lot
+        "batch_number": qr.data_dict.get("batch_number"),
         "created_by": qr.created_by,
         "created_at": qr.date_created.isoformat()
     })
@@ -227,12 +350,16 @@ def check_qr():
 def qr_by_description():
     identity = get_jwt_identity()
     user_id = identity['id']
+    scope, is_admin = _resolve_scope(user_id)
     description = request.args.get("description")
 
     if not description:
         return jsonify({"error": "description is required"}), 400
 
-    qrs = QRCode.query.filter_by(created_by=user_id, description=description).all()
+    query = QRCode.query.filter_by(description=description)
+    if scope == 'mine':
+        query = query.filter_by(created_by=user_id)
+    qrs = query.all()
 
     return jsonify([
         {
@@ -252,13 +379,17 @@ def qr_by_description():
 def qr_by_batch():
     identity = get_jwt_identity()
     user_id = identity['id']
+    scope, is_admin = _resolve_scope(user_id)
     description = request.args.get("description")
     batch_number = request.args.get("batch_number")
 
     if not description or not batch_number:
         return jsonify({"error": "description and batch_number are required"}), 400
 
-    qrs = QRCode.query.filter_by(created_by=user_id, description=description).all()
+    query = QRCode.query.filter_by(description=description)
+    if scope == 'mine':
+        query = query.filter_by(created_by=user_id)
+    qrs = query.all()
 
     for qr in qrs:
         if qr.data_dict.get("batch_number") == str(batch_number):

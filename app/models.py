@@ -527,6 +527,17 @@ class QRCode(db.Model):
     date_created = db.Column(db.DateTime, default=datetime.utcnow)
     date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    @property
+    def data_dict(self):
+        """Décode data_base64 -> dict JSON. Retourne {} si absent/invalide."""
+        import json
+        if not self.data_base64:
+            return {}
+        try:
+            return json.loads(b64decode(self.data_base64.encode('utf-8')).decode('utf-8'))
+        except Exception:
+            return {}
+
     def __repr__(self):
         return f"<QRCode(id={self.id}, hash={self.hash_md5}, user={self.created_by})>"
 
