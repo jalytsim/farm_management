@@ -83,8 +83,9 @@ class Farm(db.Model):
     phonenumber2 = db.Column(db.String(20), nullable=True)
     cin = db.Column(db.String(20), nullable=True)
     gender = db.Column(db.String(20), nullable=True)
-    # ★ NOUVEAU — pays de la ferme (Option B)
     country = db.Column(db.String(100), nullable=True)
+    # ★ NOUVEAU — identifiant officiel délivré par une autorité gouvernementale, optionnel, distinct du farm_id interne
+    government_id = db.Column(db.String(100), nullable=True)
     date_created = db.Column(db.DateTime, default=datetime.utcnow)
     date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)

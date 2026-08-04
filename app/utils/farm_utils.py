@@ -99,7 +99,8 @@ def get_farm_id(farm_id):
     except Exception as e:
         print(f"Error fetching farm properties: {e}")
         return None
-    
+
+
 def getId(farm_id):
     try:
         data = db.session.query(Farm.id).filter(Farm.farm_id == farm_id).all()
@@ -115,7 +116,37 @@ def get_all_farms():
         District.name.label('district_name'), FarmerGroup.name.label('farmergroup_name')
     ).all()
 
-def create_farm(user=None, name=None, subcounty=None, farmergroup_id=None, district_id=None, geolocation=None, phonenumber1=None, phonenumber2=None, gender=None, cin=None):
+
+# ─────────────────────────────────────────────────────────────────────────────
+# create_farm / update_farm
+#
+# NOTE IMPORTANTE — harmonisation avec api_farm.py :
+# Les paramètres ci-dessous correspondent désormais aux ATTRIBUTS DU MODÈLE Farm
+# (et non plus aux clés JSON du frontend). C'est ce que produit
+# extract_farm_payload() dans api_farm.py via FARM_FIELDS :
+#
+#   ("phonenumber1", "phonenumber")   → clé JSON "phonenumber1" -> attribut "phonenumber"
+#   ("phonenumber2", "phonenumber2")  → clé JSON "phonenumber2" -> attribut "phonenumber2"
+#   ("government_id", "government_id")
+#
+# Une ferme peut donc avoir DEUX numéros de téléphone distincts :
+#   - phonenumber  (numéro principal, correspond à "phonenumber1" côté API/JSON)
+#   - phonenumber2 (numéro secondaire, optionnel)
+# Les deux sont indépendants et tous les deux optionnels au niveau DB.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def create_farm(user=None, name=None, subcounty=None, farmergroup_id=None, district_id=None,
+                 geolocation=None, phonenumber=None, phonenumber2=None, gender=None, cin=None,
+                 government_id=None):
+    """
+    Crée une nouvelle ferme.
+
+    phonenumber   : numéro de téléphone principal (optionnel)
+    phonenumber2  : numéro de téléphone secondaire (optionnel)
+    government_id : identifiant officiel délivré par une autorité gouvernementale,
+                    distinct du farm_id interne et du cin — optionnel, utile pour
+                    l'intégration avec d'autres applications/systèmes.
+    """
     # Check if a user object is provided; otherwise, use the current user's ID from context or global state
     if user:
         user_id = user.id
@@ -130,7 +161,7 @@ def create_farm(user=None, name=None, subcounty=None, farmergroup_id=None, distr
         if not user:
             raise ValueError("User not found.")
         user_id_start = user.id_start
-    
+
     print('tafiditra utils.create_farm  ')
     print(user_id_start)
 
@@ -164,12 +195,13 @@ def create_farm(user=None, name=None, subcounty=None, farmergroup_id=None, distr
         farmergroup_id=farmergroup_id,
         district_id=district_id,
         geolocation=geolocation,
-        phonenumber=phonenumber1,
-        phonenumber2=phonenumber2,
+        phonenumber=phonenumber,        # numéro principal
+        phonenumber2=phonenumber2,      # numéro secondaire (optionnel)
         gender=gender,
         cin=cin,
-        created_by=user_id,  # Use the resolved user_id
-        modified_by=user_id,  # Use the resolved user_id
+        government_id=government_id,    # ID gouvernemental (optionnel)
+        created_by=user_id,
+        modified_by=user_id,
         date_created=datetime.utcnow(),
         date_updated=datetime.utcnow()
     )
@@ -177,12 +209,22 @@ def create_farm(user=None, name=None, subcounty=None, farmergroup_id=None, distr
     db.session.commit()
     return farm
 
-def update_farm(farm_id, name, subcounty, farmergroup_id, district_id, geolocation, phonenumber1, gender, cin, phonenumber2=None, user=None):
-    
+
+def update_farm(farm_id, name=None, subcounty=None, farmergroup_id=None, district_id=None,
+                 geolocation=None, phonenumber=None, phonenumber2=None, gender=None, cin=None,
+                 government_id=None, user=None):
+    """
+    Met à jour une ferme existante.
+    Tous les champs sont optionnels ici : seuls ceux réellement fournis (non None)
+    dans le payload transitent, grâce à extract_farm_payload() côté API qui ne
+    construit le dict qu'avec les clés présentes dans la requête.
+
+    phonenumber / phonenumber2 : numéros principal et secondaire, indépendants.
+    government_id : ID officiel, optionnel — n'écrase la valeur existante que si fourni.
+    """
     if user:
         user_id = user.id
     else:
-        # Assuming that 'current_user' is a global or context-based object that provides the current user's ID
         from flask_jwt_extended import get_jwt_identity
         from app.models import User
 
@@ -190,24 +232,38 @@ def update_farm(farm_id, name, subcounty, farmergroup_id, district_id, geolocati
         user = User.query.get(user_id)
         if not user:
             raise ValueError("User not found.")
-        
+
     faId = getId(farm_id)
     farm = db.session.query(Farm).get(faId)
-    if farm:
-        farm.name = name
-        farm.subcounty = subcounty
-        farm.farmergroup_id = farmergroup_id
-        farm.district_id = district_id
-        farm.geolocation = geolocation
-        farm.phonenumber = phonenumber1
-        farm.phonenumber2 = phonenumber2 if phonenumber2 else None
-        farm.gender = gender
-        farm.cin = cin
-        farm.modified_by = user_id
-        farm.date_updated = datetime.utcnow()
-        db.session.commit()
-    else:
+    if not farm:
         raise ValueError(f"Farm ID {farm_id} does not exist.")
+
+    # Ne met à jour que les champs explicitement fournis (évite d'écraser
+    # une valeur existante avec None si le frontend n'envoie pas le champ)
+    if name is not None:
+        farm.name = name
+    if subcounty is not None:
+        farm.subcounty = subcounty
+    if farmergroup_id is not None:
+        farm.farmergroup_id = farmergroup_id
+    if district_id is not None:
+        farm.district_id = district_id
+    if geolocation is not None:
+        farm.geolocation = geolocation
+    if phonenumber is not None:
+        farm.phonenumber = phonenumber
+    if phonenumber2 is not None:
+        farm.phonenumber2 = phonenumber2
+    if gender is not None:
+        farm.gender = gender
+    if cin is not None:
+        farm.cin = cin
+    if government_id is not None:
+        farm.government_id = government_id
+
+    farm.modified_by = user_id
+    farm.date_updated = datetime.utcnow()
+    db.session.commit()
 
 
 def delete_farm(farm_id):
@@ -218,7 +274,8 @@ def delete_farm(farm_id):
         db.session.commit()
     else:
         raise ValueError(f"Farm ID {farm_id} does not exist.")
-    
+
+
 def count_farms_by_month(year=None, district_id=None, farmergroup_id=None, created_by=None):
     if not year:
         year = datetime.utcnow().year

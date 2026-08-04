@@ -28,6 +28,7 @@ D:\project\farm_management\farm_management
 │   │   ├── api_forestreport.py
 │   │   ├── api_gfw.py
 │   │   ├── api_grade.py
+│   │   ├── api_hscode.py
 │   │   ├── api_irrigations.py
 │   │   ├── api_kc.1.py
 │   │   ├── api_kc.py
@@ -44,6 +45,7 @@ D:\project\farm_management\farm_management
 │   │   ├── api_user.py
 │   │   ├── api_weather.py
 │   │   ├── auth.py
+│   │   ├── ecommerce.py
 │   │   ├── graph.py
 │   │   ├── map.py
 │   │   ├── mastercard_api.py
@@ -71,6 +73,7 @@ D:\project\farm_management\farm_management
 │   │   └── qrcode.html
 │   └── utils
 │       ├── __init__.py
+│       ├── crop_classifier_utils.py
 │       ├── crop_utils.py
 │       ├── dashboard_utils.py
 │       ├── district_utils.py
@@ -113,6 +116,7 @@ D:\project\farm_management\farm_management
 ├── requirements.txt
 ├── run.py
 ├── schedulerpest.py
+├── seed_hscodes.py
 ├── sentinel_data.json
 ├── sentinel_forecast.json
 └── testProhet.py

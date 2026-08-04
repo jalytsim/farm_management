@@ -8,7 +8,7 @@ from app import db
 from sqlalchemy import func, case
 
 from app.models import Farm, User, FarmReport, District, FarmerGroup
-from app.utils import farm_utils,point_utils
+from app.utils import farm_utils, point_utils
 import logging
 from datetime import datetime, date
 import datetime
@@ -16,6 +16,55 @@ from app.models import Point
 
 
 bp = Blueprint('api_farm', __name__, url_prefix='/api/farm')
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CONFIG CENTRALE DES CHAMPS "FARM"
+# Une seule source de vérité pour sérialisation ET création/mise à jour.
+# Format : (clé_json_ou_payload, attribut_modele)
+# Ajouter un nouveau champ optionnel = une seule ligne ici.
+# ─────────────────────────────────────────────────────────────────────────────
+FARM_FIELDS = [
+    ("name",           "name"),
+    ("subcounty",      "subcounty"),
+    ("district_id",    "district_id"),
+    ("farmergroup_id", "farmergroup_id"),
+    ("geolocation",    "geolocation"),
+    ("phonenumber1",   "phonenumber"),
+    ("phonenumber2",   "phonenumber2"),
+    ("gender",         "gender"),
+    ("cin",            "cin"),
+    ("government_id",  "government_id"),  # ★ optionnel — ID délivré par une autorité gouvernementale
+]
+
+# Champs requis à la création (les autres sont optionnels)
+REQUIRED_ON_CREATE = ["name", "subcounty", "farmergroup_id", "district_id", "geolocation", "gender", "cin"]
+
+
+def serialize_farm(farm):
+    """Sérialise un Farm en dict JSON à partir de FARM_FIELDS. Ajoute toujours 'id'."""
+    data = {"id": farm.farm_id}
+    for json_key, model_attr in FARM_FIELDS:
+        data[json_key] = getattr(farm, model_attr)
+    return data
+
+
+def extract_farm_payload(source, require_all=False):
+    """
+    Construit un dict {model_attr: value} à partir d'un dict source (request.json ou entrée bulk).
+    require_all=True lève une erreur si un champ obligatoire manque.
+    """
+    payload = {}
+    missing = []
+    for json_key, model_attr in FARM_FIELDS:
+        if json_key in source:
+            payload[model_attr] = source.get(json_key)
+        elif require_all and json_key in REQUIRED_ON_CREATE:
+            missing.append(json_key)
+    if missing:
+        raise KeyError(f"Missing required field(s): {', '.join(missing)}")
+    return payload
+
 
 @bp.route('/')
 @jwt_required()
@@ -43,23 +92,13 @@ def index():
                 Farm.subcounty.ilike(like),
                 Farm.farm_id.ilike(like),
                 Farm.cin.ilike(like),
+                Farm.government_id.ilike(like),
             )
         )
 
     farms = query.paginate(page=page, per_page=per_page, error_out=False)
 
-    farms_list = [{
-        "id":           farm.farm_id,
-        "name":         farm.name,
-        "subcounty":    farm.subcounty,
-        "district_id":  farm.district_id,
-        "farmergroup_id": farm.farmergroup_id,
-        "geolocation":  farm.geolocation,
-        "phonenumber1": farm.phonenumber,
-        "phonenumber2": farm.phonenumber2,
-        "gender":       farm.gender,
-        "cin":          farm.cin,
-    } for farm in farms.items]
+    farms_list = [serialize_farm(farm) for farm in farms.items]
 
     return jsonify(
         farms=farms_list,
@@ -69,6 +108,7 @@ def index():
         search=search,
     )
 
+
 @bp.route('/all')
 @jwt_required()
 def all():
@@ -76,30 +116,19 @@ def all():
     user_id = identity['id']
 
     user = User.query.get(user_id)
-    print("+++++++++===========+++++++++", user_id)
 
     if user.is_admin:
         farms = Farm.query.all()
     else:
         farms = Farm.query.filter_by(created_by=user_id).all()
 
-    farms_list = [{
-        "id": farm.farm_id,
-        "name": farm.name,
-        "subcounty": farm.subcounty,
-        "district_id": farm.district_id,
-        "farmergroup_id": farm.farmergroup_id,
-        'geolocation': farm.geolocation,
-        "phonenumber1": farm.phonenumber,
-        "phonenumber2": farm.phonenumber2,
-        "gender": farm.gender,
-        "cin": farm.cin,
-    } for farm in farms]
+    farms_list = [serialize_farm(farm) for farm in farms]
 
     return jsonify(
         farms=farms_list,
         total_farms=len(farms_list),
     )
+
 
 @bp.route('/create', methods=['POST'])
 @jwt_required()
@@ -116,38 +145,31 @@ def create_farm():
     logging.info("Form data received: %s", data)
 
     try:
-        geolocation = data['geolocation']
+        geolocation = data.get('geolocation')
         if not geolocation:
             return jsonify({"msg": "Geolocation is required"}), 400
 
         existing_farm = Farm.query.filter_by(
-            name=data['name'],
-            district_id=data['district_id'],
+            name=data.get('name'),
+            district_id=data.get('district_id'),
             geolocation=geolocation,
-            cin=data['cin'],
+            cin=data.get('cin'),
         ).first()
 
         if existing_farm:
             return jsonify({"msg": "Farm already exists", "farm_id": existing_farm.farm_id}), 409
 
-        new_farm = farm_utils.create_farm(
-            user=user,
-            name=data['name'],
-            subcounty=data['subcounty'],
-            farmergroup_id=data['farmergroup_id'],
-            district_id=data['district_id'],
-            geolocation=geolocation,
-            phonenumber1=data.get('phonenumber1'),
-            phonenumber2=data.get('phonenumber2', ''),
-            gender=data['gender'],
-            cin=data['cin'],
-        )
+        payload = extract_farm_payload(data, require_all=True)
+        new_farm = farm_utils.create_farm(user=user, **payload)
 
         return jsonify({"success": True, "farm_id": new_farm.farm_id}), 201
 
+    except KeyError as ke:
+        return jsonify({"msg": str(ke)}), 400
     except Exception as e:
         logging.error(f"Error creating farm: {e}")
         return jsonify({"msg": "Error creating farm", "error": str(e)}), 500
+
 
 @bp.route('/bulk_create', methods=['POST'])
 @jwt_required()
@@ -171,40 +193,29 @@ def bulk_create_farms():
 
     try:
         for entry in data:
-            if 'geolocation' not in entry or not entry['geolocation']:
+            if not entry.get('geolocation'):
                 return jsonify({"msg": "Geolocation is required for all farm entries"}), 400
 
             existing_farm = Farm.query.filter_by(
-                name=entry['name'],
-                district_id=entry['district_id'],
-                geolocation=entry['geolocation'],
-                gender=entry['gender'],
-                cin=entry['cin'],
+                name=entry.get('name'),
+                district_id=entry.get('district_id'),
+                geolocation=entry.get('geolocation'),
+                gender=entry.get('gender'),
+                cin=entry.get('cin'),
             ).first()
 
-            print(entry)
-
             if existing_farm:
-                existing_farms.append({"name": entry['name'], "farm_id": existing_farm.farm_id})
+                existing_farms.append({"name": entry.get('name'), "farm_id": existing_farm.farm_id})
                 continue
 
-            new_farm = farm_utils.create_farm(
-                user=user,
-                name=entry['name'],
-                subcounty=entry['subcounty'],
-                farmergroup_id=entry['farmergroup_id'],
-                district_id=entry['district_id'],
-                geolocation=entry['geolocation'],
-                phonenumber1=entry.get('phonenumber1'),
-                phonenumber2=entry.get('phonenumber2', ''),
-                gender=entry['gender'],
-                cin=entry['cin'],
-            )
-
+            payload = extract_farm_payload(entry, require_all=True)
+            new_farm = farm_utils.create_farm(user=user, **payload)
             created_farms.append(new_farm.farm_id)
 
         return jsonify({"success": True, "created_farms": created_farms, "existing_farms": existing_farms}), 201
 
+    except KeyError as ke:
+        return jsonify({"msg": str(ke)}), 400
     except Exception as e:
         logging.error(f"Error creating farms: {e}")
         return jsonify({"msg": "Error creating farms", "error": str(e)}), 500
@@ -218,58 +229,34 @@ def update_farm_route(farm_id):
 
     user = User.query.get(user_id)
     data = request.json
-    farm_utils.update_farm(
-        farm_id=farm_id,
-        name=data['name'],
-        subcounty=data['subcounty'],
-        farmergroup_id=data['farmergroup_id'],
-        district_id=data['district_id'],
-        geolocation=data['geolocation'],
-        phonenumber1=data['phonenumber1'],
-        phonenumber2=data.get('phonenumber2'),
-        gender=data['gender'],
-        cin=data['cin'],
-        user=user
-    )
-    return jsonify(success=True)
+
+    try:
+        payload = extract_farm_payload(data, require_all=False)
+        farm_utils.update_farm(farm_id=farm_id, user=user, **payload)
+        return jsonify(success=True)
+    except KeyError as ke:
+        return jsonify({"msg": str(ke)}), 400
+    except ValueError as ve:
+        return jsonify({"msg": str(ve)}), 404
+
 
 @bp.route('/<farm_id>/delete', methods=['POST'])
 @jwt_required()
 def delete_farm(farm_id):
     farmId = farm_utils.getId(farm_id)
-    print(farmId)
-    print(farm_id)
     farm = Farm.query.get_or_404(farmId)
-    print(farm.id)
     farm_utils.delete_farm(farm.id)
     return jsonify(success=True)
+
 
 @bp.route('/<farm_id>', methods=['GET'])
 @jwt_required()
 def get_farm_by_id(farm_id):
     farm = Farm.query.filter_by(farm_id=farm_id).first_or_404()
-    if farm:
-        farm_data = {
-            "id": farm.farm_id,
-            "name": farm.name,
-            "subcounty": farm.subcounty,
-            "district_id": farm.district_id,
-            "farmergroup_id": farm.farmergroup_id,
-            "geolocation": farm.geolocation,
-            "phonenumber1": farm.phonenumber,
-            "phonenumber2": farm.phonenumber2,
-            "gender": farm.gender,
-            "cin": farm.cin,
-        }
-        return jsonify({
-            'status': 'success',
-            'data': farm_data
-        })
-    else:
-        return jsonify({
-            'status': 'error',
-            'message': 'No data found for the provided farm ID'
-        }), 404
+    return jsonify({
+        'status': 'success',
+        'data': serialize_farm(farm)
+    })
 
 
 @bp.route('/<farm_id>/allprop', methods=['GET'])
@@ -330,6 +317,7 @@ def count_farms_by_user():
         'farm_count': count
     })
 
+
 @bp.route('/count/by-month', methods=['GET'])
 @jwt_required()
 def api_count_farms_by_month():
@@ -355,6 +343,7 @@ def api_count_farms_by_month():
         },
         "monthly_counts": monthly_counts
     })
+
 
 @bp.route('/alerts', methods=['GET'])
 @jwt_required()
@@ -586,8 +575,6 @@ def get_specific_user_farm_statistics(target_user_id):
         report         = FarmReport.query.filter_by(farm_id=farm.id).first()
         raw_status     = report.eudr_compliance_assessment if report else None
         norm_status    = _normalize_compliance(raw_status)
-
-        print(f"[DEBUG] farm_id={farm.id} raw_status={raw_status!r} norm={norm_status!r}")
 
         _increment_compliance(compliance_status, norm_status)
 
@@ -887,6 +874,7 @@ def get_area_by_compliance():
 
     return jsonify({'status': 'success', 'data': data})
 
+
 # ─────────────────────────────────────────────────────────────────────────────
 # GET /api/farm/export/polygons
 # Exporte les polygones de toutes les fermes visibles en un seul GeoJSON
@@ -939,6 +927,7 @@ def export_farm_polygons():
                 "district_id": farm.district_id,
                 "cin":         farm.cin,
                 "gender":      farm.gender,
+                "government_id": farm.government_id,
             },
         })
 
@@ -953,8 +942,9 @@ def export_farm_polygons():
         "total_exported": len(features),
         "skipped": skipped,
     })
-    
-    # ─────────────────────────────────────────────────────────────────────────────
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # GET /api/farm/<farm_id>/export/polygon
 # Exporte le polygone d'une seule ferme en GeoJSON (geometry: MultiPolygon)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1003,6 +993,7 @@ def export_single_farm_polygon(farm_id):
             "district_id": farm.district_id,
             "cin":         farm.cin,
             "gender":      farm.gender,
+            "government_id": farm.government_id,
             "vertex_count": len(ring) - 1,
         },
     }
