@@ -133,3 +133,5 @@ migrations/
 !migrations/versions/
 *.pyc
 *.pyo
+
+media/

@@ -53,7 +53,8 @@ def send_sms():
 
         return jsonify({
             "status":        f"Message sent to {phone}",
-            "remote_status": res.status_code
+            "remote_status": res.status_code,
+
         }), res.status_code
 
     except Exception as e:
