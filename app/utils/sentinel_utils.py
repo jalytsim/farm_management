@@ -846,7 +846,7 @@ def _build_geometry(points, geolocation=None):
 
 # ── Main entry point ──────────────────────────────────────────────────────────
 
-def get_sat_index_full(entity_type, entity_id,
+async def get_sat_index_full(entity_type, entity_id,
                        loan_amount=None, yield_t_per_ha=1.5, price_per_t=500,
                        force_refresh=False,
                        hist_yield_1=None, hist_yield_2=None):
@@ -917,6 +917,12 @@ def get_sat_index_full(entity_type, entity_id,
                 )
             else:
                 ltv_data = cache.get_ltv()
+                
+        soc_data = None
+        if entity_type == 'farm' and points:
+            lon_c = sum(float(p.longitude) for p in points) / len(points)
+            lat_c = sum(float(p.latitude) for p in points) / len(points)
+            soc_data = await _fetch_soc_soilgrids(lat_c, lon_c)
 
         return {
             'entity_id':        entity_id,
@@ -926,6 +932,7 @@ def get_sat_index_full(entity_type, entity_id,
             'history':          history_out,
             'forecast':         forecast_out,
             'ltv':              ltv_data,
+            'soc':              soc_data,   # ★ AJOUT
             'tiers_meta':       TIERS,
             'from_cache':       True,
             'cache_updated_at': cache.updated_at.isoformat() if cache.updated_at else None,
@@ -961,6 +968,13 @@ def get_sat_index_full(entity_type, entity_id,
                     )
                 else:
                     ltv_data = cache.get_ltv()
+                    
+            soc_data = None
+            if entity_type == 'farm' and points:
+                lon_c = sum(float(p.longitude) for p in points) / len(points)
+                lat_c = sum(float(p.latitude) for p in points) / len(points)
+                soc_data = await _fetch_soc_soilgrids(lat_c, lon_c)
+                
             return {
                 'entity_id':        entity_id,
                 'entity_type':      entity_type,
@@ -969,6 +983,7 @@ def get_sat_index_full(entity_type, entity_id,
                 'history':          history_out,
                 'forecast':         forecast_out,
                 'ltv':              ltv_data,
+                'soc':              soc_data,
                 'tiers_meta':       TIERS,
                 'from_cache':       True,
                 'cache_stale':      True,
@@ -999,7 +1014,11 @@ def get_sat_index_full(entity_type, entity_id,
                 hist_yield_1=hist_yield_1,
                 hist_yield_2=hist_yield_2,
             )
-
+    soc_data = None
+    if entity_type == 'farm' and points:
+        lon_c = sum(float(p.longitude) for p in points) / len(points)
+        lat_c = sum(float(p.latitude) for p in points) / len(points)
+        soc_data = await _fetch_soc_soilgrids(lat_c, lon_c)
     # ── Save to cache ─────────────────────────────────────────────────────────
     if entity_type == 'farm':
         try:
@@ -1025,13 +1044,14 @@ def get_sat_index_full(entity_type, entity_id,
         'history':       history_out,
         'forecast':      forecast_out,
         'ltv':           ltv_data,
+        'soc':           soc_data,
         'tiers_meta':    TIERS,
         'from_cache':    False,
         'out_of_bounds': out_of_bounds,
     }, None
     
     
-def get_sat_index_full_guest(geojson, guest_phone_number,
+async def get_sat_index_full_guest(geojson, guest_phone_number,
                               loan_amount=None, yield_t_per_ha=1.5, price_per_t=500,
                               force_refresh=False,
                               hist_yield_1=None, hist_yield_2=None):
@@ -1603,3 +1623,28 @@ def _polygon_hash(coords):
     import hashlib, json
     rounded = [[round(lon, 6), round(lat, 6)] for lon, lat in coords]
     return hashlib.md5(json.dumps(rounded, separators=(',', ':')).encode('utf-8')).hexdigest()
+
+async def _fetch_soc_soilgrids(lat: float, lon: float) -> dict | None:
+    """SOC via ISRIC SoilGrids v2.0 (gratuit, sans clé)."""
+    import aiohttp
+    url = "https://rest.isric.org/soilgrids/v2.0/properties/query"
+    params = [
+        ("lon", lon), ("lat", lat),
+        ("property", "ocs"), ("property", "soc"),
+        ("depth", "0-30cm"), ("depth", "0-5cm"), ("depth", "5-15cm"), ("depth", "15-30cm"),
+        ("value", "mean"),
+    ]
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=20)) as resp:
+                data = await resp.json()
+                out = {}
+                for layer in data.get("properties", {}).get("layers", []):
+                    for d in layer["depths"]:
+                        v = d["values"].get("mean")
+                        # SoilGrids renvoie des valeurs *10 (conversion factor) sauf ocs qui est déjà en t/ha*10
+                        out[f"{layer['name']}_{d['label']}"] = round(v / 10, 2) if v is not None else None
+                return out
+    except Exception as e:
+        logger.warning(f'[SoilGrids] Erreur: {e}')
+        return None
