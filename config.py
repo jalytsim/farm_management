@@ -14,3 +14,4 @@ class Config:
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'},
     SENTINEL_CLIENT_ID     = os.getenv('SENTINEL_CLIENT_ID','0bfcba08-1240-451e-bf8f-93aa71eff6c1')
     SENTINEL_CLIENT_SECRET = os.getenv('SENTINEL_CLIENT_SECRET', '2iJGb9PNYtCABXZOXHhWAxICOmTs4D9X')
+1
