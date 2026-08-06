@@ -11,7 +11,24 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     GEOJSON_FILE_PATH = os.path.join(os.path.dirname(__file__), 'app', 'static', 'geoBoundaries-UGA-ADM3.geojson')
     UPLOAD_FOLDER = 'uploads'
-    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'},
-    SENTINEL_CLIENT_ID     = os.getenv('SENTINEL_CLIENT_ID','0bfcba08-1240-451e-bf8f-93aa71eff6c1')
+    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}   # ← la virgule finale en faisait un tuple
+    SENTINEL_CLIENT_ID     = os.getenv('SENTINEL_CLIENT_ID', '0bfcba08-1240-451e-bf8f-93aa71eff6c1')
     SENTINEL_CLIENT_SECRET = os.getenv('SENTINEL_CLIENT_SECRET', '2iJGb9PNYtCABXZOXHhWAxICOmTs4D9X')
-1
+
+    # ── Stockage des médias ──────────────────────────────────────────────────
+    # 'local' en développement. En production sur un disque éphémère
+    # (conteneur, Render, Railway), passer à 's3'.
+    STORAGE_BACKEND = os.getenv('STORAGE_BACKEND', 'local')
+
+    # Doit pointer HORS du dossier du code en production, sinon chaque
+    # déploiement efface les images.
+    MEDIA_ROOT = os.getenv(
+        'MEDIA_ROOT',
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'media')
+    )
+
+    # Renseigné uniquement si STORAGE_BACKEND='s3'
+    S3_BUCKET          = os.getenv('S3_BUCKET')
+    S3_REGION          = os.getenv('S3_REGION', 'auto')
+    S3_ENDPOINT_URL    = os.getenv('S3_ENDPOINT_URL')      # R2 / Spaces ; vide sur AWS
+    S3_PUBLIC_BASE_URL = os.getenv('S3_PUBLIC_BASE_URL')   # CDN ; sinon URLs signées
