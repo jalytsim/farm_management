@@ -95,18 +95,19 @@ class SoilData(db.Model):
 class Farm(db.Model):
     __tablename__ = 'farm'
     id = db.Column(db.Integer, primary_key=True)
-    farm_id = db.Column(db.String(50), nullable=False)
+    # ★ CORRIGÉ — unique + index : indispensable, deux FK pointent dessus
+    #   (FarmData.farm_id et EcoProduct.farm_id)
+    farm_id = db.Column(db.String(50), nullable=False, unique=True, index=True)
     name = db.Column(db.String(255), nullable=False)
     subcounty = db.Column(db.String(255), nullable=False)
     farmergroup_id = db.Column(db.Integer, db.ForeignKey('farmergroup.id'), nullable=False)
     district_id = db.Column(db.Integer, db.ForeignKey('district.id'), nullable=False)
-    geolocation = db.Column(db.String(255), nullable=False)
+    geolocation = db.Column(db.String(255), nullable=False)   # centroïde "lat, lon"
     phonenumber = db.Column(db.String(20), nullable=True)
     phonenumber2 = db.Column(db.String(20), nullable=True)
     cin = db.Column(db.String(20), nullable=True)
     gender = db.Column(db.String(20), nullable=True)
     country = db.Column(db.String(100), nullable=True)
-    # ★ NOUVEAU — identifiant officiel délivré par une autorité gouvernementale, optionnel, distinct du farm_id interne
     government_id = db.Column(db.String(100), nullable=True)
     date_created = db.Column(db.DateTime, default=datetime.utcnow)
     date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -118,6 +119,24 @@ class Farm(db.Model):
 
     def __repr__(self):
         return f"<Farm(id={self.id}, farm_id={self.farm_id})>"
+
+    def to_dict(self):
+        """Expose les DEUX identifiants — le front a besoin de farm_id."""
+        return {
+            'id': self.id,
+            'farm_id': self.farm_id,
+            'name': self.name,
+            'subcounty': self.subcounty,
+            'country': self.country,
+            'district_id': self.district_id,
+            'farmergroup_id': self.farmergroup_id,
+            'geolocation': self.geolocation,
+            'gender': self.gender,
+            'cin': self.cin,
+            'government_id': self.government_id,
+            'phonenumber': self.phonenumber,
+            'phonenumber2': self.phonenumber2,
+        }
 
 
 class FarmReport(db.Model):
