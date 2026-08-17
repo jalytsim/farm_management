@@ -28,6 +28,17 @@ SALE_MODES = ('unit', 'weight', 'lot')
 #   'deposit'  : caution remboursable à payer d'abord
 #   'approval' : validation manuelle par un admin
 ACCESS_MODES = ('open', 'deposit', 'approval')
+BUYER_TYPES = ('roaster', 'trader', 'importer', 'retailer', 'cooperative', 'other')
+ 
+BUYER_TYPE_LABELS = {
+    'roaster': 'Roaster',
+    'trader': 'Trader',
+    'importer': 'Importer',
+    'retailer': 'Retailer',
+    'cooperative': 'Cooperative',
+    'other': 'Other',
+}
+
 class User(UserMixin, db.Model):
     __tablename__ = 'user'
     id              = db.Column(db.Integer, primary_key=True)
@@ -1341,12 +1352,24 @@ class Bid(db.Model):
  
     user = db.relationship('User', foreign_keys=[user_id])
  
+    def _bidder_type_label(self):
+        """Le TYPE d'acheteur est public, son identité non.
+ 
+        Un producteur a le droit de savoir si ses lots partent chez des
+        torréfacteurs ou chez des négociants — c'est une information de
+        marché, pas une levée d'anonymat.
+        """
+        reg = AuctionRegistration.query.filter_by(
+            auction_id=self.lot.auction_id, user_id=self.user_id).first()
+        return BUYER_TYPE_LABELS.get(reg.buyer_type) if reg else None
+ 
     def to_dict(self, mask_identity=True):
         return {
             'id': self.id,
             'lot_id': self.lot_id,
-            'bidder': (f"Enchérisseur #{self.user_id}" if mask_identity
+            'bidder': (f"Bidder #{self.user_id}" if mask_identity
                        else (self.user.username if self.user else None)),
+            'bidder_type': self._bidder_type_label(),
             'user_id': None if mask_identity else self.user_id,
             'amount_per_kg': _f(self.amount_per_kg),
             'is_auto': self.is_auto,
@@ -1385,11 +1408,15 @@ class AutoBid(db.Model):
             'max_amount_per_kg': _f(self.max_amount_per_kg),
             'is_active': self.is_active,
         }
+    
 class AuctionRegistration(db.Model):
     """L'inscription d'un enchérisseur à une vente.
  
-    Une ligne par (vente, utilisateur). C'est elle qui porte le droit
-    d'enchérir, le plafond, et l'état de la caution.
+    Une ligne par (vente, utilisateur). Elle porte le droit d'enchérir, le
+    plafond, l'état de la caution — et désormais l'identité légale de
+    l'entreprise. `company_name` est une chaîne libre : n'importe qui peut
+    écrire « Coffee Co ». Un numéro d'immatriculation, lui, se vérifie, et
+    c'est ce qui permet de poursuivre un défaillant.
     """
     __tablename__ = 'auctionregistration'
  
@@ -1412,16 +1439,44 @@ class AuctionRegistration(db.Model):
     deposit_currency = db.Column(db.String(10), nullable=True)
     deposit_paid_at  = db.Column(db.DateTime, nullable=True)
     # La caution n'est pas une commande : aucun produit, aucun stock, aucune
-    # livraison. Elle porte donc ses propres références DPO plutôt que de
-    # détourner EcoOrder.
+    # livraison. Elle porte donc ses propres références DPO.
     dpo_trans_token  = db.Column(db.String(100), nullable=True, unique=True)
     dpo_trans_ref    = db.Column(db.String(100), nullable=True)
  
-    # ── Identité commerciale, demandée à l'inscription ───────────────────────
-    company_name     = db.Column(db.String(255), nullable=True)
+    # ── Identité commerciale ─────────────────────────────────────────────────
+    company_name     = db.Column(db.String(255), nullable=True)   # nom commercial
     contact_phone    = db.Column(db.String(20), nullable=True)
     contact_email    = db.Column(db.String(255), nullable=True)
     shipping_country = db.Column(db.String(100), nullable=True)
+ 
+    # ── ★ NOUVEAU — Entité légale ────────────────────────────────────────────
+    # `legal_name` est la raison sociale telle qu'elle figure au registre.
+    # Elle diffère souvent du nom commercial, et c'est elle qui engage.
+    legal_name               = db.Column(db.String(255), nullable=True)
+    registration_number      = db.Column(db.String(100), nullable=True)
+    tax_id                   = db.Column(db.String(100), nullable=True)
+    country_of_incorporation = db.Column(db.String(100), nullable=True)
+    business_address         = db.Column(db.String(500), nullable=True)
+    website                  = db.Column(db.String(255), nullable=True)
+ 
+    # ── ★ NOUVEAU — Profil acheteur ──────────────────────────────────────────
+    buyer_type        = db.Column(db.String(20), nullable=True)
+    years_in_business = db.Column(db.Integer, nullable=True)
+    annual_volume_kg  = db.Column(db.Numeric(12, 2), nullable=True)
+    sourcing_notes    = db.Column(db.Text, nullable=True)
+ 
+    # ── ★ NOUVEAU — Contact responsable ──────────────────────────────────────
+    # Qui engage l'entreprise. « contact@ » ne suffit pas quand un lot de
+    # 3 000 $ n'est pas payé.
+    contact_name = db.Column(db.String(150), nullable=True)
+    contact_role = db.Column(db.String(100), nullable=True)
+ 
+    # ── ★ NOUVEAU — Vérification ─────────────────────────────────────────────
+    # unverified | pending | verified | failed
+    verification_status = db.Column(db.String(20), nullable=False, default='unverified')
+    verified_at         = db.Column(db.DateTime, nullable=True)
+    verified_by         = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    document_key        = db.Column(db.String(500), nullable=True)
  
     approved_at  = db.Column(db.DateTime, nullable=True)
     approved_by  = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
@@ -1436,9 +1491,30 @@ class AuctionRegistration(db.Model):
         db.UniqueConstraint('auction_id', 'user_id', name='uq_registration_auction_user'),
     )
  
+    # ── Règles métier ────────────────────────────────────────────────────────
+ 
     @property
     def can_bid(self):
         return self.status == 'approved'
+ 
+    @property
+    def is_verified(self):
+        return self.verification_status == 'verified'
+ 
+    def profile_completeness(self):
+        """Part du profil renseignée, de 0 à 100.
+ 
+        Sert à deux choses : afficher une progression à l'acheteur, et
+        permettre à l'admin de trier les inscriptions par sérieux plutôt que
+        par date d'arrivée.
+        """
+        fields = [
+            self.company_name, self.legal_name, self.registration_number,
+            self.country_of_incorporation, self.business_address,
+            self.buyer_type, self.contact_name, self.contact_phone,
+            self.contact_email, self.shipping_country,
+        ]
+        return round(sum(1 for f in fields if f) / len(fields) * 100)
  
     def committed_exposure(self):
         """Somme de ce que l'utilisateur mène actuellement sur cette vente.
@@ -1460,6 +1536,22 @@ class AuctionRegistration(db.Model):
             return None            # aucun plafond configuré
         return self.bid_limit - self.committed_exposure()
  
+    def public_profile(self):
+        """Ce qui peut être montré aux autres participants.
+ 
+        Pendant les enchères l'identité reste masquée — sinon on enchérit
+        contre un nom plutôt que contre un prix. Mais le TYPE d'acheteur et le
+        pays sont des informations de marché légitimes : un producteur a le
+        droit de savoir si ses lots partent chez des torréfacteurs ou chez des
+        négociants.
+        """
+        return {
+            'buyer_type': self.buyer_type,
+            'buyer_type_label': BUYER_TYPE_LABELS.get(self.buyer_type),
+            'country': self.shipping_country or self.country_of_incorporation,
+            'is_verified': self.is_verified,
+        }
+ 
     def to_dict(self, for_admin=False):
         data = {
             'id': self.id,
@@ -1472,15 +1564,36 @@ class AuctionRegistration(db.Model):
             'deposit_status': self.deposit_status,
             'deposit_amount': _f(self.deposit_amount),
             'deposit_currency': self.deposit_currency,
+ 
             'company_name': self.company_name,
+            'buyer_type': self.buyer_type,
+            'buyer_type_label': BUYER_TYPE_LABELS.get(self.buyer_type),
+            'verification_status': self.verification_status,
+            'is_verified': self.is_verified,
+            'profile_completeness': self.profile_completeness(),
+ 
+            # Renvoyés à l'acheteur pour qu'il retrouve son formulaire pré-rempli
+            'legal_name': self.legal_name,
+            'registration_number': self.registration_number,
+            'tax_id': self.tax_id,
+            'country_of_incorporation': self.country_of_incorporation,
+            'business_address': self.business_address,
+            'website': self.website,
+            'years_in_business': self.years_in_business,
+            'annual_volume_kg': _f(self.annual_volume_kg),
+            'sourcing_notes': self.sourcing_notes,
+            'contact_name': self.contact_name,
+            'contact_role': self.contact_role,
+            'contact_phone': self.contact_phone,
+            'contact_email': self.contact_email,
+            'shipping_country': self.shipping_country,
         }
         if for_admin:
             data.update({
                 'user_id': self.user_id,
                 'username': self.user.username if self.user else None,
-                'contact_phone': self.contact_phone,
-                'contact_email': self.contact_email,
-                'shipping_country': self.shipping_country,
+                'document_key': self.document_key,
+                'verified_at': self.verified_at.isoformat() if self.verified_at else None,
                 'deposit_paid_at': self.deposit_paid_at.isoformat() if self.deposit_paid_at else None,
                 'dpo_trans_ref': self.dpo_trans_ref,
                 'admin_note': self.admin_note,

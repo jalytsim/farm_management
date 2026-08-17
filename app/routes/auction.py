@@ -23,7 +23,7 @@ from flask_jwt_extended import jwt_required
 from app import db
 from app.models import (
     Auction, AuctionLot, Bid, AutoBid, AuctionRegistration, BidderSanction,
-    EcoProduct, EcoOrder, EcoOrderItem, ACCESS_MODES,
+    EcoProduct, EcoOrder, EcoOrderItem, ACCESS_MODES, BUYER_TYPES,
 )
 from app.utils.dpo_payment import DPOPayment
 from app.utils.decorators import admin_required, current_user_id
@@ -33,6 +33,20 @@ bp = Blueprint('auction', __name__, url_prefix='/api/auction')
 FRONTEND_URL = "https://www.nkusu.com"
 BACKEND_URL = "https://www.nkusu.com/api"
 ZERO = Decimal('0')
+
+# Sans eux, une inscription n'engage personne : « Coffee Co » ne se poursuit
+# pas, un numéro d'immatriculation si. C'est la seule chose qui transforme une
+# enchère gagnée en créance recouvrable.
+REQUIRED_PROFILE_FIELDS = {
+    'company_name': 'Company name',
+    'legal_name': 'Registered legal name',
+    'registration_number': 'Company registration number',
+    'country_of_incorporation': 'Country of incorporation',
+    'buyer_type': 'Buyer type',
+    'contact_name': 'Contact name',
+    'contact_phone': 'Contact phone',
+    'contact_email': 'Contact email',
+}
 
 
 def _dec(value, field='Amount'):
@@ -248,28 +262,92 @@ def my_lot_status(id):
 @bp.route('/auctions/<int:id>/register', methods=['POST'])
 @jwt_required()
 def register_bidder(id):
-    """Inscription à une vente. Selon le mode d'accès : immédiate, conditionnée
-    au paiement d'une caution, ou soumise à validation manuelle."""
+    """Inscription à une vente, avec profil acheteur complet.
+ 
+    Selon le mode d'accès : immédiate, conditionnée au paiement d'une caution,
+    ou soumise à validation manuelle. Dans les trois cas, le profil légal est
+    exigé — c'est lui qui rend l'engagement réel.
+    """
     uid = current_user_id()
     auction = Auction.query.get_or_404(id)
     data = request.get_json() or {}
-
+ 
     if BidderSanction.is_blocked(uid):
         return jsonify({"msg": "Your account is not eligible to register for auctions"}), 403
     if auction.status == 'closed':
         return jsonify({"msg": "This auction has closed"}), 409
-
+ 
+    # ── Validation du profil ─────────────────────────────────────────────────
+    # On renvoie la LISTE des champs manquants, pas un message générique : le
+    # front l'affiche telle quelle et l'acheteur sait quoi corriger.
+    missing = [label for field, label in REQUIRED_PROFILE_FIELDS.items()
+               if not str(data.get(field) or '').strip()]
+    if missing:
+        return jsonify({
+            "msg": "Your buyer profile is incomplete",
+            "missing_fields": missing,
+        }), 400
+ 
+    buyer_type = str(data.get('buyer_type') or '').strip()
+    if buyer_type not in BUYER_TYPES:
+        return jsonify({
+            "msg": f"Buyer type must be one of: {', '.join(BUYER_TYPES)}"
+        }), 400
+ 
+    email = str(data.get('contact_email') or '').strip()
+    if '@' not in email or '.' not in email.split('@')[-1]:
+        return jsonify({"msg": "Contact email is not valid"}), 400
+ 
     existing = AuctionRegistration.query.filter_by(auction_id=id, user_id=uid).first()
     if existing and existing.status in ('approved', 'deposit_pending'):
         return jsonify({"msg": "You are already registered",
                         "registration": existing.to_dict()}), 200
-
+ 
     reg = existing or AuctionRegistration(auction_id=id, user_id=uid)
+ 
+    # ── Entité légale ────────────────────────────────────────────────────────
     reg.company_name = data.get('company_name')
+    reg.legal_name = data.get('legal_name')
+    reg.registration_number = data.get('registration_number')
+    reg.tax_id = data.get('tax_id')
+    reg.country_of_incorporation = data.get('country_of_incorporation')
+    reg.business_address = data.get('business_address')
+    reg.website = data.get('website')
+ 
+    # ── Profil acheteur ──────────────────────────────────────────────────────
+    reg.buyer_type = buyer_type
+    reg.sourcing_notes = data.get('sourcing_notes')
+ 
+    years = data.get('years_in_business')
+    try:
+        reg.years_in_business = int(years) if years not in (None, '') else None
+    except (TypeError, ValueError):
+        return jsonify({"msg": "Years in business must be a whole number"}), 400
+ 
+    volume = data.get('annual_volume_kg')
+    if volume not in (None, ''):
+        try:
+            reg.annual_volume_kg = _dec(volume, "Annual volume")
+        except ValueError as e:
+            return jsonify({"msg": str(e)}), 400
+    else:
+        reg.annual_volume_kg = None
+ 
+    # ── Contact responsable ──────────────────────────────────────────────────
+    reg.contact_name = data.get('contact_name')
+    reg.contact_role = data.get('contact_role')
     reg.contact_phone = data.get('contact_phone')
-    reg.contact_email = data.get('contact_email')
-    reg.shipping_country = data.get('shipping_country')
-
+    reg.contact_email = email
+    reg.shipping_country = data.get('shipping_country') or reg.country_of_incorporation
+    reg.document_key = data.get('document_key') or reg.document_key
+ 
+    # Un profil déjà vérifié le reste : on ne refait pas le contrôle à chaque
+    # vente. C'est ce qui évite de redemander un K-bis à un importateur qui
+    # achète chez toi depuis trois ans.
+    if not (existing and existing.verification_status == 'verified'):
+        reg.verification_status = 'pending' if reg.document_key else 'unverified'
+ 
+    # ── Statut selon le mode d'accès ─────────────────────────────────────────
     if auction.access_mode == 'open':
         reg.status = 'approved'
         reg.approved_at = datetime.utcnow()
@@ -282,22 +360,51 @@ def register_bidder(id):
         reg.bid_limit = None      # accordé seulement une fois la caution encaissée
     else:
         reg.status = 'pending'
-
+ 
     if not existing:
         db.session.add(reg)
     db.session.commit()
-
+ 
     return jsonify({
         "msg": {
             'approved': "You are registered and can start bidding",
-            'deposit_pending': "Registration created. Pay the deposit to unlock bidding.",
-            'pending': "Registration submitted. We will review it shortly.",
+            'deposit_pending': "Profile saved. Pay the deposit to unlock bidding.",
+            'pending': "Profile submitted. We will review it shortly.",
         }.get(reg.status, "Registration created"),
         "registration": reg.to_dict(),
         "next_step": ('pay_deposit' if reg.status == 'deposit_pending'
                       else 'wait_approval' if reg.status == 'pending' else 'bid'),
     }), 201
-
+ 
+ 
+# ═════════════════════════════════════════════════════════════════════════════
+#  Nouvelle route — à coller juste après register_bidder
+# ═════════════════════════════════════════════════════════════════════════════
+ 
+@bp.route('/registrations/<int:id>/verify', methods=['POST'])
+@admin_required
+def verify_registration(id):
+    """Marque un profil comme vérifié après contrôle des documents.
+ 
+    La vérification porte sur l'ENTREPRISE, pas sur la vente. Une fois faite,
+    elle vaut pour les ventes suivantes — sans quoi tes meilleurs clients
+    referaient la même paperasse chaque saison.
+    """
+    reg = AuctionRegistration.query.get_or_404(id)
+    data = request.get_json() or {}
+    status = str(data.get('status') or 'verified').strip()
+ 
+    if status not in ('verified', 'failed', 'pending', 'unverified'):
+        return jsonify({"msg": "Invalid verification status"}), 400
+ 
+    reg.verification_status = status
+    reg.verified_at = datetime.utcnow() if status == 'verified' else None
+    reg.verified_by = current_user_id() if status == 'verified' else None
+    reg.admin_note = data.get('note') or reg.admin_note
+    db.session.commit()
+ 
+    return jsonify({"msg": f"Profile marked as {status}",
+                    "registration": reg.to_dict(for_admin=True)})
 
 @bp.route('/auctions/<int:id>/registration', methods=['GET'])
 @jwt_required()
