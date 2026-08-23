@@ -133,6 +133,35 @@ def _build_farm_info(farm):
     return info
 
 
+# ✅ NOUVEAU — adaptateur pour la génération PDF invité côté Carbon.
+#
+# build_carbon_farm_pdf() attend `report` comme une LISTE ORDONNÉE
+# (report[0]=emissions, report[1]=removals, report[2]=net_flux,
+#  report[3]=séquestration belowground, report[4]=séquestration aboveground),
+# exactement l'ordre dans lequel DATASET_CONFIG['carbon'] déclare ses
+# datasets/pixels dans map.py.
+#
+# Mais le rapport stocké côté invité (Geojson/CarbonReportFromFile) est au
+# format GROUPÉ PAR DATASET (_group_by_dataset), le même format que celui
+# affiché à l'écran par CarbonReportSection.jsx. Ce helper reconstruit la
+# liste ordonnée à partir du dict groupé, sans dupliquer la logique de
+# calcul GFW.
+_CARBON_ORDER = [
+    ('forest carbon gross emissions', 0),
+    ('forest carbon gross removals', 0),
+    ('forest carbon net flux', 0),
+    ('full extent aboveground carbon potential sequestration', 0),  # belowground (1er pixel du dataset)
+    ('full extent aboveground carbon potential sequestration', 1),  # aboveground (2e pixel du dataset)
+]
+
+def _carbon_grouped_to_list(gfw_data: dict) -> list:
+    result = []
+    for key, idx in _CARBON_ORDER:
+        items = gfw_data.get(key, []) if isinstance(gfw_data, dict) else []
+        result.append(items[idx] if idx < len(items) else {})
+    return result
+
+
 # ============================================
 # FOREST DATA ENDPOINTS
 # ============================================
@@ -210,13 +239,18 @@ async def CarbonReportforest(forest_id):
 # PDF ENDPOINTS — ReportLab (100 % backend)
 # ============================================
 
-def _send_pdf(pdf_bytes: bytes, filename: str):
-    """Helper : écrit les bytes dans un fichier temp et retourne send_file."""
+def _send_pdf(pdf_bytes: bytes, filename: str, as_attachment: bool = True, browser_safe: bool = False):
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
     tmp.write(pdf_bytes)
     tmp.close()
-    return send_file(tmp.name, mimetype='application/pdf',
-                     as_attachment=True, download_name=filename)
+    # ✅ FIX (IDM) : pour les endpoints invités affichés inline, on évite
+    # 'application/pdf' dans le Content-Type réseau — IDM (et gestionnaires
+    # de téléchargement similaires) l'interceptent automatiquement dès que
+    # la taille dépasse leur seuil, quel que soit Content-Disposition.
+    # Le frontend re-type le blob en 'application/pdf' lui-même après coup.
+    mimetype = 'application/octet-stream' if browser_safe else 'application/pdf'
+    return send_file(tmp.name, mimetype=mimetype,
+                     as_attachment=as_attachment, download_name=filename)
 
 
 @bp.route('/farm/<string:farm_id>/eudr-pdf', methods=['POST'])
@@ -359,6 +393,96 @@ async def carbon_forest_pdf(forest_id):
     return _send_pdf(pdf_bytes, f'Carbon_Forest_Report_{forest_id}.pdf')
 
 
+# ============================================
+# ✅ NOUVEAU — PDF ENDPOINTS INVITÉ — même moteur ReportLab que le client,
+# sans dépendance à une Farm en base de données.
+#
+# Le frontend envoie directement le `report` déjà calculé et affiché à
+# l'écran (même format que celui stocké dans useReports.jsx / reports.eudr /
+# reports.carbon), plus des infos optionnelles (farm_info, carte forêt).
+# ============================================
+
+@bp.route('/guest/eudr-pdf', methods=['POST'])
+def guest_eudr_pdf():
+    """
+    Rapport EUDR invité — 100 % backend ReportLab.
+    POST /api/gfw/guest/eudr-pdf
+    Body JSON attendu :
+      {
+        "report": {...},          # dict groupé par dataset (voir _group_by_dataset),
+                                   # identique à ce que renvoie ReportFromFile
+        "farm_info": {...},       # optionnel : name, geolocation, subcounty,
+                                   # district_name, crops[], farm_id...
+        "forest_map_image": "...",# optionnel : base64 de la carte StaticForestMap
+        "guest_id": "..."         # optionnel : identifiant pour le nom du fichier
+      }
+    """
+    req_data = request.json or {}
+    gfw_data = req_data.get('report')
+
+    if not gfw_data or not isinstance(gfw_data, dict):
+        return jsonify({"error": "Missing or invalid 'report' data"}), 400
+
+    farm_info          = req_data.get('farm_info') or {}
+    forest_map_base64  = req_data.get('forest_map_image')
+    guest_id           = req_data.get('guest_id') or farm_info.get('farm_id') or 'GUEST'
+
+    try:
+        pdf_bytes = build_eudr_farm_pdf(
+            farm_id           = str(guest_id),
+            farm_info         = farm_info,
+            gfw_data          = gfw_data,
+            logo_parrot       = LOGO_PARROT,
+            logo_agri         = LOGO_AGRI,
+            forest_map_base64 = forest_map_base64,
+        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Génération PDF échouée: {str(e)}"}), 500
+
+    _log_gfw('guest_eudr_pdf', 'guest', guest_id)
+    return _send_pdf(pdf_bytes, f'EUDR_Report_{guest_id}.pdf', as_attachment=False, browser_safe=True)
+
+@bp.route('/guest/carbon-pdf', methods=['POST'])
+def guest_carbon_pdf():
+    """
+    Rapport Carbon invité — 100 % backend ReportLab.
+    POST /api/gfw/guest/carbon-pdf
+    Body JSON attendu :
+      {
+        "report": {...},     # dict groupé par dataset (format CarbonReportFromFile)
+        "farm_info": {...},  # optionnel
+        "guest_id": "..."    # optionnel
+      }
+    """
+    req_data = request.json or {}
+    gfw_data = req_data.get('report')
+
+    if not gfw_data or not isinstance(gfw_data, dict):
+        return jsonify({"error": "Missing or invalid 'report' data"}), 400
+
+    farm_info  = req_data.get('farm_info') or {}
+    guest_id   = req_data.get('guest_id') or farm_info.get('farm_id') or 'GUEST'
+
+    # Adaptation dict groupé -> liste ordonnée attendue par build_carbon_farm_pdf
+    report_list = _carbon_grouped_to_list(gfw_data)
+
+    try:
+        pdf_bytes = build_carbon_farm_pdf(
+            farm_id     = str(guest_id),
+            farm_info   = farm_info,
+            report      = report_list,
+            logo_parrot = LOGO_PARROT,
+            logo_agri   = LOGO_AGRI,
+        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Génération PDF échouée: {str(e)}"}), 500
+
+    _log_gfw('guest_carbon_pdf', 'guest', guest_id)
+    return _send_pdf(pdf_bytes, f'Carbon_Report_{guest_id}.pdf', as_attachment=False, browser_safe=True)
 # ============================================
 # GEOJSON FILE UPLOAD ENDPOINTS
 # ============================================

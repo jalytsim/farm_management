@@ -26,33 +26,7 @@ def load_user(user_id):
     return User.query.get(int(user_id))
 
 
-# ═══════════════════════════════════════════════════════════════════
-#  FILTRES ALEMBIC — configuration centrale, robuste, long terme
-#
-#  Problèmes résolus une fois pour toutes :
-#
-#  1. "Cannot drop index farm_id" (MySQL FK index auto)
-#     → _alembic_include_object : ignore les index réfléchis
-#       sans équivalent dans le modèle
-#
-#  2. Faux positifs de type VARCHAR(255) vs String(150) etc.
-#     → _alembic_compare_type : ignore les comparaisons bénignes
-#       MAIS détecte les vrais changements importants comme
-#       Text → LONGTEXT, String → Text, etc.
-#
-#  Règle :
-#    - Si le modèle déclare LONGTEXT  et la BDD a TEXT  → migration ✅
-#    - Si le modèle déclare LONGTEXT  et la BDD a LONGTEXT → skip ✅
-#    - Si le modèle déclare String(150) et la BDD a VARCHAR(255) → skip ✅
-#    - Si le modèle déclare Text et la BDD a VARCHAR → migration ✅
-# ═══════════════════════════════════════════════════════════════════
-
 def _alembic_include_object(object, name, type_, reflected, compare_to):
-    """
-    Ignore les index auto-créés par MySQL pour les FK.
-    Ces index existent en BDD mais pas dans le modèle Python.
-    Sans ce filtre, Alembic essaie de les supprimer et MySQL refuse.
-    """
     if type_ == "index" and reflected and compare_to is None:
         return False
     return True
@@ -60,43 +34,21 @@ def _alembic_include_object(object, name, type_, reflected, compare_to):
 
 def _alembic_compare_type(context, inspected_column, metadata_column,
                            inspected_type, metadata_type):
-    """
-    Comparaison intelligente des types de colonnes.
-
-    Retourne :
-      True  → les types diffèrent, une migration est nécessaire
-      False → ignorer cette différence (faux positif)
-
-    Logique :
-      - LONGTEXT vs TEXT/Text  → True  (migration réelle nécessaire)
-      - MEDIUMTEXT vs TEXT     → True  (migration réelle nécessaire)
-      - VARCHAR(N) vs String(M)→ False (variation de longueur tolérée)
-      - Tout autre cas         → False (comportement conservateur)
-    """
     from sqlalchemy.dialects.mysql import LONGTEXT, MEDIUMTEXT
-    from sqlalchemy import Text, String
+    from sqlalchemy import String
 
-    meta_type_class     = type(metadata_type)
-    inspected_type_class= type(inspected_type)
+    meta_type_class = type(metadata_type)
+    inspected_type_class = type(inspected_type)
 
-    # ── Cas 1 : le modèle veut LONGTEXT ──────────────────────────
-    # Si la BDD n'a pas LONGTEXT → migration nécessaire
     if meta_type_class is LONGTEXT:
         return inspected_type_class is not LONGTEXT
 
-    # ── Cas 2 : le modèle veut MEDIUMTEXT ────────────────────────
     if meta_type_class is MEDIUMTEXT:
         return inspected_type_class is not MEDIUMTEXT
 
-    # ── Cas 3 : variation de longueur String/VARCHAR ──────────────
-    # Toléré — MySQL peut avoir VARCHAR(255) alors que le modèle
-    # déclare String(150). Ce n'est pas un vrai problème.
     if meta_type_class is String and inspected_type_class is String:
         return False
 
-    # ── Cas 4 : tout autre changement → ignorer (conservateur) ───
-    # Évite les faux positifs dus aux différences de dialecte
-    # entre SQLAlchemy et MySQL (TINYINT vs Boolean, etc.)
     return False
 
 
@@ -117,10 +69,11 @@ def init_extensions(app):
     mysql.init_app(app)
     login_manager.init_app(app)
     jwt.init_app(app)
-    CORS(app, resources={r"/*": {"origins": "*"}})
 
-    # ★ compare_type = fonction intelligente (pas True/False)
-    #   Détecte LONGTEXT/MEDIUMTEXT mais ignore VARCHAR(N) vs String(M)
+    # ★ CORS restreint aux origines de confiance (config via CORS_ORIGINS dans .env)
+    #   Une route de paiement ne doit jamais accepter "*" en production.
+    CORS(app, resources={r"/*": {"origins": app.config["CORS_ORIGINS"]}}, supports_credentials=True)
+
     migrate.init_app(
         app,
         db,
@@ -144,7 +97,7 @@ def register_blueprints(app):
         api_sentinel,
         api_blog, api_hscode,
         ecommerce,
-        auction,
+        auction, api_tree_co2,
     )
 
     blueprints = [
@@ -164,7 +117,7 @@ def register_blueprints(app):
         api_sentinel.sentinel_bp,
         api_blog.bp, api_hscode.bp,
         ecommerce.bp,
-        auction.bp,
+        auction.bp, api_tree_co2.bp,
     ]
 
     for blueprint in blueprints:
@@ -198,6 +151,5 @@ def create_app():
         from app.models import User  # noqa: F401
 
     start_scheduler(app)
-
 
     return app

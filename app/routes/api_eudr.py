@@ -2,21 +2,24 @@
 import base64
 import json
 from flask import Blueprint, request, jsonify
-from app.utils.eudr_utils import EUDRClient, extract_amend_status, extract_dds_identifier, extract_internal_ref_statements, extract_statement_info, extract_verification_info  # Ton fichier contenant la classe EUDRClient
+from app.utils.eudr_utils import EUDRClient, extract_amend_status, extract_dds_identifier, extract_internal_ref_statements, extract_statement_info, extract_verification_info, extract_soap_fault  # Ton fichier contenant la classe EUDRClient
 import xml.etree.ElementTree as ET
 from app.models import db, EUDRStatement
 from datetime import datetime
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.models import User
 from dateutil import parser  # pip install python-dateutil si nécessaire
-
+import os
 
 
 api_eudr_bp = Blueprint('api_eudr', __name__, url_prefix='/api/eudr')
 
 # Crée une instance du client EUDR (à adapter pour intégrer à un système de configuration sécurisé)
-eudr_client = EUDRClient(username="n00hsq5u", auth_key="axtAeJM0216XSNGfI7RCztDKOSh99NkuAjLmXAHR")
-
+# 1. Credentials via variable d'env, avec fallback statique si absente
+eudr_client = EUDRClient(
+    username=os.environ.get("EUDR_USERNAME", "n00hsq5u"),
+    auth_key=os.environ.get("EUDR_AUTH_KEY", "axtAeJM0216XSNGfI7RCztDKOSh99NkuAjLmXAHR")
+)
 
 @api_eudr_bp.route('/submit', methods=['POST'])
 @jwt_required()
@@ -46,6 +49,9 @@ def submit_statement():
                 operator_name=statement.get('operator', {}).get('name'),
                 operator_country=statement.get('operator', {}).get('country'),
                 operator_address=statement.get('operator', {}).get('address'),
+                operator_street=statement.get('operator', {}).get('street'),              # ★ NOUVEAU
+                operator_postal_code=statement.get('operator', {}).get('postalCode'),     # ★ NOUVEAU
+                operator_city=statement.get('operator', {}).get('city'),                  # ★ NOUVEAU
                 operator_email=statement.get('operator', {}).get('email'),
                 operator_phone=statement.get('operator', {}).get('phone'),
 
@@ -113,6 +119,9 @@ def amend_statement():
                 record.operator_name = statement.get('operator', {}).get('name', record.operator_name)
                 record.operator_country = statement.get('operator', {}).get('country', record.operator_country)
                 record.operator_address = statement.get('operator', {}).get('address', record.operator_address)
+                record.operator_street = statement.get('operator', {}).get('street', record.operator_street)              # ★ NOUVEAU
+                record.operator_postal_code = statement.get('operator', {}).get('postalCode', record.operator_postal_code)  # ★ NOUVEAU
+                record.operator_city = statement.get('operator', {}).get('city', record.operator_city)                    # ★ NOUVEAU
                 record.operator_email = statement.get('operator', {}).get('email', record.operator_email)
                 record.operator_phone = statement.get('operator', {}).get('phone', record.operator_phone)
 
@@ -148,8 +157,9 @@ def amend_statement():
     })
 
 @api_eudr_bp.route('/retract/<dds_id>', methods=['DELETE'])
+@jwt_required()
 def retract_statement(dds_id):
-    response = eudr_client.retract_statement(dds_id)
+    response = eudr_client.withdraw_statement(dds_id)
 
     if response.status_code == 200:
         try:
@@ -178,6 +188,18 @@ def get_by_internal_reference(reference):
     user_id = identity['id'] if identity else None
 
     response = eudr_client.get_by_internal_reference(reference)
+
+    fault = extract_soap_fault(response.text)
+    if fault:
+        print("🔥 SOAP Fault reçu :", fault, "| raw:", response.text[:2000])
+        return jsonify({
+            "status": response.status_code,
+            "statements": [],
+            "error": fault.get("faultstring"),
+            "detail": fault.get("detail"),
+            "raw": response.text
+        }), 502
+
     statements = extract_internal_ref_statements(response.text)
 
     if statements is not None:
@@ -323,6 +345,9 @@ def get_by_reference_and_verification():
             "operator_name": local_record.operator_name,
             "operator_country": local_record.operator_country,
             "operator_address": local_record.operator_address,
+            "operator_street": local_record.operator_street,               # ★ NOUVEAU
+            "operator_postal_code": local_record.operator_postal_code,     # ★ NOUVEAU
+            "operator_city": local_record.operator_city,                  # ★ NOUVEAU
             "operator_email": local_record.operator_email,
             "operator_phone": local_record.operator_phone,
             "description_of_goods": local_record.description_of_goods,

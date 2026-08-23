@@ -8,6 +8,13 @@ Changes in this version:
     · backward-compatible keys kept at top level (ndvi_factor, adjusted_yield_t_ha, …)
   - get_sat_index_full: both cache and fresh-data paths now call compute_ltv_multi
   - _parse_response returns (data, out_of_bounds_log) tuple (unchanged from previous version)
+
+  PATCH (guest 500 fix):
+  - get_sat_index_full_guest: la lecture initiale de GuestSentinelCache n'était
+    pas protégée par try/except. Si la table 'guestsentinelcache' n'existe pas
+    encore en base (migration non appliquée) ou en cas d'erreur DB, l'exception
+    remontait telle quelle jusqu'à Flask -> 500 générique, uniquement visible
+    côté guest puisque SentinelCache (mode connecté) existe déjà en base.
 """
 
 import os, time, warnings, logging
@@ -25,8 +32,8 @@ logger = logging.getLogger(__name__)
 # STATS_URL = 'https://services.sentinel-hub.com/api/v1/statistics'
 
 
-SENTINEL_CLIENT_ID     = os.environ.get('SENTINEL_CLIENT_ID',     'sh-07766274-9bf2-47ca-9396-9377b3fb4fbc')
-SENTINEL_CLIENT_SECRET = os.environ.get('SENTINEL_CLIENT_SECRET', 'AIYhNwWvbtCrSbSyLspjBEPBNiBZy79T')
+SENTINEL_CLIENT_ID     = os.environ.get('SENTINEL_CLIENT_ID',     'sh-b11f7794-68d5-4af9-bc82-59142ecd29a1')
+SENTINEL_CLIENT_SECRET = os.environ.get('SENTINEL_CLIENT_SECRET', 'TlVMVmjbZlo8PzyGswL5lbiPpSfLHh0K')
 
 TOKEN_URL = 'https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token'
 STATS_URL = 'https://sh.dataspace.copernicus.eu/api/v1/statistics'
@@ -37,18 +44,59 @@ _token_cache = {'token': None, 'expires_at': 0}
 def _get_token():
     now = time.time()
     if _token_cache['token'] and _token_cache['expires_at'] > now + 60:
+        logger.info(
+            f'[Sentinel][Token] Cache réutilisé — client_id={SENTINEL_CLIENT_ID} '
+            f'expire dans {int(_token_cache["expires_at"] - now)}s'
+        )
         return _token_cache['token']
+
+    logger.info(f'[Sentinel][Token] Nouvelle demande de token — client_id={SENTINEL_CLIENT_ID}')
     resp = requests.post(TOKEN_URL, data={
         'grant_type':    'client_credentials',
         'client_id':     SENTINEL_CLIENT_ID,
         'client_secret': SENTINEL_CLIENT_SECRET,
     }, headers={'Content-Type': 'application/x-www-form-urlencoded'}, timeout=15)
+
+    if not resp.ok:
+        logger.error(f'[Sentinel][Token] Échec {resp.status_code}: {resp.text}')
     resp.raise_for_status()
+
     d = resp.json()
     _token_cache['token']      = d['access_token']
     _token_cache['expires_at'] = now + d.get('expires_in', 3600)
+    logger.info(
+        f'[Sentinel][Token] OK — token={d["access_token"][:25]}... '
+        f'(len={len(d["access_token"])}, expires_in={d.get("expires_in")})'
+    )
     return _token_cache['token']
 
+    
+def _compute_safe_resolution(geometry, max_dim=500, min_res=0.0001):
+    """
+    Calcule resx/resy pour le raster utilisé par l'API Statistics.
+    max_dim=500 suffit largement pour un mean/stdDev fiable et évite
+    les timeouts sur les grands polygones (bien en dessous de la limite
+    dure de 2500px, qui elle sert surtout à l'image de classification).
+    """
+    coords = geometry.get('coordinates', [[]])[0]
+    if not coords:
+        return min_res, min_res
+
+    lons = [c[0] for c in coords]
+    lats = [c[1] for c in coords]
+    bbox_width  = max(lons) - min(lons)
+    bbox_height = max(lats) - min(lats)
+
+    safety = 1.05
+    resx = max(min_res, (bbox_width  * safety) / max_dim)
+    resy = max(min_res, (bbox_height * safety) / max_dim)
+
+    logger.info(
+        f'[Sentinel] bbox={bbox_width:.6f}x{bbox_height:.6f}° → '
+        f'resx={resx:.6f}, resy={resy:.6f} '
+        f'(≈{int(bbox_width/resx)}x{int(bbox_height/resy)} px)'
+    )
+    return round(resx, 6), round(resy, 6)
 
 EVALSCRIPT = """//VERSION=3
 function setup(){return{input:[{bands:['B02','B03','B04','B08','B11','B12','dataMask']}],output:[
@@ -83,26 +131,48 @@ def _call_statistics(geometry, date_from, date_to, interval='P3M', mosaicking_or
     if mosaicking_order:
         data_filter['mosaickingOrder'] = mosaicking_order
 
+    resx, resy = _compute_safe_resolution(geometry)
+
     payload = {
         'input': {
-            'bounds': {'geometry': geometry},
+            'bounds': {
+                'geometry': geometry,
+                'properties': {'crs': 'http://www.opengis.net/def/crs/EPSG/0/4326'},
+            },
             'data': [{'type': 'sentinel-2-l2a', 'dataFilter': data_filter}],
         },
         'aggregation': {
             'timeRange':           {'from': date_from, 'to': date_to},
             'aggregationInterval': {'of': interval},
-            'resx': 0.0001, 'resy': 0.0001,
+            'resx': resx, 'resy': resy,
             'evalscript': EVALSCRIPT,
         },
         'calculations': {'default': {}},
     }
-    resp = requests.post(
-        STATS_URL, json=payload,
-        headers={'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'},
-        timeout=90,
+
+    logger.info(
+        f'[Sentinel][Statistics] token={token[:25]}... '
+        f'geometry_type={geometry.get("type")} '
+        f'n_points={len(geometry.get("coordinates", [[]])[0])} '
+        f'resx={resx} resy={resy} from={date_from} to={date_to} interval={interval}'
     )
-    resp.raise_for_status()
-    return resp.json()
+
+    last_exc = None
+    for attempt in range(1, 3):  # 1 essai + 1 retry
+        try:
+            resp = requests.post(
+                STATS_URL, json=payload,
+                headers={'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'},
+                timeout=180,  # 3 min — les grands polygones sur 5 ans sont lents côté Copernicus
+            )
+            if not resp.ok:
+                logger.error(f'[Sentinel][Statistics] {resp.status_code} Bad Request: {resp.text}')
+            resp.raise_for_status()
+            return resp.json()
+        except requests.exceptions.Timeout as e:
+            last_exc = e
+            logger.warning(f'[Sentinel][Statistics] Timeout tentative {attempt}/2 — retry...')
+    raise last_exc
 
 def _parse_response(api_response):
     """
@@ -221,36 +291,13 @@ def get_tier(index_name, value):
 # MULTI-INDEX LTV
 # ══════════════════════════════════════════════════════════════════════════════
 
-# Per-index agronomic parameters used to derive a crop-productivity factor.
-#
-# optimal   : reference value at which factor = 1.0 (best expected crop output)
-# invert    : True  → lower index value = better agronomic condition (NMDI, BSI)
-#             False → higher index value = better (NDVI, EVI, SAVI, NDMI, NDWI, NBR)
-# range_lo  : natural lower bound of the index (used for normalisation)
-# range_hi  : natural upper bound
-# weight    : contribution to the weighted composite (must sum to 1.0)
-# icon / label / color: display metadata
-#
-# Agronomic rationale
-# -------------------
-# NDVI  (0.70) : dense, healthy canopy → strongest yield signal, highest weight
-# EVI   (0.50) : corrects atmospheric effects; independent NDVI complement
-# SAVI  (0.50) : soil-adjusted — crucial when canopy is sparse (young crops)
-# NDMI  (0.30) : canopy moisture; optimal = well-hydrated leaf tissue
-# NDWI  (0.15) : open-water / surface moisture; moderate positive = irrigation OK
-# NMDI  (0.65) : drought index; LOWER = wetter = better → invert=True
-#                at 0.65 soil is adequately moist; above 0.80 = drought stress
-# NBR   (0.40) : burn / senescence ratio; healthy vegetation > 0.40
-# BSI   (0.00) : bare-soil exposure; ideal = fully covered → invert=True,
-#                optimal=0 means 0 bare soil is best
-
 INDEX_LTV_CONFIG = {
     'ndvi': {
         'label':    'NDVI — Vegetation Health',
         'icon':     '🌱',
         'color':    '#16a34a',
         'optimal':  0.70,
-        'range_lo': 0.0,   # only positive values are agronomically meaningful
+        'range_lo': 0.0,
         'range_hi': 1.0,
         'invert':   False,
         'weight':   0.28,
@@ -280,7 +327,7 @@ INDEX_LTV_CONFIG = {
         'icon':     '💧',
         'color':    '#0284c7',
         'optimal':  0.30,
-        'range_lo': -1.0,  # full [-1, 1] range
+        'range_lo': -1.0,
         'range_hi':  1.0,
         'invert':   False,
         'weight':   0.18,
@@ -302,7 +349,7 @@ INDEX_LTV_CONFIG = {
         'optimal':  0.65,
         'range_lo':  0.0,
         'range_hi':  1.0,
-        'invert':   True,   # lower = wetter soil = better
+        'invert':   True,
         'weight':   0.06,
     },
     'nbr': {
@@ -319,36 +366,19 @@ INDEX_LTV_CONFIG = {
         'label':    'BSI — Bare Soil Index',
         'icon':     '⛰️',
         'color':    '#92400e',
-        'optimal':  0.00,   # 0 bare soil = full canopy cover = best
+        'optimal':  0.00,
         'range_lo': -1.0,
         'range_hi':  1.0,
-        'invert':   True,   # lower BSI = more vegetation = better
+        'invert':   True,
         'weight':   0.02,
     },
 }
 
-# Sanity check: weights must sum to 1.0
 assert abs(sum(c['weight'] for c in INDEX_LTV_CONFIG.values()) - 1.0) < 1e-9, \
     'INDEX_LTV_CONFIG weights must sum to 1.0'
 
 
 def _compute_index_factor(idx_name: str, value) -> float:
-    """
-    Convert a satellite index value into a crop-productivity factor in [0.3, 1.0].
-
-    Logic
-    -----
-    For non-inverted indices (higher value = better):
-        - Shift value to [0, range_hi - range_lo] so negatives don't penalise
-        - Divide by shifted optimal to get a ratio; clamp to [0.3, 1.0]
-
-    For inverted indices (lower value = better, e.g. NMDI drought, BSI bare soil):
-        - Reflect around optimal: factor ∝ optimal / value
-        - At value == optimal, factor = 1.0; above optimal, factor < 1.0
-
-    A floor of 0.3 avoids zero-valued crop estimates that would cause
-    division-by-zero in LTV ratio calculations.
-    """
     if value is None:
         return 0.30
 
@@ -361,18 +391,13 @@ def _compute_index_factor(idx_name: str, value) -> float:
     invert   = cfg['invert']
 
     if invert:
-        # NMDI: optimal = 0.65; at value=0.65 → factor=1.0
-        #        at value=0.80 (drought) → factor=0.65/0.80=0.81 → clamped
-        # BSI:  optimal = 0.0; any positive value reduces factor
         if optimal == 0.0:
-            # BSI special case: factor = 1 - |value| (max cover = factor 1)
             raw = 1.0 - abs(value)
         else:
             raw = optimal / max(abs(value), 1e-4)
     else:
-        # Shift to non-negative space then normalise to optimal
-        shifted_val     = value - range_lo          # e.g. NDMI: -0.5 → 0.5
-        shifted_optimal = optimal - range_lo        # e.g. NDMI: 0.30 - (-1) = 1.30
+        shifted_val     = value - range_lo
+        shifted_optimal = optimal - range_lo
         if shifted_optimal <= 0:
             raw = 0.30
         else:
@@ -385,38 +410,21 @@ def _regression_calibrate(ndvi_values: list, base_yields: list,
                            hist_yield_1: float | None,
                            hist_yield_2: float | None,
                            current_ndvi: float | None) -> dict:
-    """
-    Fit a linear regression NDVI → Yield, optionally anchored by 1 or 2
-    historical ground-truth yields supplied by the analyst.
-
-    If hist_yield_1 / hist_yield_2 are provided they are paired with the
-    annual-mean NDVI of years N-2 and N-1 respectively, so the line is
-    pulled toward real field observations.
-
-    Returns:
-      slope, intercept, predicted_yield (for current_ndvi),
-      calibrated (bool), r2, ndvi_points, yield_points
-    """
     import numpy as np
 
-    xs = list(ndvi_values)   # NDVI history (quarterly means)
-    ys = list(base_yields)   # model-estimated yields (same length)
+    xs = list(ndvi_values)
+    ys = list(base_yields)
 
-    # --- anchor with analyst ground-truth yields if provided ----------------
-    # We pair HY1 with the annual mean NDVI of 4 quarters-ago year,
-    # HY2 with the most recent full-year mean NDVI.
     calibrated = False
     n = len(xs)
 
     if hist_yield_1 is not None and n >= 8:
-        # year N-2: quarters [-8..-5]
         anchor_ndvi_1 = float(np.mean(xs[max(0, n-8):max(1, n-4)]))
         xs.append(anchor_ndvi_1)
         ys.append(hist_yield_1)
         calibrated = True
 
     if hist_yield_2 is not None and n >= 4:
-        # year N-1: quarters [-4..-1]
         anchor_ndvi_2 = float(np.mean(xs[max(0, n-4):n]))
         xs.append(anchor_ndvi_2)
         ys.append(hist_yield_2)
@@ -425,12 +433,10 @@ def _regression_calibrate(ndvi_values: list, base_yields: list,
     xs_arr = np.array(xs, dtype=float)
     ys_arr = np.array(ys, dtype=float)
 
-    # least-squares fit
     if len(xs_arr) >= 2 and xs_arr.std() > 1e-6:
         coeffs   = np.polyfit(xs_arr, ys_arr, 1)
         slope    = float(coeffs[0])
         intercept = float(coeffs[1])
-        # R²
         y_hat = slope * xs_arr + intercept
         ss_res = float(np.sum((ys_arr - y_hat) ** 2))
         ss_tot = float(np.sum((ys_arr - ys_arr.mean()) ** 2))
@@ -461,29 +467,6 @@ def compute_ltv_multi(history_out: list, area_ha: float,
                       loan_amount: float = None,
                       hist_yield_1: float = None,
                       hist_yield_2: float = None) -> dict | None:
-    """
-    Compute LTV for *every* satellite index in INDEX_LTV_CONFIG.
-
-    For each index:
-      - Pulls the most recent non-null value from history_out
-      - Derives a productivity factor via _compute_index_factor
-      - Computes adjusted yield, estimated crop value, LTV ratio, insurance premium
-
-    Also computes a weighted composite across all indices.
-
-    hist_yield_1 / hist_yield_2 (optional t/ha): analyst-supplied real yields
-    for years N-2 and N-1. When provided, they calibrate the NDVI→Yield
-    linear regression to local conditions.
-
-    Returns a dict with:
-      indices    : {idx_name: {label, icon, color, index_value, factor, ...}}
-      composite  : {factor, adjusted_yield_t_ha, crop_value_usd, ltv_ratio_pct, insurance_pct}
-      regression : {ndvi: {slope, intercept, r2, predicted_yield, ...}, evi: {...}, ...}
-      area_ha, yield_t_per_ha, price_per_t, loan_amount_usd
-      + backward-compat top-level keys (ndvi_factor, adjusted_yield_t_ha, ...)
-
-    Returns None if area_ha <= 0 or no history available.
-    """
     if not history_out or area_ha <= 0:
         return None
 
@@ -492,7 +475,6 @@ def compute_ltv_multi(history_out: list, area_ha: float,
     composite_weight_sum   = 0.0
 
     for idx_name, cfg in INDEX_LTV_CONFIG.items():
-        # ── Most recent non-null value ────────────────────────────────────────
         recent_val = None
         for row in reversed(history_out):
             v = row.get(idx_name)
@@ -511,11 +493,8 @@ def compute_ltv_multi(history_out: list, area_ha: float,
             else None
         )
 
-        # Insurance premium: base 3 % + risk premium derived from factor & LTV
         base       = 3.0
-        # Vegetation / moisture deficit → extra premium
         health_risk = max(0.0, (0.6 - factor) * 5.0)
-        # Leverage risk: each 1 % above 60 % LTV adds 0.05 %
         ltv_risk    = max(0.0, ((ltv_ratio or 60.0) - 60.0) * 0.05) if ltv_ratio else 0.0
         insurance   = round(base + health_risk + ltv_risk, 2)
 
@@ -535,7 +514,6 @@ def compute_ltv_multi(history_out: list, area_ha: float,
         composite_factor_sum  += factor * cfg['weight']
         composite_weight_sum  += cfg['weight']
 
-    # ── Weighted composite ────────────────────────────────────────────────────
     comp_factor = round(composite_factor_sum / max(composite_weight_sum, 1e-9), 4)
     comp_yield  = round(yield_t_per_ha * comp_factor, 3)
     comp_crop   = round(area_ha * comp_yield * price_per_t, 2)
@@ -548,7 +526,6 @@ def compute_ltv_multi(history_out: list, area_ha: float,
     comp_ltv_risk    = max(0.0, ((comp_ltv or 60.0) - 60.0) * 0.05) if comp_ltv else 0.0
     comp_insurance   = round(3.0 + comp_health_risk + comp_ltv_risk, 2)
 
-    # ── Per-index regression (dynamic — all indices, not just NDVI) ──────────
     regressions = {}
     for idx_name in INDEX_LTV_CONFIG:
         idx_history  = []
@@ -575,11 +552,9 @@ def compute_ltv_multi(history_out: list, area_ha: float,
             current_val,
         )
 
-    # ── Build return dict (backward-compat top-level keys from NDVI) ──────────
     ndvi_entry = per_index.get('ndvi', {})
 
     return {
-        # ── New structure ──────────────────────────────────────────────────────
         'indices':   per_index,
         'composite': {
             'factor':                   comp_factor,
@@ -588,16 +563,13 @@ def compute_ltv_multi(history_out: list, area_ha: float,
             'ltv_ratio_pct':            comp_ltv,
             'insurance_premium_pct':    comp_insurance,
         },
-        # ── Regression (per-index) ────────────────────────────────────────────
         'regression':       regressions,
-        # ── Metadata ──────────────────────────────────────────────────────────
         'area_ha':          round(area_ha, 2),
         'yield_t_per_ha':   yield_t_per_ha,
         'price_per_t':      price_per_t,
         'loan_amount_usd':  loan_amount,
         'hist_yield_1':     hist_yield_1,
         'hist_yield_2':     hist_yield_2,
-        # ── Backward-compatible flat keys (previously from compute_ltv) ───────
         'ndvi_factor':                  ndvi_entry.get('factor'),
         'adjusted_yield_t_ha':          ndvi_entry.get('adjusted_yield_t_ha'),
         'estimated_crop_value_usd':     ndvi_entry.get('estimated_crop_value_usd'),
@@ -606,14 +578,8 @@ def compute_ltv_multi(history_out: list, area_ha: float,
     }
 
 
-# Keep the old single-index function for any external callers, but delegate
-# to the multi-index logic for consistency.
 def compute_ltv(ndvi_mean, area_ha, yield_t_per_ha=1.5,
                 price_per_t=500, loan_amount=None):
-    """
-    Legacy single-index LTV (NDVI only).
-    Prefer compute_ltv_multi for the full multi-index breakdown.
-    """
     synthetic_history = [{'ndvi': ndvi_mean}]
     result = compute_ltv_multi(
         synthetic_history, area_ha,
@@ -623,7 +589,6 @@ def compute_ltv(ndvi_mean, area_ha, yield_t_per_ha=1.5,
     )
     if result is None:
         return None
-    # Return the old flat dict shape
     return {
         'area_ha':                  result['area_ha'],
         'ndvi_factor':              result['ndvi_factor'],
@@ -863,7 +828,6 @@ async def get_sat_index_full(entity_type, entity_id,
 
     indices = ['ndvi', 'ndmi', 'ndwi', 'nmdi', 'evi', 'savi', 'nbr', 'bsi']
 
-    # ── Load entity ───────────────────────────────────────────────────────────
     if entity_type == 'farm':
         entity = Farm.query.filter_by(farm_id=entity_id).first()
         if not entity:
@@ -884,7 +848,6 @@ async def get_sat_index_full(entity_type, entity_id,
     if not geometry:
         return None, 'No geometry available — add polygon points first'
 
-    # ── Check cache ───────────────────────────────────────────────────────────
     cache = SentinelCache.query.filter_by(farm_id=entity_id).first() if entity_type == 'farm' else None
 
     if cache and not cache.is_stale() and not force_refresh:
@@ -902,7 +865,6 @@ async def get_sat_index_full(entity_type, entity_id,
                     logger.error(f'[SentinelCache] Could not save recomputed forecast: {e}')
                     db.session.rollback()
 
-        # LTV: always recomputed from live GPS points using multi-index breakdown
         ltv_data = None
         if entity_type == 'farm':
             area_ha, _ = _compute_area_ha_from_points(points)
@@ -932,14 +894,13 @@ async def get_sat_index_full(entity_type, entity_id,
             'history':          history_out,
             'forecast':         forecast_out,
             'ltv':              ltv_data,
-            'soc':              soc_data,   # ★ AJOUT
+            'soc':              soc_data,
             'tiers_meta':       TIERS,
             'from_cache':       True,
             'cache_updated_at': cache.updated_at.isoformat() if cache.updated_at else None,
             'out_of_bounds':    [],
         }, None
 
-    # ── Full Sentinel API call ────────────────────────────────────────────────
     now       = datetime.utcnow()
     date_to   = now.strftime('%Y-%m-%dT23:59:59Z')
     date_from = (now - relativedelta(years=5)).strftime('%Y-%m-%dT00:00:00Z')
@@ -995,13 +956,10 @@ async def get_sat_index_full(entity_type, entity_id,
     if not historical:
         return None, 'No satellite data for this location'
 
-    # ── Enrich history ────────────────────────────────────────────────────────
     history_out = _build_history_rows(historical, indices)
 
-    # ── Forecast ─────────────────────────────────────────────────────────────
     forecast_out = _run_forecast_all(historical, indices)
 
-    # ── Multi-index LTV ───────────────────────────────────────────────────────
     ltv_data = None
     if entity_type == 'farm':
         area_ha, _ = _compute_area_ha_from_points(points)
@@ -1019,7 +977,6 @@ async def get_sat_index_full(entity_type, entity_id,
         lon_c = sum(float(p.longitude) for p in points) / len(points)
         lat_c = sum(float(p.latitude) for p in points) / len(points)
         soc_data = await _fetch_soc_soilgrids(lat_c, lon_c)
-    # ── Save to cache ─────────────────────────────────────────────────────────
     if entity_type == 'farm':
         try:
             if not cache:
@@ -1064,6 +1021,7 @@ async def get_sat_index_full_guest(geojson, guest_phone_number,
     from app import db
     import json
     from datetime import timedelta
+    from sqlalchemy.exc import SQLAlchemyError
 
     indices = ['ndvi', 'ndmi', 'ndwi', 'nmdi', 'evi', 'savi', 'nbr', 'bsi']
 
@@ -1077,9 +1035,27 @@ async def get_sat_index_full_guest(geojson, guest_phone_number,
     geometry = {'type': 'Polygon', 'coordinates': [ring]}
     polygon_hash = _polygon_hash(coords)
 
-    cache = GuestSentinelCache.query.filter_by(
-        guest_phone_number=guest_phone_number, polygon_hash=polygon_hash
-    ).first()
+    # ✅ FIX (500 en mode guest) : cette lecture n'était pas protégée. Si la
+    # table 'guestsentinelcache' n'existe pas en base (migration manquante)
+    # ou si la connexion DB échoue, l'exception remontait brute jusqu'à Flask
+    # et produisait un 500 générique sans message exploitable. On dégrade
+    # maintenant proprement : cache=None -> on retombe sur l'appel Sentinel
+    # "à froid" ci-dessous, et on journalise l'erreur DB pour investigation.
+    cache = None
+    try:
+        cache = GuestSentinelCache.query.filter_by(
+            guest_phone_number=guest_phone_number, polygon_hash=polygon_hash
+        ).first()
+    except SQLAlchemyError as e:
+        logger.error(
+            f'[GuestSentinelCache] DB read failed (table missing / migration '
+            f'not applied?) for phone={guest_phone_number}: {e}'
+        )
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        cache = None
 
     def _ltv_from_area(history_out):
         area_ha, _ = _compute_area_ha_from_coords(coords)
@@ -1160,6 +1136,9 @@ async def get_sat_index_full_guest(geojson, guest_phone_number,
     forecast_out = _run_forecast_all(historical, indices)
     ltv_data = _ltv_from_area(history_out)
 
+    # ✅ FIX : la sauvegarde était déjà protégée par try/except, mais si la
+    # table n'existe pas, on log maintenant un message explicite pointant
+    # vers la cause probable (migration manquante) plutôt qu'une simple trace.
     try:
         if not cache:
             cache = GuestSentinelCache(guest_phone_number=guest_phone_number, polygon_hash=polygon_hash)
@@ -1171,7 +1150,14 @@ async def get_sat_index_full_guest(geojson, guest_phone_number,
         cache.period_to = date_to[:10]
         cache.stale_after = now + timedelta(days=90)
         db.session.commit()
+    except SQLAlchemyError as e:
+        logger.error(
+            f'[GuestSentinelCache] Save error — vérifier que la table '
+            f'"guestsentinelcache" existe (migration appliquée ?) : {e}'
+        )
+        db.session.rollback()
     except Exception as e:
+        logger.info(f'[Sentinel][Guest] geometry envoyée: {geometry}')
         logger.error(f'[GuestSentinelCache] Save error: {e}')
         db.session.rollback()
 
@@ -1186,7 +1172,6 @@ async def get_sat_index_full_guest(geojson, guest_phone_number,
         'from_cache': False,
         'out_of_bounds': out_of_bounds,
     }, None
-    
     
 def get_weekly_trend(entity_type, entity_id, weeks=13):
     from app.models import Farm, Forest, Point
@@ -1217,10 +1202,6 @@ def get_weekly_trend(entity_type, entity_id, weeks=13):
     date_from = (now - timedelta(weeks=weeks)).strftime('%Y-%m-%dT00:00:00Z')
 
     try:
-        # mosaickingOrder='leastCC' : privilégie la scène la moins nuageuse
-        # disponible dans chaque fenêtre de 7 jours, au lieu du choix par défaut
-        # (mostRecent), qui augmente les chances qu'une semaine soit rejetée
-        # entièrement si la scène la plus récente est trop nuageuse.
         raw = _call_statistics(
             geometry, date_from, date_to,
             interval='P1W', mosaicking_order='leastCC',
@@ -1230,13 +1211,6 @@ def get_weekly_trend(entity_type, entity_id, weeks=13):
         logger.error(f'[Sentinel] Weekly trend API call failed for {entity_id}: {e}')
         return None, f'Sentinel API error: {e}'
 
-    # ── Reconstruire la grille complète de semaines ─────────────────────────
-    # L'API omet purement et simplement les semaines sans scène exploitable
-    # (elle ne renvoie pas une ligne à valeur null, elle ne renvoie rien).
-    # On reconstruit donc nous-même les 13 créneaux attendus, et on comble
-    # les trous avec des valeurs null pour que le graphique affiche toujours
-    # une grille temporelle régulière (semaine par semaine), avec des trous
-    # visibles là où Sentinel-2 n'a pas pu fournir d'image utilisable.
     by_date = {row['date']: row for row in historical}
     start   = datetime.strptime(date_from[:10], '%Y-%m-%d')
 
@@ -1261,17 +1235,12 @@ def get_weekly_trend(entity_type, entity_id, weeks=13):
         'name':            name,
         'granularity':     'weekly',
         'weeks':           weeks,
-        'weeks_with_data': weeks_with_data,   # ex: 4 sur 13
+        'weeks_with_data': weeks_with_data,
         'period':          {'from': date_from[:10], 'to': date_to[:10]},
         'history':         history_out,
         'tiers_meta':      TIERS,
         'out_of_bounds':   out_of_bounds,
     }, None
-
-# ── Evalscripts de classification (image colorée avec seuils) ────────────────
-
-# ── Evalscript générique de classification (tous indices, une seule bande active) ──
-# On calcule tous les indices en JS et on ne colorie que celui demandé via un paramètre.
 
 GENERIC_CLASSIFICATION_EVALSCRIPT = """//VERSION=3
 function setup() {
@@ -1315,8 +1284,6 @@ function evaluatePixel(s) {
 }
 """
 
-# Seuils + labels + couleurs, réutilisés pour calculer les surfaces et la légende
-# Thresholds + labels + colors for the 9 satellite indices
 CLASSIFICATION_THRESHOLDS = {
     'ndvi': [
         {'max': 0.1, 'label': 'Bare Soil / Newly Planted',      'color': '#dc1414'},
@@ -1383,15 +1350,12 @@ CLASSIFICATION_THRESHOLDS = {
     ],
 }
 
-# For backward compatibility, we keep the name CLASSIFICATION_EVALSCRIPTS,
-# but as a function that dynamically generates the evalscript for any index.
 def _hex_to_rgb01(hexcolor):
     h = hexcolor.lstrip('#')
     return tuple(int(h[i:i+2], 16) / 255 for i in (0, 2, 4))
 
 
 def _build_classification_evalscript(index_name):
-    """Generate the JS evalscript for a given index by injecting its thresholds and colors."""
     thresholds = CLASSIFICATION_THRESHOLDS[index_name]
     js_thresholds = '[' + ','.join(
         '{{max:{},r:{:.4f},g:{:.4f},b:{:.4f}}}'.format(
@@ -1406,9 +1370,6 @@ def _build_classification_evalscript(index_name):
     )
 
 def _call_process_image(geometry, date_from, date_to, index_name, width=1024, height=1024):
-    """
-    Appelle l'API Process de Copernicus pour obtenir une image PNG classifiée.
-    """
     if index_name not in CLASSIFICATION_THRESHOLDS:
         raise ValueError(f'Index "{index_name}" non supporté pour la classification')
 
@@ -1461,7 +1422,6 @@ def _compute_class_areas(geometry, date_from, date_to, index_name, points=None, 
 
     thresholds = CLASSIFICATION_THRESHOLDS[index_name]
 
-    # Surface réelle projetée (ha → km²)
     if points:
         area_ha, _ = _compute_area_ha_from_points(points)
         poly_area_km2 = area_ha / 100.0
@@ -1533,7 +1493,7 @@ def get_monthly_trend(entity_type, entity_id, months=12):
         points      = Point.query.filter_by(owner_type='farmer', owner_id=str(entity_id)).order_by(Point.id).all()
         geometry    = _build_geometry(points, entity.geolocation)
         name        = entity.name
-        geolocation = entity.geolocation   # ex: "-18.8792,47.5079" — réutilisé par le frontend pour Open-Meteo
+        geolocation = entity.geolocation
     else:
         entity = Forest.query.filter_by(id=entity_id).first()
         if not entity:
@@ -1546,8 +1506,6 @@ def get_monthly_trend(entity_type, entity_id, months=12):
         return None, 'No geometry available — add polygon points first'
 
     now = datetime.utcnow()
-    # Grille alignée sur des mois calendaires pleins : du 1er du mois il y a
-    # (months-1) mois, jusqu'à aujourd'hui.
     first_of_this_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     start_month = first_of_this_month - relativedelta(months=months - 1)
 
@@ -1564,8 +1522,7 @@ def get_monthly_trend(entity_type, entity_id, months=12):
         logger.error(f'[Sentinel] Monthly trend API call failed for {entity_id}: {e}')
         return None, f'Sentinel API error: {e}'
 
-    # ── Reconstruire la grille complète de mois (même logique que le hebdo) ──
-    by_month = {row['date'][:7]: row for row in historical}  # clé "YYYY-MM"
+    by_month = {row['date'][:7]: row for row in historical}
 
     full_months = []
     for i in range(months):
@@ -1642,7 +1599,6 @@ async def _fetch_soc_soilgrids(lat: float, lon: float) -> dict | None:
                 for layer in data.get("properties", {}).get("layers", []):
                     for d in layer["depths"]:
                         v = d["values"].get("mean")
-                        # SoilGrids renvoie des valeurs *10 (conversion factor) sauf ocs qui est déjà en t/ha*10
                         out[f"{layer['name']}_{d['label']}"] = round(v / 10, 2) if v is not None else None
                 return out
     except Exception as e:

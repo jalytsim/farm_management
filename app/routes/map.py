@@ -92,9 +92,30 @@ def get_coordinates(owner_type, owner_id):
         return [(point.longitude, point.latitude) for point in points]
     return []
 
+
+# ✅ FIX : types de géométrie acceptés. L'ancien code exigeait STRICTEMENT
+# "Polygon" et rejetait tout le reste (notamment "MultiPolygon", que Mapbox
+# GL Draw ou certains exports QGIS produisent couramment pour des polygones
+# pourtant parfaitement valides) → 400 "No valid Polygon found" même quand
+# la géométrie était correcte. L'API Global Forest Watch accepte les deux.
+_ACCEPTED_GEOMETRY_TYPES = {'Polygon', 'MultiPolygon'}
+
+
+def _is_usable_geometry(geometry):
+    """True si geometry est un dict GeoJSON exploitable (Polygon/MultiPolygon
+    avec des coordonnées présentes). Ne lève jamais d'exception, contrairement
+    à l'ancien accès direct f["geometry"]["type"] qui plantait avec KeyError
+    dès qu'une feature n'avait pas (ou mal) de champ 'geometry'."""
+    if not isinstance(geometry, dict):
+        return False
+    if geometry.get('type') not in _ACCEPTED_GEOMETRY_TYPES:
+        return False
+    return bool(geometry.get('coordinates'))
+
+
 def extract_geometry(input_data, is_geojson=False):
     """
-    Extract Polygon geometry from owner_type/owner_id or GeoJSON data.
+    Extract Polygon/MultiPolygon geometry from owner_type/owner_id or GeoJSON data.
     Always returns a 3-tuple: (geometry, error_response, status_code)
     - On success : (geometry, None, 200)
     - On error   : (None, {"error": "..."}, 4xx)
@@ -103,26 +124,38 @@ def extract_geometry(input_data, is_geojson=False):
         if not input_data or not isinstance(input_data, dict):
             return None, {"error": "Invalid or missing GeoJSON geometry"}, 400
 
-        if input_data.get("type") == "FeatureCollection":
-            features = input_data.get("features", [])
-            polygon_feature = next(
-                (f for f in features if f["geometry"]["type"] == "Polygon"), None
+        top_type = input_data.get("type")
+
+        if top_type == "FeatureCollection":
+            features = input_data.get("features", []) or []
+            # ✅ FIX : .get() partout au lieu de f["geometry"]["type"] — une
+            # feature sans géométrie (ou géométrie None) est simplement
+            # ignorée au lieu de faire planter toute la requête.
+            geometry = next(
+                (f.get("geometry") for f in features if _is_usable_geometry(f.get("geometry"))),
+                None,
             )
-            if not polygon_feature:
-                return None, {"error": "No valid Polygon found in FeatureCollection"}, 400
-            geometry = polygon_feature["geometry"]
+            if geometry is None:
+                found_types = sorted({
+                    (f.get("geometry") or {}).get("type")
+                    for f in features if f.get("geometry")
+                })
+                detail = f" (types trouvés : {', '.join(t for t in found_types if t)})" if found_types else ""
+                return None, {"error": f"No valid Polygon/MultiPolygon found in FeatureCollection{detail}"}, 400
 
-        elif input_data.get("type") == "Feature":
+        elif top_type == "Feature":
             geometry = input_data.get("geometry")
+            if not _is_usable_geometry(geometry):
+                found = (geometry or {}).get("type", "missing")
+                return None, {"error": f"Unsupported geometry type in Feature: {found}"}, 400
 
-        elif input_data.get("type") == "Polygon":
+        elif top_type in _ACCEPTED_GEOMETRY_TYPES:
             geometry = input_data
+            if not _is_usable_geometry(geometry):
+                return None, {"error": "Geometry has no coordinates"}, 400
 
         else:
-            return None, {"error": "Unsupported GeoJSON geometry type"}, 400
-
-        if geometry.get("type") != "Polygon" or not geometry.get("coordinates"):
-            return None, {"error": "Invalid or missing geometry in GeoJSON"}, 400
+            return None, {"error": f"Unsupported GeoJSON type: {top_type}"}, 400
 
     else:
         coordinates = get_coordinates(*input_data)

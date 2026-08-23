@@ -500,23 +500,56 @@ class PaidFeatureAccess(db.Model):
     dpo_trans_token = db.Column(db.String(100), nullable=True, unique=True)
     dpo_trans_ref = db.Column(db.String(100), nullable=True)
     currency = db.Column(db.String(10), default='UGX')
-    amount = db.Column(db.Float, nullable=True)
+    amount = db.Column(db.Numeric(12, 2), nullable=True)
 
     def __repr__(self):
         return f'<PaidFeatureAccess {self.feature_name} - {self.payment_status}>'
-
 
 class FeaturePrice(db.Model):
     __tablename__ = 'featureprice'
     id = db.Column(db.Integer, primary_key=True)
     feature_name = db.Column(db.String(100), unique=True, nullable=False)
-    price = db.Column(db.Float, nullable=False)
     duration_days = db.Column(db.Integer, nullable=True)
     usage_limit = db.Column(db.Integer, nullable=True)
     description = db.Column(db.Text, nullable=True)
+    default_currency = db.Column(db.String(10), nullable=False, default='UGX')
 
-    def __repr__(self):
-        return f'<FeaturePrice {self.feature_name} - {self.price}>'
+    prices = db.relationship(
+        'FeaturePriceCurrency', backref='feature', lazy=True,
+        cascade='all, delete-orphan'
+    )
+
+    def price_for(self, currency):
+        currency = (currency or self.default_currency).upper()
+        entry = next((p for p in self.prices if p.currency == currency), None)
+        if entry:
+            return entry.price
+        fallback = next((p for p in self.prices if p.currency == self.default_currency), None)
+        return fallback.price if fallback else None
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'feature_name': self.feature_name,
+            'duration_days': self.duration_days,
+            'usage_limit': self.usage_limit,
+            'default_currency': self.default_currency,
+            'prices': {p.currency: float(p.price) for p in self.prices},
+        }
+
+
+class FeaturePriceCurrency(db.Model):
+    __tablename__ = 'featurepricecurrency'
+    id = db.Column(db.Integer, primary_key=True)
+    feature_price_id = db.Column(db.Integer, db.ForeignKey('featureprice.id'), nullable=False)
+    currency = db.Column(db.String(10), nullable=False)
+    price = db.Column(db.Numeric(12, 2), nullable=False)
+
+    __table_args__ = (
+        db.UniqueConstraint('feature_price_id', 'currency', name='uq_feature_currency'),
+    )
+
+
 
 
 class EUDRStatement(db.Model):
@@ -533,7 +566,10 @@ class EUDRStatement(db.Model):
     operator_identifier_value = db.Column(db.String(255), nullable=True)
     operator_name = db.Column(db.String(255), nullable=True)
     operator_country = db.Column(db.String(100), nullable=True)
-    operator_address = db.Column(db.String(255), nullable=True)
+    operator_address = db.Column(db.String(255), nullable=True)   # garde pour fullAddress (rétro-compat)
+    operator_street = db.Column(db.String(255), nullable=True)     # ★ NOUVEAU
+    operator_postal_code = db.Column(db.String(20), nullable=True) # ★ NOUVEAU
+    operator_city = db.Column(db.String(150), nullable=True)       # ★ NOUVEAU
     operator_email = db.Column(db.String(255), nullable=True)
     operator_phone = db.Column(db.String(50), nullable=True)
     description_of_goods = db.Column(db.String(255), nullable=True)
@@ -1543,3 +1579,47 @@ class BidderSanction(db.Model):
             'date_created': self.date_created.isoformat() if self.date_created else None,
         }
  
+ 
+# ══════════════════════════════════════════════════════════════════════════════
+# À AJOUTER dans app/models.py (par exemple juste après la classe Tree, ligne ~276)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class SpeciesGrowthParams(db.Model):
+    """
+    Paramètres de la courbe sigmoid (modèle logistique de croissance) par espèce.
+    Utilisés pour estimer la trajectoire de séquestration CO2 dans le temps :
+
+        M(t) = Mmax / (1 + exp(-Km * (t - t_half)))
+
+    où :
+        t       = âge de l'arbre (années)
+        Km      = taux de croissance de l'espèce
+        t_half  = âge auquel l'arbre atteint la moitié de sa biomasse max (années)
+        Mmax    = biomasse maximale atteignable par l'espèce (kg)
+    """
+    __tablename__ = 'species_growth_params'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+
+    # Doit correspondre à Tree.type (nom d'espèce)
+    species_name = db.Column(db.String(255), nullable=False, unique=True, index=True)
+
+    km      = db.Column(db.Float, nullable=False)   # taux de croissance
+    t_half  = db.Column(db.Float, nullable=False)    # âge à 50% de Mmax (années)
+    mmax    = db.Column(db.Float, nullable=False)     # biomasse max totale (kg)
+
+    date_created = db.Column(db.DateTime, default=db.func.current_timestamp())
+    date_updated = db.Column(db.DateTime, default=db.func.current_timestamp(),
+                              onupdate=db.func.current_timestamp())
+
+    def __repr__(self):
+        return (f"<SpeciesGrowthParams(species={self.species_name}, "
+                f"km={self.km}, t_half={self.t_half}, mmax={self.mmax})>")
+
+    def to_dict(self):
+        return {
+            'species_name': self.species_name,
+            'km': self.km,
+            't_half': self.t_half,
+            'mmax': self.mmax,
+        }

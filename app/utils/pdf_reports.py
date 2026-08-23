@@ -439,6 +439,29 @@ def _compliance_status(tree_cover_loss: float, has_forest: bool) -> dict:
         ),
     }
 
+def _get_array_depth(arr):
+    depth = 0
+    cur = arr
+    while isinstance(cur, list):
+        depth += 1
+        cur = cur[0] if cur else None
+    return depth
+
+
+def _get_outer_rings(coords):
+    """Anneaux extérieurs, que la géométrie soit Polygon (1 anneau) ou
+    MultiPolygon (N anneaux) — miroir de getOuterRings() côté frontend
+    (EudrReportSection.jsx). Les trous internes sont ignorés."""
+    if not isinstance(coords, list) or not coords:
+        return []
+    depth = _get_array_depth(coords)
+    if depth == 4:
+        return [poly[0] for poly in coords if isinstance(poly, list) and poly]
+    if depth == 3:
+        return [coords[0]] if coords else []
+    if depth == 2:
+        return [coords]
+    return []
 
 def _extract_eudr_metrics(gfw_data: dict) -> dict:
     """
@@ -448,13 +471,23 @@ def _extract_eudr_metrics(gfw_data: dict) -> dict:
     m = {}
 
     # Coordonnées
-    coords = (
-        gfw_data.get('jrc global forest cover', [{}])[0].get('coordinates', [[]])[0]
-        or gfw_data.get('tree cover loss', [{}])[0].get('coordinates', [[]])[0]
-        or gfw_data.get('soil carbon', [{}])[0].get('coordinates', [[]])[0]
+    raw_coords = (
+        gfw_data.get('jrc global forest cover', [{}])[0].get('coordinates')
+        or gfw_data.get('tree cover loss', [{}])[0].get('coordinates')
+        or gfw_data.get('soil carbon', [{}])[0].get('coordinates')
     )
-    m['coordinates'] = coords
-    m['area_m2'], m['area_ha'] = _calc_area_ha_simple(coords) if coords else (0, 0)
+    # ✅ FIX (MultiPolygon) : même logique que getOuterRings() côté frontend —
+    # un anneau simple pour l'affichage de la carte, la somme de tous les
+    # anneaux pour la surface totale.
+    outer_rings = _get_outer_rings(raw_coords)
+    m['coordinates'] = outer_rings[0] if outer_rings else []
+
+    total_m2 = 0.0
+    for ring in outer_rings:
+        ring_m2, _ = _calc_area_ha_simple(ring)
+        total_m2 += ring_m2
+    m['area_m2'] = total_m2
+    m['area_ha'] = total_m2 / 10_000
 
     # Tree cover loss
     tcl = gfw_data.get('tree cover loss', [{}])[0].get('data_fields', {})
@@ -765,13 +798,22 @@ def build_eudr_farm_pdf(
         ('Geolocation',   farm_info.get('geolocation')),
         ('Report Date',   today),
     ]
-    if farm_info.get('crops'):
-        rows.append(('Primary Crop', farm_info['crops'][0].get('crop', 'N/A')))
-        rows.append(('Land Type',    farm_info['crops'][0].get('land_type', 'N/A')))
-    if m['area_ha']:
-        rows.append(('Farm Area', f"{m['area_ha']:.2f} ha  ({m['area_m2']:.0f} m²)"))
-    elems.append(_info_table(rows))
-    elems.append(Spacer(1, 5 * mm))
+    if farm_info:
+        elems += _section_bar('Farm Information', st)
+        rows = [
+            ('Farm ID',       farm_info.get('farm_id', farm_id)),
+            ('Owner',         farm_info.get('name')),
+            ('Location',      location_val),
+            ('Geolocation',   farm_info.get('geolocation')),
+            ('Report Date',   today),
+        ]
+        if farm_info.get('crops'):
+            rows.append(('Primary Crop', farm_info['crops'][0].get('crop', 'N/A')))
+            rows.append(('Land Type',    farm_info['crops'][0].get('land_type', 'N/A')))
+        if m['area_ha']:
+            rows.append(('Farm Area', f"{m['area_ha']:.2f} ha  ({m['area_m2']:.0f} m²)"))
+        elems.append(_info_table(rows))
+        elems.append(Spacer(1, 5 * mm))
 
     # ── Regulatory framework ──────────────────────────────────────────────────
     elems += _section_bar('Regulatory Framework (EU) 2023/1115', st)
@@ -1200,5 +1242,114 @@ def build_carbon_forest_pdf(
             elems += _section_bar('Plot Map — Satellite View', st)
             elems.append(map_img)
 
+    doc.build(elems, onFirstPage=_footer_canvas, onLaterPages=_footer_canvas)
+    return buf.getvalue()
+
+def _tree_co2_table(trees_data: list) -> Table:
+    """Table détail par arbre : mesures, AGB/CO2 mesuré, taux sigmoid."""
+    header = [
+        Paragraph('<b>Tree</b>',       _styles()['body_bold']),
+        Paragraph('<b>Species</b>',    _styles()['body_bold']),
+        Paragraph('<b>Age (yr)</b>',   _styles()['body_bold']),
+        Paragraph('<b>CO2 Total (kg)</b>',      _styles()['body_bold']),
+        Paragraph('<b>CO2/yr avg (kg)</b>',     _styles()['body_bold']),
+        Paragraph('<b>CO2/yr sigmoid (kg)</b>', _styles()['body_bold']),
+    ]
+    rows = [header]
+    for t in trees_data:
+        rows.append([
+            Paragraph(t['name'] or f"#{t['tree_id']}", _styles()['body']),
+            Paragraph(t['species'] or 'N/A',            _styles()['body']),
+            Paragraph(f"{t['age_years']:.1f}",           _styles()['body']),
+            Paragraph(f"{t['co2_sequestered_kg']:.2f}",  _styles()['body']),
+            Paragraph(f"{t['co2_annual_avg_kg']:.2f}",   _styles()['body']),
+            Paragraph(f"{t['co2_annual_rate_sigmoid_kg']:.2f}", _styles()['body']),
+        ])
+ 
+    t_widths = [CONTENT_W * w for w in (0.20, 0.20, 0.12, 0.18, 0.15, 0.15)]
+    table = Table(rows, colWidths=t_widths, repeatRows=1)
+    table.setStyle(TableStyle([
+        ('BACKGROUND',   (0, 0), (-1, 0),   GREEN),
+        ('TEXTCOLOR',    (0, 0), (-1, 0),   WHITE),
+        ('GRID',         (0, 0), (-1, -1),  0.5, GRAY_BORDER),
+        ('VALIGN',       (0, 0), (-1, -1),  'MIDDLE'),
+        ('TOPPADDING',   (0, 0), (-1, -1),  5),
+        ('BOTTOMPADDING',(0, 0), (-1, -1),  5),
+        ('LEFTPADDING',  (0, 0), (-1, -1),  6),
+        *[('BACKGROUND', (0, i), (-1, i), GRAY_BG) for i in range(2, len(rows), 2)],
+    ]))
+    return table
+ 
+ 
+def build_tree_co2_pdf(
+    forest_id  : int | str,
+    forest_info: dict,
+    co2_report : dict,   # sortie de compute_forest_co2_summary()
+    logo_parrot: str | None = None,
+    logo_agri  : str | None = None,
+) -> bytes:
+    """Génère le rapport de séquestration CO2 par arbre pour une forêt."""
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=MARGIN, rightMargin=MARGIN,
+        topMargin=MARGIN, bottomMargin=22 * mm,
+        title=f'Tree CO2 Sequestration Report — Forest {forest_id}',
+        author='Agriyields',
+    )
+    st    = _styles()
+    today = datetime.now().strftime('%d %B %Y')
+    elems = []
+ 
+    trees_data = co2_report.get('trees', [])
+    totals     = co2_report.get('totals', {})
+ 
+    # ── En-tête ──────────────────────────────────────────────────────────────
+    elems.append(_header_table(
+        logo_parrot, logo_agri,
+        'TREE CO2 SEQUESTRATION REPORT',
+        f'Generated on {today}  •  AGB formula + sigmoid growth model',
+    ))
+    elems.append(Spacer(1, 5 * mm))
+ 
+    # ── Forest info ──────────────────────────────────────────────────────────
+    elems += _section_bar('Forest Information', st)
+    rows = [
+        ('Forest Name',  forest_info.get('name')),
+        ('Tree Type',    forest_info.get('tree_type', 'N/A')),
+        ('Tree Count',   totals.get('tree_count', 0)),
+    ]
+    elems.append(_info_table(rows))
+    elems.append(Spacer(1, 5 * mm))
+ 
+    # ── Totaux ───────────────────────────────────────────────────────────────
+    elems += _section_bar('CO2 Sequestration Summary', st)
+    totals_rows = [
+        ('Total CO2 Sequestered (lifetime)', f"{totals.get('total_co2_sequestered_kg', 0):.2f} kg"),
+        ('Total CO2 / year (measured avg)',  f"{totals.get('total_co2_annual_avg_kg', 0):.2f} kg/yr"),
+        ('Total CO2 / year (sigmoid model)', f"{totals.get('total_co2_annual_sigmoid_kg', 0):.2f} kg/yr"),
+    ]
+    elems.append(_info_table(totals_rows))
+    elems.append(Spacer(1, 5 * mm))
+ 
+    # ── Détail par arbre ─────────────────────────────────────────────────────
+    if trees_data:
+        elems += _section_bar('Per-Tree Detail', st)
+        elems.append(_tree_co2_table(trees_data))
+        elems.append(Spacer(1, 5 * mm))
+ 
+    # ── Note méthodologique ──────────────────────────────────────────────────
+    elems += _section_bar('Methodology', st)
+    note = (
+        'AGB = 0.25 × D² × H (D: diameter, H: height). Total biomass = 1.2 × AGB '
+        '(20% belowground). Dry weight = 72.5% of biomass, carbon = 50% of dry '
+        'weight, CO2 = carbon × 3.67. The "avg" annual rate divides lifetime CO2 '
+        'by tree age; the "sigmoid" rate uses the species logistic growth curve '
+        '(Km, t½, Mmax) to estimate biomass increment for the current year.'
+    )
+    elems.append(Paragraph(note, ParagraphStyle(
+        'note', fontName='Helvetica', fontSize=8, textColor=MUTED, leading=11,
+    )))
+ 
     doc.build(elems, onFirstPage=_footer_canvas, onLaterPages=_footer_canvas)
     return buf.getvalue()

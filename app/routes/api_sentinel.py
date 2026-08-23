@@ -45,6 +45,70 @@ def farm_sat_index(farm_id):
         return jsonify({'error': error}), code
     return jsonify(result), 200
 
+@sentinel_bp.route('/guest/classification/<string:index_name>', methods=['POST'])
+def guest_classification_image(index_name):
+    """Version guest de la classification : géométrie fournie directement (POST body),
+    pas de lookup Farm/Point en DB. Même format de réponse que la route account."""
+    from app.utils.sentinel_utils import (
+        _extract_polygon_coords, _compute_class_areas, CLASSIFICATION_THRESHOLDS,
+        _compute_area_ha_from_coords
+    )
+    from app.utils.feature_payment_utils import has_guest_access
+    from datetime import datetime
+    from dateutil.relativedelta import relativedelta
+    import base64
+    import logging
+    logger = logging.getLogger(__name__)
+
+    if index_name not in CLASSIFICATION_THRESHOLDS:
+        return jsonify({'error': f'Index "{index_name}" non supporté'}), 400
+
+    data    = request.get_json(silent=True) or {}
+    phone   = data.get('phone')
+    geojson = data.get('geojson')
+
+    if not phone or not geojson:
+        return jsonify({'error': 'phone and geojson are required'}), 400
+
+    try:
+        if not has_guest_access(phone, 'reportndviguest'):
+            return jsonify({'error': 'No active paid access for this phone number'}), 403
+    except Exception as e:
+        return jsonify({'error': f'Access check failed: {str(e)}'}), 500
+
+    coords = _extract_polygon_coords(geojson)
+    if not coords:
+        return jsonify({'error': 'Invalid or missing polygon geometry'}), 400
+
+    ring = list(coords)
+    if ring[0] != ring[-1]:
+        ring.append(ring[0])
+    geometry = {'type': 'Polygon', 'coordinates': [ring]}
+
+    now = datetime.utcnow()
+    date_to = now.strftime('%Y-%m-%dT23:59:59Z')
+    date_from = (now - relativedelta(months=1)).strftime('%Y-%m-%dT00:00:00Z')
+
+    try:
+        area_ha, _ = _compute_area_ha_from_coords(coords)
+        # points=None : _compute_class_areas ne calcule pas la surface elle-même dans ce cas
+        class_areas, png_bytes = _compute_class_areas(
+            geometry, date_from, date_to, index_name,
+            points=None, width=800, height=800
+        )
+        poly_area_km2 = area_ha / 100.0
+        for c in class_areas:
+            c['area_km2'] = round((c['pct'] / 100.0) * poly_area_km2, 4)
+    except Exception as e:
+        logger.error(f'[guest_classification] {index_name} failed: {e}')
+        return jsonify({'error': f'Classification failed: {str(e)}'}), 500
+
+    return jsonify({
+        'index':        index_name,
+        'classes':      class_areas,
+        'image_base64': base64.b64encode(png_bytes).decode('utf-8'),
+        'period':       {'from': date_from[:10], 'to': date_to[:10]},
+    }), 200 
 
 @sentinel_bp.route('/forest/<int:forest_id>/sat-index', methods=['GET'])
 @jwt_required()
@@ -545,6 +609,10 @@ def guest_sat_index():
     from app.utils.sentinel_utils import get_sat_index_full_guest
     from app.utils.feature_payment_utils import has_guest_access
     import asyncio
+    import logging
+    import traceback
+
+    logger = logging.getLogger(__name__)
 
     data    = request.get_json(silent=True) or {}
     phone   = data.get('phone')
@@ -553,18 +621,30 @@ def guest_sat_index():
     if not phone or not geojson:
         return jsonify({'error': 'phone and geojson are required'}), 400
 
-    if not has_guest_access(phone, 'reportndviguest'):
-        return jsonify({'error': 'No active paid access for this phone number'}), 403
+    try:
+        if not has_guest_access(phone, 'reportndviguest'):
+            return jsonify({'error': 'No active paid access for this phone number'}), 403
+    except Exception as e:
+        logger.error(f'[guest_sat_index] has_guest_access failed: {e}\n{traceback.format_exc()}')
+        return jsonify({'error': f'Access check failed: {str(e)}'}), 500
 
-    result, error = asyncio.run(get_sat_index_full_guest(
-        geojson, phone,
-        loan_amount    = data.get('loan_amount'),
-        yield_t_per_ha = data.get('yield_t_per_ha', 1.5),
-        price_per_t    = data.get('price_per_t', 500),
-        force_refresh  = bool(data.get('refresh', False)),
-        hist_yield_1   = data.get('hist_yield_1'),
-        hist_yield_2   = data.get('hist_yield_2'),
-    ))
+    try:
+        result, error = asyncio.run(get_sat_index_full_guest(
+            geojson, phone,
+            loan_amount    = data.get('loan_amount'),
+            yield_t_per_ha = data.get('yield_t_per_ha', 1.5),
+            price_per_t    = data.get('price_per_t', 500),
+            force_refresh  = bool(data.get('refresh', False)),
+            hist_yield_1   = data.get('hist_yield_1'),
+            hist_yield_2   = data.get('hist_yield_2'),
+        ))
+    except Exception as e:
+        # ✅ FIX : sans ce try/except, toute exception non prévue (ex: table
+        # 'guestsentinelcache' absente en base, erreur DB, etc.) remontait en
+        # 500 Flask générique sans aucun détail exploitable côté frontend/logs.
+        logger.error(f'[guest_sat_index] Unhandled exception: {e}\n{traceback.format_exc()}')
+        return jsonify({'error': f'Internal error while generating guest report: {str(e)}'}), 500
+
     if error:
         code = 400 if 'polygon' in error.lower() else 500
         return jsonify({'error': error}), code
