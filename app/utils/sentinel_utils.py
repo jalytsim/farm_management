@@ -1592,8 +1592,12 @@ async def _fetch_soc_soilgrids(lat: float, lon: float) -> dict | None:
         ("value", "mean"),
     ]
     try:
+        # ✅ FIX : timeout=20s trop court — vérifié en direct, l'API ISRIC met
+        # couramment 25-30s à répondre (elle répond bien, juste lentement),
+        # donc cet appel timeoutait quasi systématiquement et renvoyait None
+        # silencieusement (le SOC n'apparaissait jamais dans les rapports).
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=20)) as resp:
+            async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=45)) as resp:
                 data = await resp.json()
                 out = {}
                 for layer in data.get("properties", {}).get("layers", []):
@@ -1602,5 +1606,7 @@ async def _fetch_soc_soilgrids(lat: float, lon: float) -> dict | None:
                         out[f"{layer['name']}_{d['label']}"] = round(v / 10, 2) if v is not None else None
                 return out
     except Exception as e:
-        logger.warning(f'[SoilGrids] Erreur: {e}')
+        # ✅ FIX : str(e) est vide pour asyncio.TimeoutError, ce qui donnait
+        # "[SoilGrids] Erreur: " sans aucune info exploitable dans les logs.
+        logger.warning(f'[SoilGrids] Erreur: {type(e).__name__}: {e!r}')
         return None

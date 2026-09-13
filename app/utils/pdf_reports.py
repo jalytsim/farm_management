@@ -34,8 +34,9 @@ from reportlab.platypus         import (
     SimpleDocTemplate, Table, TableStyle, Paragraph,
     Spacer, Image, HRFlowable, KeepTogether,
 )
-from reportlab.graphics.shapes import Drawing, String
+from reportlab.graphics.shapes import Drawing, String, Circle, PolyLine, Polygon
 from reportlab.pdfbase          import pdfmetrics
+from reportlab.pdfgen.canvas    import Canvas
 
 # ── Palette ───────────────────────────────────────────────────────────────────
 GREEN       = colors.HexColor('#2d7a2d')
@@ -314,29 +315,23 @@ def _info_table(rows: list[tuple], col_w=(55*mm, None)) -> Table:
 
 
 def _compliance_badge_table(status: str, description: str) -> Table:
-    """Retourne une table avec le badge de conformité coloré."""
+    """Retourne une table avec le badge de conformité coloré (icône vectorielle + texte)."""
     if status == '100% Compliant':
-        bg, fc = GREEN_LIGHT, colors.HexColor('#1b5e20')
-        icon = '✓'
+        bg, fc, icon = GREEN_LIGHT, colors.HexColor('#1b5e20'), _icon_ok()
     elif status == 'Compliant':
         # No forest cover, but tree cover loss detected — compliant, shade-tree planting recommended
-        bg, fc = GREEN_LIGHT, colors.HexColor('#2e7d32')
-        icon = '✓'
+        fc = colors.HexColor('#2e7d32')
+        bg, icon = GREEN_LIGHT, _icon_ok(color=fc)
     elif status == 'Not Compliant':
-        bg, fc = RED_LIGHT, RED
-        icon = '✗'
+        bg, fc, icon = RED_LIGHT, RED, _icon_bad()
     else:
-        bg, fc = GRAY_BG, MUTED
-        icon = '?'
+        bg, fc, icon = GRAY_BG, MUTED, _icon_warn(color=MUTED)
 
-    st = _styles()
-    badge_para = Paragraph(
-        f'<b>{icon}  {status}</b>',
-        ParagraphStyle('badge', fontName='Helvetica-Bold', fontSize=13,
-                       textColor=fc, alignment=TA_LEFT)
-    )
+    badge_row = _icon_text_row(icon, status, ParagraphStyle(
+        'badge', fontName='Helvetica-Bold', fontSize=13, textColor=fc, alignment=TA_LEFT,
+    ))
     desc_para = Paragraph(description or '', _styles()['small'])
-    t = Table([[badge_para], [desc_para]],
+    t = Table([[badge_row], [desc_para]],
               colWidths=[CONTENT_W])
     t.setStyle(TableStyle([
         ('BACKGROUND',   (0, 0), (0, -1), bg),
@@ -349,6 +344,61 @@ def _compliance_badge_table(status: str, description: str) -> Table:
     return t
 
 
+# ── Icônes vectorielles ──────────────────────────────────────────────────────
+# ⚠ NOTE : les glyphes Unicode ✓ ✗ ⚠ et le "2" en indice (₂) ne font PAS partie
+# de l'encodage WinAnsi utilisé par les polices Core (Helvetica). ReportLab les
+# rend silencieusement invisibles (aucune exception, mais rien ne s'imprime) —
+# c'était la cause principale des badges/textes "vides" dans les PDF générés.
+# On dessine donc ces icônes en vectoriel (indépendant des polices), et on
+# remplace "CO₂" par le tag Paragraph <sub>2</sub> qui produit un vrai indice.
+
+def _icon_ok(size=4.6 * mm, color=None) -> Drawing:
+    c = color or colors.HexColor('#1b5e20')
+    d = Drawing(size, size)
+    d.add(Circle(size / 2, size / 2, size / 2, fillColor=c, strokeColor=None))
+    w = max(1.0, size * 0.14)
+    d.add(PolyLine(
+        points=[size * 0.26, size * 0.52, size * 0.44, size * 0.32, size * 0.76, size * 0.70],
+        strokeColor=WHITE, strokeWidth=w, strokeLineCap=1, strokeLineJoin=1,
+    ))
+    return d
+
+
+def _icon_bad(size=4.6 * mm, color=None) -> Drawing:
+    c = color or RED
+    d = Drawing(size, size)
+    d.add(Circle(size / 2, size / 2, size / 2, fillColor=c, strokeColor=None))
+    w = max(1.0, size * 0.14)
+    d.add(PolyLine(points=[size * 0.28, size * 0.28, size * 0.72, size * 0.72],
+                    strokeColor=WHITE, strokeWidth=w, strokeLineCap=1))
+    d.add(PolyLine(points=[size * 0.72, size * 0.28, size * 0.28, size * 0.72],
+                    strokeColor=WHITE, strokeWidth=w, strokeLineCap=1))
+    return d
+
+
+def _icon_warn(size=4.6 * mm, color=None) -> Drawing:
+    c = color or ORANGE
+    d = Drawing(size, size)
+    d.add(Polygon(points=[size * 0.5, size * 0.95, size * 0.03, size * 0.06, size * 0.97, size * 0.06],
+                  fillColor=c, strokeColor=None))
+    d.add(String(size * 0.5, size * 0.14, '!', fontName='Helvetica-Bold',
+                 fontSize=size * 0.5, fillColor=WHITE, textAnchor='middle'))
+    return d
+
+
+def _icon_text_row(icon: Drawing, text: str, text_style: ParagraphStyle, icon_col=9 * mm) -> Table:
+    """Ligne icône vectorielle + texte en gras, utilisée par les bannières de statut."""
+    row = Table(
+        [[icon, Paragraph(f'<b>{text}</b>', text_style)]],
+        colWidths=[icon_col, CONTENT_W - icon_col - 28],
+    )
+    row.setStyle(TableStyle([
+        ('VALIGN',       (0, 0), (-1, -1), 'MIDDLE'),
+        ('LEFTPADDING',  (0, 0), (-1, -1), 0),
+        ('TOPPADDING',   (0, 0), (-1, -1), 0),
+        ('BOTTOMPADDING',(0, 0), (-1, -1), 0),
+    ]))
+    return row
 
 
 
@@ -362,6 +412,37 @@ def _footer_canvas(canvas, doc):
     canvas.setStrokeColor(GRAY_BORDER)
     canvas.line(MARGIN, 14 * mm, PAGE_W - MARGIN, 14 * mm)
     canvas.restoreState()
+
+
+class _NumberedCanvas(Canvas):
+    """Canvas ajoutant 'Page X of Y' en bas de chaque page.
+
+    SimpleDocTemplate ne connaît pas le nombre total de pages tant que le
+    document n'est pas entièrement construit : on capture donc l'état de
+    chaque page à la volée (showPage), puis on rejoue chaque état une fois
+    le total connu, juste avant l'impression finale (save).
+    """
+
+    def __init__(self, *args, **kwargs):
+        Canvas.__init__(self, *args, **kwargs)
+        self._saved_page_states = []
+
+    def showPage(self):
+        self._saved_page_states.append(dict(self.__dict__))
+        self._startPage()
+
+    def save(self):
+        total_pages = len(self._saved_page_states)
+        for state in self._saved_page_states:
+            self.__dict__.update(state)
+            self._draw_page_number(total_pages)
+            Canvas.showPage(self)
+        Canvas.save(self)
+
+    def _draw_page_number(self, total_pages):
+        self.setFont('Helvetica', 8)
+        self.setFillColor(MUTED)
+        self.drawRightString(PAGE_W - MARGIN, 10 * mm, f'Page {self._pageNumber} of {total_pages}')
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -392,7 +473,8 @@ def _calc_area_ha(coordinates: list) -> tuple[float, float]:
             area_m2 = abs(poly.area) * (111_320 ** 2)
 
         return area_m2, area_m2 / 10_000
-    except Exception:
+    except Exception as e:
+        print(f"[_calc_area_ha] échec calcul de surface : {e}")
         return 0.0, 0.0
 
 
@@ -406,7 +488,11 @@ def _calc_area_ha_simple(coordinates: list) -> tuple[float, float]:
         scale = 111_320 * 111_320 * math.cos(math.radians(lat_c))
         area_m2 = abs(poly.area) * scale
         return area_m2, area_m2 / 10_000
-    except Exception:
+    except Exception as e:
+        # ⚠ FIX (diagnostic "Project Area 0.00 ha") : cette exception était avalée
+        # silencieusement, rendant impossible de savoir pourquoi une surface valide
+        # retombait à 0 (anneau non fermé, <3 points, géométrie dégénérée...).
+        print(f"[_calc_area_ha_simple] échec calcul de surface sur {len(coordinates) if isinstance(coordinates, list) else '?'} points : {e}")
         return 0.0, 0.0
 
 
@@ -481,6 +567,11 @@ def _extract_eudr_metrics(gfw_data: dict) -> dict:
     # anneaux pour la surface totale.
     outer_rings = _get_outer_rings(raw_coords)
     m['coordinates'] = outer_rings[0] if outer_rings else []
+    if not outer_rings:
+        # ⚠ FIX (diagnostic "Project Area 0.00 ha") : sans ce print, un
+        # `raw_coords` manquant/mal formé (clé de dataset absente, géométrie
+        # vide...) se traduisait silencieusement par une surface à 0.
+        print(f"[_extract_eudr_metrics] aucune coordonnée exploitable — raw_coords={raw_coords!r}")
 
     total_m2 = 0.0
     for ring in outer_rings:
@@ -554,6 +645,11 @@ def _extract_eudr_metrics(gfw_data: dict) -> dict:
     total_prot  = 0
     for item in prot_arr:
         df = item.get('data_fields', [])
+        # ✅ FIX : sans GROUP BY (cf. map.py), un polygone à un seul pixel
+        # renvoie un dict unique au lieu d'une liste — géré ici comme les
+        # autres blocs (drivers) plus haut dans cette fonction.
+        if isinstance(df, dict):
+            df = [df]
         if isinstance(df, list):
             for f in df:
                 cat   = f.get('wdpa_protected_areas__iucn_cat', 'Unknown')
@@ -623,8 +719,11 @@ def _eudr_compliance_table(m: dict) -> Table:
                   else colors.HexColor('#2e7d32') if cs['status'] == 'Compliant' else RED)
     fc_color   = ORANGE if m['has_forest'] else GREEN
 
-    prot_text = '\n'.join(f'{k}: {v}' for k, v in m['protected_pct'].items())
-    vc_text   = '  '.join(
+    # ✅ FIX (rendu PDF) : Paragraph n'interprète pas "\n" comme un retour à la
+    # ligne (contrairement à un <br/>) — le texte s'affichait donc écrasé sur
+    # une seule ligne. On utilise la balise Paragraph correcte.
+    prot_text = '<br/>'.join(f'{k}: {v}' for k, v in m['protected_pct'].items())
+    vc_text   = ', '.join(
         f'Decile {r["decile"]}: {r["count"]}'
         for r in m['val_counts'] if r['count'] > 0
     ) or 'No data'
@@ -632,11 +731,13 @@ def _eudr_compliance_table(m: dict) -> Table:
     # ✅ FIX (annotation PDF) : le ratio n'est plus recalculé/affiché ici sur la ligne
     # "Country Deforestation Risk" — il est déjà calculé (et plafonné) dans
     # _extract_eudr_metrics et affiché sur la ligne "Tree Cover Loss" ci-dessous.
+    # ⚠ FIX (rendu PDF) : ✓/⚠ retirés — invisibles avec les polices Core Helvetica
+    # (hors encodage WinAnsi), la couleur du texte (vert/rouge) porte déjà le statut.
     loss_ratio_text = f"{m['tree_cover_loss_ha']} ha — "
     if m['tree_cover_loss_ha'] == 0:
-        loss_ratio_text += 'No loss detected ✓'
+        loss_ratio_text += 'No loss detected'
     else:
-        loss_ratio_text += f"Loss detected ⚠ — Tree loss ratio: {m['tree_cover_loss_ratio']:.2f}% of plot area"
+        loss_ratio_text += f"Loss detected — Tree loss ratio: {m['tree_cover_loss_ratio']:.2f}% of plot area"
         if m.get('tree_cover_loss_capped'):
             loss_ratio_text += ' (capped — source value exceeded plot area, please verify)'
 
@@ -645,13 +746,13 @@ def _eudr_compliance_table(m: dict) -> Table:
         [cell('Metric', bold=True), cell('Value / Assessment', bold=True)],
         # Data rows
         [cell('Project Area'),
-         cell(f"{m['area_ha']:.2f} ha  ({m['area_m2']:.0f} m²)")],
+         cell(f"{m['area_ha']:.2f} ha  ({m['area_m2']:.0f} m²)" if m['area_ha'] else 'Not available')],
 
         [cell('Country Deforestation Risk'),
          cell('STANDARD')],
 
         [cell('RADD Alert'),
-         cell(f"{m['radd_ha']} ha — {'No alert ✓' if m['radd_ha']==0 else 'Alert detected ⚠'}",
+         cell(f"{m['radd_ha']} ha — {'No alert' if m['radd_ha']==0 else 'Alert detected'}",
               color=radd_color)],
 
         [cell('Tree Cover Loss (since 2020)'),
@@ -667,7 +768,7 @@ def _eudr_compliance_table(m: dict) -> Table:
          cell(prot_text)],
 
         [cell('Tree Cover Extent'),
-         cell(f"Coverage: {m['cover_pct']:.1f}%  —  Non-zero pts: {m['cover_count']}\n{vc_text}")],
+         cell(f"Coverage: {m['cover_pct']:.1f}%  —  Non-zero pts: {m['cover_count']}<br/>{vc_text}")],
 
         [cell('Primary Deforestation Driver'),
          cell(m['primary_driver_label'])],
@@ -767,7 +868,7 @@ def build_eudr_farm_pdf(
     if owner_name and geolocation:
         intro_text = (
             f"This report provides an overview of Farm ID {farm_id_val}, owned by {owner_name}, "
-            f"located in {location_val if location_val else 'N/A'}. The farm is a member of the 1 and plays a "
+            f"located in {location_val if location_val else 'N/A'}. The farm plays a "
             f"significant role in the local agricultural landscape. With geolocation "
             f"coordinates {geolocation}, the farm specializes in {crop_name if crop_name else 'N/A'} "
             f"and operates within a region characterized by Landtype: {land_type if land_type else 'N/A'}. "
@@ -790,14 +891,6 @@ def build_eudr_farm_pdf(
     elems.append(Spacer(1, 5 * mm))
 
     # ── Farm information ──────────────────────────────────────────────────────
-    elems += _section_bar('Farm Information', st)
-    rows = [
-        ('Farm ID',       farm_info.get('farm_id', farm_id)),
-        ('Owner',         farm_info.get('name')),
-        ('Location',      location_val),
-        ('Geolocation',   farm_info.get('geolocation')),
-        ('Report Date',   today),
-    ]
     if farm_info:
         elems += _section_bar('Farm Information', st)
         rows = [
@@ -895,7 +988,7 @@ def build_eudr_farm_pdf(
         except Exception as e:
             print(f"Erreur d'intégration de la carte forestière : {e}")
 
-    doc.build(elems, onFirstPage=_footer_canvas, onLaterPages=_footer_canvas)
+    doc.build(elems, onFirstPage=_footer_canvas, onLaterPages=_footer_canvas, canvasmaker=_NumberedCanvas)
     return buf.getvalue()
 
 
@@ -955,7 +1048,7 @@ def build_eudr_forest_pdf(
             elems += _section_bar('Plot Map — Satellite View', st)
             elems.append(map_img)
 
-    doc.build(elems, onFirstPage=_footer_canvas, onLaterPages=_footer_canvas)
+    doc.build(elems, onFirstPage=_footer_canvas, onLaterPages=_footer_canvas, canvasmaker=_NumberedCanvas)
     return buf.getvalue()
 
 
@@ -981,8 +1074,8 @@ def _carbon_table(vals: dict) -> Table:
         )
 
     rows = [
-        [Paragraph('<b>Category</b>',        _styles()['body_bold']),
-         Paragraph('<b>Value (Mg CO₂e)</b>', _styles()['body_bold'])],
+        [Paragraph('<b>Category</b>',              _styles()['body_bold']),
+         Paragraph('<b>Value (Mg CO<sub>2</sub>e)</b>', _styles()['body_bold'])],
         [Paragraph('Carbon Gross Emissions',             _styles()['body']),
          badge_cell(vals['emissions'], BADGE_COLORS['emissions'])],
         [Paragraph('Carbon Gross Absorption (Removals)', _styles()['body']),
@@ -1007,6 +1100,28 @@ def _carbon_table(vals: dict) -> Table:
         ('BOTTOMPADDING',(0, 0), (-1, -1),  6),
         ('LEFTPADDING',  (0, 0), (-1, -1),  8),
         *[('BACKGROUND', (0, i), (0, i), WHITE) for i in range(2, len(rows), 2)],
+    ]))
+    return t
+
+
+def _carbon_status_badge(net_positive: bool) -> Table:
+    """Bannière 'Net Carbon Source/Sink' (icône vectorielle + texte) —
+    factorisée car identique entre le rapport ferme et le rapport forêt."""
+    status_label = 'Net Carbon Source' if net_positive else 'Net Carbon Sink'
+    bg    = RED_LIGHT if net_positive else GREEN_LIGHT
+    color = RED if net_positive else colors.HexColor('#1b5e20')
+    icon  = _icon_warn(color=RED) if net_positive else _icon_ok(color=colors.HexColor('#1b5e20'))
+
+    header = _icon_text_row(icon, status_label, ParagraphStyle(
+        'nb', fontName='Helvetica-Bold', fontSize=12, textColor=color,
+    ))
+    t = Table([[header]], colWidths=[CONTENT_W])
+    t.setStyle(TableStyle([
+        ('BACKGROUND',   (0, 0), (-1, -1), bg),
+        ('BOX',          (0, 0), (-1, -1), 1, GRAY_BORDER),
+        ('TOPPADDING',   (0, 0), (-1, -1), 8),
+        ('BOTTOMPADDING',(0, 0), (-1, -1), 8),
+        ('LEFTPADDING',  (0, 0), (-1, -1), 14),
     ]))
     return t
 
@@ -1054,21 +1169,7 @@ def build_carbon_farm_pdf(
     elems.append(Spacer(1, 5 * mm))
 
     # ── Net status badge ──────────────────────────────────────────────────────
-    status_text = ('⚠  Net Carbon Source' if net_positive else '✓  Net Carbon Sink')
-    status_bg   = RED_LIGHT if net_positive else GREEN_LIGHT
-    status_color= RED if net_positive else GREEN
-    badge_t = Table([[Paragraph(f'<b>{status_text}</b>',
-                     ParagraphStyle('nb', fontName='Helvetica-Bold', fontSize=12,
-                                    textColor=status_color))]],
-                    colWidths=[CONTENT_W])
-    badge_t.setStyle(TableStyle([
-        ('BACKGROUND',   (0, 0), (-1, -1), status_bg),
-        ('BOX',          (0, 0), (-1, -1), 1, GRAY_BORDER),
-        ('TOPPADDING',   (0, 0), (-1, -1), 8),
-        ('BOTTOMPADDING',(0, 0), (-1, -1), 8),
-        ('LEFTPADDING',  (0, 0), (-1, -1), 14),
-    ]))
-    elems.append(badge_t)
+    elems.append(_carbon_status_badge(net_positive))
     elems.append(Spacer(1, 5 * mm))
 
     # ── Farm info ─────────────────────────────────────────────────────────────
@@ -1113,7 +1214,7 @@ def build_carbon_farm_pdf(
     interp = [
         ('<b>Gross Emissions</b>', 'Carbon released through land-use change and disturbances.'),
         ('<b>Gross Removals</b>',  'Carbon absorbed by forest growth and regeneration.'),
-        ('<b>Net Flux</b>',        f'Balance: {"positive = net source ⚠" if net_positive else "negative = net sink ✓"}. Current value: {net:.4f} Mg CO₂e.'),
+        ('<b>Net Flux</b>',        f'Balance: {"positive (net source)" if net_positive else "negative (net sink)"}. Current value: {net:.4f} Mg CO<sub>2</sub>e.'),
         ('<b>Sequestration</b>',   f'Reforestation potential — Belowground: {seq_below:.4f} Mg C, Aboveground: {seq_above:.4f} Mg C.'),
     ]
     interp_data = [
@@ -1142,7 +1243,7 @@ def build_carbon_farm_pdf(
             elems += _section_bar('Plot Map — Satellite View', st)
             elems.append(map_img)
 
-    doc.build(elems, onFirstPage=_footer_canvas, onLaterPages=_footer_canvas)
+    doc.build(elems, onFirstPage=_footer_canvas, onLaterPages=_footer_canvas, canvasmaker=_NumberedCanvas)
     return buf.getvalue()
 
 
@@ -1189,20 +1290,7 @@ def build_carbon_forest_pdf(
     ))
     elems.append(Spacer(1, 5 * mm))
 
-    status_text = '⚠  Net Carbon Source' if net_positive else '✓  Net Carbon Sink'
-    badge_t = Table(
-        [[Paragraph(f'<b>{status_text}</b>',
-          ParagraphStyle('nb', fontName='Helvetica-Bold', fontSize=12,
-                         textColor=RED if net_positive else GREEN))]],
-        colWidths=[CONTENT_W])
-    badge_t.setStyle(TableStyle([
-        ('BACKGROUND',   (0, 0), (-1, -1), RED_LIGHT if net_positive else GREEN_LIGHT),
-        ('BOX',          (0, 0), (-1, -1), 1, GRAY_BORDER),
-        ('TOPPADDING',   (0, 0), (-1, -1), 8),
-        ('BOTTOMPADDING',(0, 0), (-1, -1), 8),
-        ('LEFTPADDING',  (0, 0), (-1, -1), 14),
-    ]))
-    elems.append(badge_t)
+    elems.append(_carbon_status_badge(net_positive))
     elems.append(Spacer(1, 5 * mm))
 
     elems += _section_bar('Forest Information', st)
@@ -1242,7 +1330,7 @@ def build_carbon_forest_pdf(
             elems += _section_bar('Plot Map — Satellite View', st)
             elems.append(map_img)
 
-    doc.build(elems, onFirstPage=_footer_canvas, onLaterPages=_footer_canvas)
+    doc.build(elems, onFirstPage=_footer_canvas, onLaterPages=_footer_canvas, canvasmaker=_NumberedCanvas)
     return buf.getvalue()
 
 def _tree_co2_table(trees_data: list) -> Table:
@@ -1350,6 +1438,71 @@ def build_tree_co2_pdf(
     elems.append(Paragraph(note, ParagraphStyle(
         'note', fontName='Helvetica', fontSize=8, textColor=MUTED, leading=11,
     )))
- 
-    doc.build(elems, onFirstPage=_footer_canvas, onLaterPages=_footer_canvas)
+
+    doc.build(elems, onFirstPage=_footer_canvas, onLaterPages=_footer_canvas, canvasmaker=_NumberedCanvas)
+    return buf.getvalue()
+
+
+def build_forest_biomass_index_pdf(
+    forest_id  : int | str,
+    forest_name: str,
+    area_ha    : float,
+    biomass    : dict,   # sortie de compute_forest_biomass_from_index()
+    logo_parrot: str | None = None,
+    logo_agri  : str | None = None,
+) -> bytes:
+    """AGB/BGB/CO2 de forêt estimés depuis le NDVI Sentinel-2 (sans inventaire
+    arbre par arbre) — remplace la vue GFW pré-calculée pour /reportcarbonforest."""
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=MARGIN, rightMargin=MARGIN,
+        topMargin=MARGIN, bottomMargin=22 * mm,
+        title=f'Forest Biomass (Satellite Index) Report — Forest {forest_id}',
+        author='Agriyields',
+    )
+    st    = _styles()
+    today = datetime.now().strftime('%d %B %Y')
+    elems = []
+
+    elems.append(_header_table(
+        logo_parrot, logo_agri,
+        'FOREST CARBON ASSESSMENT — SATELLITE INDEX MODEL',
+        f'Generated on {today}  •  AGB/BGB estimated from Sentinel-2 NDVI',
+    ))
+    elems.append(Spacer(1, 5 * mm))
+
+    elems += _section_bar('Forest Information', st)
+    elems.append(_info_table([
+        ('Forest Name', forest_name),
+        ('Project Area', f"{area_ha:.2f} ha"),
+        ('NDVI Used', biomass.get('ndvi_used')),
+        ('NDVI Date', biomass.get('ndvi_date')),
+    ]))
+    elems.append(Spacer(1, 5 * mm))
+
+    elems += _section_bar('Biomass & Carbon Summary', st)
+    elems.append(_info_table([
+        ('Above-Ground Biomass (AGB)', f"{biomass.get('agb_kg', 0) / 1000:.2f} Mg  ({biomass.get('agb_per_ha_mg', 0):.2f} Mg/ha)"),
+        ('Below-Ground Biomass (BGB)', f"{biomass.get('bgb_kg', 0) / 1000:.2f} Mg"),
+        ('Total Biomass',              f"{biomass.get('total_biomass_kg', 0) / 1000:.2f} Mg"),
+        ('Total Carbon',               f"{biomass.get('total_carbon_kg', 0) / 1000:.2f} Mg C"),
+        ('CO2 Equivalent',             f"{biomass.get('co2_sequestered_kg', 0) / 1000:.2f} Mg CO2e"),
+    ]))
+    elems.append(Spacer(1, 5 * mm))
+
+    elems += _section_bar('Methodology', st)
+    note2 = (
+        f"{biomass.get('model', '')}. Total biomass = 1.2 x AGB (20% belowground). "
+        'Dry weight = 72.5% of biomass, carbon = 50% of dry weight, CO2 = carbon x 3.67 '
+        '(same conversion chain as the per-tree measured report). This satellite-index '
+        'estimate is a generic approximation for forests without a full tree inventory — '
+        'it is NOT calibrated on local field plots and should not replace ground '
+        'measurements or GFW data for regulatory submissions without local validation.'
+    )
+    elems.append(Paragraph(note2, ParagraphStyle(
+        'note2', fontName='Helvetica', fontSize=8, textColor=MUTED, leading=11,
+    )))
+
+    doc.build(elems, onFirstPage=_footer_canvas, onLaterPages=_footer_canvas, canvasmaker=_NumberedCanvas)
     return buf.getvalue()

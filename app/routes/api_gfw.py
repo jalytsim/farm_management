@@ -1,14 +1,16 @@
-from flask import Blueprint, json, jsonify, request, send_file
-from app.models import Crop, District, Farm, FarmData, Forest, GFWLog
+from flask import Blueprint, json, jsonify, request, send_file, Response
+from app.models import Crop, District, Farm, FarmData, Forest, GFWLog, PaidFeatureAccess, User
 from app.routes.map import (
     gfw_async, gfw_async_from_geojson,
     gfw_async_carbon, gfw_async_carbon_from_geojson,
 )
-import os, hashlib, asyncio, tempfile, requests
-from datetime import datetime
+import os, hashlib, asyncio, tempfile, requests, csv, io
+from datetime import datetime, timedelta
 from werkzeug.utils import secure_filename
 from urllib.parse import urlencode
 from playwright.async_api import async_playwright
+from flask_jwt_extended import jwt_required, get_jwt_identity
+from sqlalchemy import func
 from app import db
 
 from app.utils.pdf_reports import (
@@ -77,7 +79,7 @@ def log_upload(ip, user_agent, filename, filehash, guest_id):
             f"IP: {ip} | UA: {user_agent} | File: {filename} | Hash: {filehash}\n"
         )
 
-def _log_gfw(action_type, entity_type, entity_id):
+def _log_gfw(action_type, entity_type, entity_id, agent_id=None):
     try:
         user_id = None
         from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
@@ -91,6 +93,7 @@ def _log_gfw(action_type, entity_type, entity_id):
         log = GFWLog(
             user_id=user_id, action_type=action_type,
             entity_type=entity_type, entity_id=str(entity_id) if entity_id else None,
+            agent_id=str(agent_id)[:100] if agent_id else None,
             ip_address=request.remote_addr,
             user_agent=request.headers.get('User-Agent', '')[:255],
         )
@@ -426,6 +429,7 @@ def guest_eudr_pdf():
     farm_info          = req_data.get('farm_info') or {}
     forest_map_base64  = req_data.get('forest_map_image')
     guest_id           = req_data.get('guest_id') or farm_info.get('farm_id') or 'GUEST'
+    agent_id           = req_data.get('agent_id')
 
     try:
         pdf_bytes = build_eudr_farm_pdf(
@@ -441,7 +445,7 @@ def guest_eudr_pdf():
         traceback.print_exc()
         return jsonify({"error": f"Génération PDF échouée: {str(e)}"}), 500
 
-    _log_gfw('guest_eudr_pdf', 'guest', guest_id)
+    _log_gfw('guest_eudr_pdf', 'guest', guest_id, agent_id=agent_id)
     return _send_pdf(pdf_bytes, f'EUDR_Report_{guest_id}.pdf', as_attachment=False, browser_safe=True)
 
 @bp.route('/guest/carbon-pdf', methods=['POST'])
@@ -464,6 +468,7 @@ def guest_carbon_pdf():
 
     farm_info  = req_data.get('farm_info') or {}
     guest_id   = req_data.get('guest_id') or farm_info.get('farm_id') or 'GUEST'
+    agent_id   = req_data.get('agent_id')
 
     # Adaptation dict groupé -> liste ordonnée attendue par build_carbon_farm_pdf
     report_list = _carbon_grouped_to_list(gfw_data)
@@ -481,8 +486,208 @@ def guest_carbon_pdf():
         traceback.print_exc()
         return jsonify({"error": f"Génération PDF échouée: {str(e)}"}), 500
 
-    _log_gfw('guest_carbon_pdf', 'guest', guest_id)
+    _log_gfw('guest_carbon_pdf', 'guest', guest_id, agent_id=agent_id)
     return _send_pdf(pdf_bytes, f'Carbon_Report_{guest_id}.pdf', as_attachment=False, browser_safe=True)
+
+
+# ============================================
+# ✅ NOUVEAU — EXPORT AGENT_ID (suivi terrain / commissions)
+#
+# agent_id est saisi librement par le guest dans StepUserInfo.jsx pour
+# identifier l'agent de terrain qui l'a accompagné ; il est loggé dans
+# GFWLog à chaque génération de PDF (guest_eudr_pdf / guest_carbon_pdf).
+# ============================================
+
+def _require_admin():
+    """Retourne None si l'utilisateur courant est admin, sinon une réponse d'erreur."""
+    user_id = get_jwt_identity()
+    if isinstance(user_id, dict):
+        user_id = user_id.get('id')
+    user = User.query.get(user_id) if user_id is not None else None
+    if not user or not user.is_admin:
+        return jsonify({"error": "Admin access required"}), 403
+    return None
+
+
+def _agent_logs_query():
+    query = GFWLog.query.filter(GFWLog.agent_id.isnot(None))
+
+    agent_filter = request.args.get('agent_id')
+    if agent_filter:
+        query = query.filter(GFWLog.agent_id == agent_filter)
+
+    date_from = request.args.get('date_from')
+    if date_from:
+        try:
+            query = query.filter(GFWLog.created_at >= datetime.strptime(date_from, '%Y-%m-%d'))
+        except ValueError:
+            pass
+
+    date_to = request.args.get('date_to')
+    if date_to:
+        try:
+            query = query.filter(GFWLog.created_at < datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1))
+        except ValueError:
+            pass
+
+    return query
+
+
+def _agent_revenue_query():
+    """
+    Même filtres que _agent_logs_query() (agent_id, date_from, date_to) mais
+    sur PaidFeatureAccess.payment_status == 'success' — chaque ligne porte le
+    `amount`/`currency` FIGÉS au moment du paiement (voir create_payment_attempt),
+    donc sommer ces montants donne le chiffre réel facturé par agent sur la
+    période, même si le tarif de la feature a changé depuis.
+    """
+    query = PaidFeatureAccess.query.filter(
+        PaidFeatureAccess.agent_id.isnot(None),
+        PaidFeatureAccess.payment_status == 'success',
+    )
+
+    agent_filter = request.args.get('agent_id')
+    if agent_filter:
+        query = query.filter(PaidFeatureAccess.agent_id == agent_filter)
+
+    date_from = request.args.get('date_from')
+    if date_from:
+        try:
+            query = query.filter(PaidFeatureAccess.created_at >= datetime.strptime(date_from, '%Y-%m-%d'))
+        except ValueError:
+            pass
+
+    date_to = request.args.get('date_to')
+    if date_to:
+        try:
+            query = query.filter(PaidFeatureAccess.created_at < datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1))
+        except ValueError:
+            pass
+
+    return query
+
+
+@bp.route('/admin/agents/summary', methods=['GET'])
+@jwt_required()
+def agents_summary():
+    """
+    GET /api/gfw/admin/agents/summary — statistiques agrégées par agent_id
+    (nombre de soumissions EUDR/Carbon/NDVI, montant réellement facturé par
+    devise, dernière soumission), pour affichage dans une page admin avant
+    export. Le nombre de rapports seul ne suffit pas pour la comptabilité
+    car le prix des features peut changer dans le temps — voir amount_by_currency.
+    Query params optionnels : date_from, date_to (YYYY-MM-DD).
+    """
+    forbidden = _require_admin()
+    if forbidden:
+        return forbidden
+
+    rows = (
+        _agent_logs_query().with_entities(
+            GFWLog.agent_id,
+            GFWLog.action_type,
+            func.count(GFWLog.id),
+            func.max(GFWLog.created_at),
+        )
+        .group_by(GFWLog.agent_id, GFWLog.action_type)
+        .all()
+    )
+
+    by_agent = {}
+    for agent_id, action_type, count, last_seen in rows:
+        entry = by_agent.setdefault(agent_id, {
+            'agent_id': agent_id, 'total': 0, 'by_action': {}, 'last_submission': None,
+            'amount_by_currency': {},
+        })
+        entry['total'] += count
+        entry['by_action'][action_type] = count
+        if last_seen and (entry['last_submission'] is None or last_seen.isoformat() > entry['last_submission']):
+            entry['last_submission'] = last_seen.isoformat()
+
+    revenue_rows = (
+        _agent_revenue_query().with_entities(
+            PaidFeatureAccess.agent_id,
+            PaidFeatureAccess.currency,
+            func.sum(PaidFeatureAccess.amount),
+        )
+        .group_by(PaidFeatureAccess.agent_id, PaidFeatureAccess.currency)
+        .all()
+    )
+    for agent_id, currency, total_amount in revenue_rows:
+        entry = by_agent.setdefault(agent_id, {
+            'agent_id': agent_id, 'total': 0, 'by_action': {}, 'last_submission': None,
+            'amount_by_currency': {},
+        })
+        entry['amount_by_currency'][currency or 'UGX'] = float(total_amount or 0)
+
+    agents = sorted(by_agent.values(), key=lambda a: a['total'], reverse=True)
+    return jsonify({"agents": agents, "total_agents": len(agents)})
+
+
+@bp.route('/admin/agents/export', methods=['GET'])
+@jwt_required()
+def export_agents_csv():
+    """
+    GET /api/gfw/admin/agents/export — export CSV brut des soumissions guest
+    par agent_id (une ligne par soumission). Mêmes filtres que /summary.
+    """
+    forbidden = _require_admin()
+    if forbidden:
+        return forbidden
+
+    logs = _agent_logs_query().order_by(GFWLog.created_at.desc()).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['agent_id', 'action_type', 'entity_type', 'entity_id', 'guest_phone', 'created_at'])
+    for log in logs:
+        writer.writerow([
+            log.agent_id, log.action_type, log.entity_type, log.entity_id or '',
+            log.guest_phone or '', log.created_at.isoformat() if log.created_at else '',
+        ])
+
+    csv_bytes = output.getvalue().encode('utf-8-sig')  # BOM : accents lisibles dans Excel
+    return Response(
+        csv_bytes,
+        mimetype='text/csv',
+        headers={'Content-Disposition': 'attachment; filename=agent_submissions.csv'},
+    )
+
+
+@bp.route('/admin/agents/export-revenue', methods=['GET'])
+@jwt_required()
+def export_agents_revenue_csv():
+    """
+    GET /api/gfw/admin/agents/export-revenue — export CSV des paiements guest
+    réussis par agent_id (une ligne par paiement, montant figé au moment du
+    paiement). Complète /export (comptages) avec le montant réellement
+    facturé — nécessaire car le prix des features change dans le temps.
+    Mêmes filtres que /summary.
+    """
+    forbidden = _require_admin()
+    if forbidden:
+        return forbidden
+
+    payments = _agent_revenue_query().order_by(PaidFeatureAccess.created_at.desc()).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['agent_id', 'feature_name', 'guest_phone_number', 'amount', 'currency', 'payment_method', 'created_at'])
+    for p in payments:
+        writer.writerow([
+            p.agent_id, p.feature_name, p.guest_phone_number or '',
+            p.amount if p.amount is not None else '', p.currency or '', p.payment_method or '',
+            p.created_at.isoformat() if p.created_at else '',
+        ])
+
+    csv_bytes = output.getvalue().encode('utf-8-sig')
+    return Response(
+        csv_bytes,
+        mimetype='text/csv',
+        headers={'Content-Disposition': 'attachment; filename=agent_revenue.csv'},
+    )
+
+
 # ============================================
 # GEOJSON FILE UPLOAD ENDPOINTS
 # ============================================

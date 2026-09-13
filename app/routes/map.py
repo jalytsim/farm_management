@@ -25,8 +25,15 @@ DATASET_CONFIG = {
             'jrc_global_forest_cover': [
                 {'select': 'SUM(area__ha)', 'where': 'is__jrc_global_forest_cover > 0'},
             ],
+            # ✅ FIX : l'API GFW renvoie systématiquement `data: []` quand la requête
+            # utilise GROUP BY sur ce champ contextuel (vérifié en direct sur un
+            # polygone réel de la DB : `... GROUP BY wdpa_protected_areas__iucn_cat`
+            # → 0 ligne, alors qu'une requête SANS group_by renvoie bien la valeur
+            # par pixel). On récupère donc la valeur brute par pixel et on
+            # l'agrège nous-mêmes dans pdf_reports.py (compatible avec le format
+            # existant : chaque ligne sans 'count' compte pour 1 pixel).
             'gfw_soil_carbon': [
-                {'select': 'wdpa_protected_areas__iucn_cat, COUNT(*) as count', 'group_by': 'wdpa_protected_areas__iucn_cat'},
+                {'select': 'wdpa_protected_areas__iucn_cat'},
             ],
             'umd_tree_cover_loss': [
                 {'select': 'SUM(area__ha)'},

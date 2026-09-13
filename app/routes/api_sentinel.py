@@ -614,9 +614,13 @@ def guest_sat_index():
 
     logger = logging.getLogger(__name__)
 
-    data    = request.get_json(silent=True) or {}
-    phone   = data.get('phone')
-    geojson = data.get('geojson')
+    data     = request.get_json(silent=True) or {}
+    phone    = data.get('phone')
+    geojson  = data.get('geojson')
+    # ✅ agent_id (référent terrain, saisi dans StepUserInfo.jsx) manquait ici —
+    # ce rapport n'était pas suivi dans /api/gfw/admin/agents/summary alors que
+    # EUDR et Carbon le sont déjà (voir _log_gfw plus bas).
+    agent_id = data.get('agent_id')
 
     if not phone or not geojson:
         return jsonify({'error': 'phone and geojson are required'}), 400
@@ -648,7 +652,121 @@ def guest_sat_index():
     if error:
         code = 400 if 'polygon' in error.lower() else 500
         return jsonify({'error': error}), code
+
+    from app.routes.api_gfw import _log_gfw
+    _log_gfw('guest_sentinel_report', 'guest', phone, agent_id=agent_id)
+
     return jsonify(result), 200
+
+
+@sentinel_bp.route('/guest/carbon-extra', methods=['POST'])
+def guest_carbon_extra():
+    """
+    Complément au Carbon Report guest existant (chiffres GFW émissions/
+    absorptions, inchangés) — affiché en plus, pas à la place :
+      - property_type='forest' : AGB/BGB estimés depuis le NDVI (même modèle
+        que /api/tree-co2/forest/<id>/biomass-index côté admin).
+      - property_type='farm'   : Carbone organique du sol (SoilGrids ISRIC,
+        au centroïde) + culture prédite (même modèle RandomForest que
+        CropPredictionPanel.jsx côté admin).
+    POST body : { geojson, phone, property_type: 'forest'|'farm', agent_id? }
+    """
+    import asyncio
+    import logging
+    import traceback
+    from app.utils.feature_payment_utils import has_guest_access
+    from app.utils.sentinel_utils import (
+        _extract_polygon_coords, _compute_area_ha_from_coords,
+        get_sat_index_full_guest, _fetch_soc_soilgrids,
+    )
+    from app.utils.tree_co2_utils import compute_forest_biomass_from_index
+    from app.utils.crop_classifier_utils import predict_crop_from_geojson
+
+    logger = logging.getLogger(__name__)
+
+    data          = request.get_json(silent=True) or {}
+    phone         = data.get('phone')
+    geojson       = data.get('geojson')
+    property_type = data.get('property_type')
+    agent_id      = data.get('agent_id')
+
+    if not phone or not geojson or property_type not in ('forest', 'farm'):
+        return jsonify({'error': "phone, geojson and property_type ('forest'|'farm') are required"}), 400
+
+    try:
+        # Même feature payante que le Carbon Report principal — pas de
+        # paiement séparé pour ce complément.
+        if not has_guest_access(phone, 'reportcarbonguest'):
+            return jsonify({'error': 'No active paid access for this phone number'}), 403
+    except Exception as e:
+        logger.error(f'[guest_carbon_extra] has_guest_access failed: {e}\n{traceback.format_exc()}')
+        return jsonify({'error': f'Access check failed: {str(e)}'}), 500
+
+    coords = _extract_polygon_coords(geojson)
+    if not coords:
+        return jsonify({'error': 'Invalid or missing polygon geometry'}), 400
+
+    try:
+        history_result, error = asyncio.run(get_sat_index_full_guest(geojson, phone))
+    except Exception as e:
+        logger.error(f'[guest_carbon_extra] Sentinel fetch failed: {e}\n{traceback.format_exc()}')
+        return jsonify({'error': f'Internal error while fetching satellite data: {str(e)}'}), 500
+
+    if error:
+        return jsonify({'error': error}), 400
+
+    result = {'property_type': property_type}
+
+    if property_type == 'forest':
+        # ✅ FIX : contrairement à la route admin (/api/tree-co2/forest/<id>/
+        # biomass-index, alimentée par _parse_response bruts), l'historique
+        # guest (get_sat_index_full_guest) enveloppe chaque indice dans
+        # {value, raw, oob, tier} — même format que celui géré par _val()
+        # dans crop_classifier_utils.py. Sans ce déballage, compute_forest_
+        # biomass_from_index recevait un dict au lieu d'un float.
+        def _ndvi_value(row):
+            v = row.get('ndvi')
+            return v.get('value') if isinstance(v, dict) else v
+
+        ndvi_rows = [r for r in (history_result.get('history') or []) if _ndvi_value(r) is not None]
+        if not ndvi_rows:
+            return jsonify({'error': 'No cloud-free NDVI reading available for this polygon'}), 404
+        latest = max(ndvi_rows, key=lambda r: r['date'])
+        area_ha, _ = _compute_area_ha_from_coords(coords)
+        if not area_ha:
+            return jsonify({'error': 'Could not compute area from polygon'}), 400
+        try:
+            result['biomass'] = compute_forest_biomass_from_index(_ndvi_value(latest), area_ha, index_date=latest['date'])
+            result['area_ha'] = round(area_ha, 4)
+        except Exception as e:
+            logger.error(f'[guest_carbon_extra] biomass calc failed: {e}\n{traceback.format_exc()}')
+            return jsonify({'error': str(e)}), 500
+
+    else:  # farm
+        lons = [c[0] for c in coords]
+        lats = [c[1] for c in coords]
+        lon_c, lat_c = sum(lons) / len(lons), sum(lats) / len(lats)
+        try:
+            soc = asyncio.run(_fetch_soc_soilgrids(lat_c, lon_c))
+        except Exception as e:
+            logger.error(f'[guest_carbon_extra] SoilGrids fetch failed: {e}\n{traceback.format_exc()}')
+            soc = None
+        result['soc'] = soc
+        result['centroid'] = {'lat': lat_c, 'lon': lon_c}
+
+        # Prédiction de culture : purement complémentaire — une erreur ici
+        # (modèle pas encore entraîné, historique insuffisant) ne doit pas
+        # faire échouer le SOC, qui est la donnée principale demandée.
+        crop_result, crop_error = predict_crop_from_geojson(geojson, phone)
+        result['crop_prediction'] = crop_result
+        if crop_error:
+            result['crop_prediction_error'] = crop_error
+
+    from app.routes.api_gfw import _log_gfw
+    _log_gfw('guest_carbon_extra', 'guest', phone, agent_id=agent_id)
+
+    return jsonify(result), 200
+
 
 @sentinel_bp.route('/crop-model/train', methods=['POST'])
 @jwt_required()
@@ -686,6 +804,40 @@ def farm_predict_crop(farm_id):
     return jsonify(result), 200
 
 
+@sentinel_bp.route('/farm/<string:farm_id>/confirm-crop', methods=['POST'])
+@jwt_required()
+def farm_confirm_crop(farm_id):
+    """
+    Confirme (ou corrige) la culture prédite pour une ferme — voir bouton
+    "Confirmer" dans CropPredictionPanel.jsx. Stocke la confirmation dans
+    CropPredictionConfirmation (pas FarmData) ; la ferme entrera dans la
+    banque d'entraînement au prochain /crop-model/train, via
+    _get_farm_crop_label() qui retombe dessus quand FarmData.crop_id est absent.
+    """
+    from app.utils.crop_classifier_utils import confirm_crop_prediction
+
+    data = request.get_json(silent=True) or {}
+    crop_id = data.get('crop_id')
+    if not crop_id:
+        return jsonify({'error': 'crop_id is required'}), 400
+
+    entry, error = confirm_crop_prediction(
+        farm_id, crop_id,
+        confirmed_by=_get_user().id if _get_user() else None,
+        predicted_crop=data.get('predicted_crop'),
+        confidence=data.get('confidence'),
+    )
+    if error:
+        return jsonify({'error': error}), 400
+
+    return jsonify({
+        'status':     'confirmed',
+        'farm_id':    farm_id,
+        'crop_id':    entry.crop_id,
+        'confirmed_at': entry.confirmed_at.isoformat() if entry.confirmed_at else None,
+    }), 200
+
+
 @sentinel_bp.route('/farm/<string:farm_id>/soc', methods=['GET'])
 @jwt_required()
 def farm_soc(farm_id):
@@ -706,3 +858,32 @@ def farm_soc(farm_id):
     if not result:
         return jsonify({'error': 'SoilGrids API failed'}), 500
     return jsonify({'soc': result, 'centroid': {'lat': lat_c, 'lon': lon_c}}), 200
+
+
+@sentinel_bp.route('/farm/<string:farm_id>/soc-seq', methods=['GET'])
+@jwt_required()
+def farm_soc_seq(farm_id):
+    """
+    GET /api/sentinel/farm/<farm_id>/soc-seq
+    Stock de carbone organique du sol + potentiel de séquestration, scénario
+    FAO GSOCseq SSM3 — statistique zonale sur l'ensemble du polygone de la
+    ferme (contrairement à /soc qui n'interroge que le centroïde).
+    """
+    from app.utils.sentinel_utils import _build_geometry
+    from app.utils.soc_seq_utils import get_gsocseq_ssm3, is_available
+    from app.models import Farm, Point
+
+    entity = Farm.query.filter_by(farm_id=farm_id).first()
+    if not entity:
+        return jsonify({'error': 'Farm not found'}), 404
+
+    if not is_available():
+        return jsonify({'error': 'GSOCseq rasters not installed on this server yet'}), 503
+
+    points = Point.query.filter_by(owner_type='farmer', owner_id=str(farm_id)).all()
+    geometry = _build_geometry(points, getattr(entity, 'geolocation', None))
+    if not geometry:
+        return jsonify({'error': 'No boundary points or geolocation for this farm'}), 400
+
+    result = get_gsocseq_ssm3(geometry)
+    return jsonify(result), 200
