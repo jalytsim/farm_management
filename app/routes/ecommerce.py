@@ -1,24 +1,26 @@
 # app/routes/ecommerce.py
 # =============================================================================
-#  Boutique — remplace intégralement ton fichier actuel.
+#  Boutique — version complète, patch « gestion des commandes » intégré.
+#  Remplace intégralement ton fichier actuel.
 #
-#  Ce qui change par rapport à ta version :
-#   1. Stock décimal + trois modes de vente ('unit', 'weight', 'lot')
-#   2. Images : synchronisation via l'ORM, URLs relatives, route de service
-#   3. Routes admin réellement protégées (admin_required, plus jwt_required nu)
-#   4. Suppression logique des produits (une FK non nullable faisait planter
-#      la suppression physique dès qu'un mouvement de stock existait)
-#   5. Panier multi-devises refusé au lieu d'être silencieusement faux
+#  Ce qui change par rapport à la version précédente :
+#   1. ORDER_STATUS_TRANSITIONS accepte enfin 'pending' et 'payment_failed'
+#      comme points de départ : une commande abandonnée avant paiement peut
+#      être annulée au lieu de rester bloquée à vie.
+#   2. list_orders_admin pagine, filtre et cherche côté serveur.
+#   3. Nouvel endpoint /orders/admin/counts pour les pastilles d'onglets.
+#   4. Import de timedelta, requis par la fenêtre de dates.
 # =============================================================================
 
 import os
 import uuid
 import traceback
 from decimal import Decimal, InvalidOperation
-from datetime import datetime
+from datetime import datetime, timedelta          # ★ timedelta
 
 from flask import Blueprint, jsonify, request, redirect, current_app, send_from_directory, abort
 from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request, jwt_required
+from sqlalchemy import or_, func as sa_func       # ★ recherche et agrégats
 from werkzeug.utils import secure_filename
 
 from app import db
@@ -39,14 +41,30 @@ ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
 MAX_IMAGE_SIZE_MB = 5
 ZERO = Decimal('0')
 
+# ★ MODIFIÉ — 'pending' et 'payment_failed' ont désormais une sortie.
+#
+#   Sans clé 'pending', `.get('pending', set())` renvoyait un ensemble vide :
+#   aucune transition n'était possible. Une commande créée puis abandonnée
+#   avant paiement restait 'pending' pour toujours, gonflait la liste des
+#   commandes et faussait le taux de paiement des statistiques.
+#
+#   Annuler une commande non payée ne touche pas au stock : il n'a jamais été
+#   décrémenté, puisque c'est _confirm_order_paid qui s'en charge.
 ORDER_STATUS_TRANSITIONS = {
-    'paid':      {'shipped', 'cancelled', 'refunded'},
-    'shipped':   {'delivered', 'cancelled', 'refunded'},
-    'delivered': {'refunded'},
-    'cancelled': set(),
-    'refunded':  set(),
+    'pending':        {'cancelled'},
+    'payment_failed': {'cancelled'},
+    'paid':           {'shipped', 'cancelled', 'refunded'},
+    'shipped':        {'delivered', 'cancelled', 'refunded'},
+    'delivered':      {'refunded'},
+    'cancelled':      set(),
+    'refunded':       set(),
 }
+
+# Statuts qui ont RÉELLEMENT décrémenté le stock et doivent donc le rendre.
 STOCK_RESTORING_STATUSES = {'cancelled', 'refunded'}
+
+# Statuts qui représentent de l'argent encaissé.
+PAID_STATUSES = {'paid', 'shipped', 'delivered'}
 
 
 # ==================== HELPERS ====================
@@ -703,12 +721,104 @@ def checkout_cancelled():
 @bp.route('/orders/admin', methods=['GET'])
 @admin_required
 def list_orders_admin():
+    """Liste paginée, filtrée et cherchable des commandes.
+
+    ★ MODIFIÉ — l'ancienne version renvoyait TOUTES les commandes d'un coup,
+    articles sérialisés compris. À quelques milliers de commandes la réponse
+    pesait plusieurs mégaoctets et la page mettait dix secondes à s'afficher.
+
+    La réponse est maintenant un OBJET {items, total, page, pages, …} et non
+    plus une liste nue. OrderManager.jsx attend ce format.
+    """
+    page = max(int(request.args.get('page') or 1), 1)
+    per_page = min(int(request.args.get('per_page') or 20), 100)
     status = request.args.get('status')
+    search = (request.args.get('q') or '').strip()
+    source = (request.args.get('source') or 'all').lower()
+
     query = EcoOrder.query
-    if status:
-        query = query.filter_by(status=status)
-    orders = query.order_by(EcoOrder.date_created.desc()).all()
-    return jsonify([o.to_dict() for o in orders])
+
+    if status and status != 'all':
+        query = query.filter(EcoOrder.status == status)
+
+    # Fenêtre de dates optionnelle. 'to' est inclusif pour l'utilisateur : on
+    # ajoute un jour et on compare en strict, sinon une commande passée à 14 h
+    # le dernier jour de la période serait exclue.
+    raw_from = request.args.get('from')
+    if raw_from:
+        try:
+            query = query.filter(
+                EcoOrder.date_created >= datetime.strptime(raw_from, '%Y-%m-%d'))
+        except ValueError:
+            pass
+
+    raw_to = request.args.get('to')
+    if raw_to:
+        try:
+            query = query.filter(
+                EcoOrder.date_created < datetime.strptime(raw_to, '%Y-%m-%d') + timedelta(days=1))
+        except ValueError:
+            pass
+
+    # Boutique ou enchères : la distinction se lit sur les lignes de commande,
+    # aucun champ à ajouter sur EcoOrder.
+    if source in ('shop', 'auction'):
+        has_lot = (db.session.query(EcoOrderItem.id)
+                   .filter(EcoOrderItem.order_id == EcoOrder.id,
+                           EcoOrderItem.auction_lot_id.isnot(None))
+                   .exists())
+        query = query.filter(has_lot if source == 'auction' else ~has_lot)
+
+    if search:
+        like = f"%{search}%"
+        conditions = [
+            EcoOrder.guest_name.ilike(like),
+            EcoOrder.guest_email.ilike(like),
+            EcoOrder.guest_phone.ilike(like),
+            EcoOrder.dpo_trans_ref.ilike(like),
+        ]
+        # Recherche par numéro : « 42 » ou « #42 » doit trouver la commande 42.
+        if search.lstrip('#').isdigit():
+            conditions.append(EcoOrder.id == int(search.lstrip('#')))
+        query = query.filter(or_(*conditions))
+
+    total = query.count()
+
+    # Le montant encaissé sur la SÉLECTION COURANTE, pas sur la page affichée.
+    # Filtrer sur « livré » puis lire le total est le geste naturel de l'admin.
+    revenue_rows = (query.with_entities(
+        EcoOrder.currency,
+        sa_func.coalesce(sa_func.sum(EcoOrder.total_amount), 0))
+        .filter(EcoOrder.status.in_(PAID_STATUSES))
+        .group_by(EcoOrder.currency).all())
+
+    orders = (query.order_by(EcoOrder.date_created.desc())
+              .limit(per_page).offset((page - 1) * per_page).all())
+
+    return jsonify({
+        'items': [o.to_dict() for o in orders],
+        'total': total,
+        'page': page,
+        'per_page': per_page,
+        'pages': max((total + per_page - 1) // per_page, 1),
+        'selection_revenue': [{'currency': c, 'amount': float(a)}
+                              for c, a in revenue_rows],
+        # Le front n'a plus à deviner quelles transitions sont permises :
+        # c'est le serveur qui fait foi, il les publie.
+        'transitions': {k: sorted(v) for k, v in ORDER_STATUS_TRANSITIONS.items()},
+    })
+
+
+@bp.route('/orders/admin/counts', methods=['GET'])
+@admin_required
+def order_status_counts():
+    """★ NOUVEAU — nombre de commandes par statut, pour les pastilles d'onglets.
+    Sans ça, l'interface devrait lancer un appel par statut."""
+    rows = (db.session.query(EcoOrder.status, sa_func.count(EcoOrder.id))
+            .group_by(EcoOrder.status).all())
+    counts = {status: count for status, count in rows}
+    counts['all'] = sum(counts.values())
+    return jsonify(counts)
 
 
 @bp.route('/orders/<int:id>', methods=['GET'])
@@ -732,8 +842,9 @@ def update_order_status(id):
     """Change le statut avec validation des transitions autorisées.
 
     Un passage en 'cancelled' ou 'refunded' restaure le stock et le trace
-    (reason='return') : la commande l'avait décrémenté au paiement, l'annuler
-    doit logiquement le rendre.
+    (reason='return') — mais uniquement si la commande l'avait réellement
+    décrémenté, c'est-à-dire si elle était déjà payée. Annuler une commande
+    'pending' ne crédite rien : elle n'avait rien pris.
     """
     user_id = current_user_id()
     data = request.get_json() or {}
@@ -754,10 +865,14 @@ def update_order_status(id):
                                f"to '{new_status}'",
                         "allowed_transitions": sorted(allowed)}), 400
 
+    # ★ Retenu AVANT le changement de statut : une fois order.status écrasé,
+    #   il est trop tard pour savoir si le stock avait été pris.
+    was_paid = order.status in PAID_STATUSES
+
     order.status = new_status
     order.date_updated = datetime.utcnow()
 
-    if new_status in STOCK_RESTORING_STATUSES:
+    if new_status in STOCK_RESTORING_STATUSES and was_paid:
         for item in order.items:
             product = EcoProduct.query.filter_by(id=item.product_id).with_for_update().first()
             if product:

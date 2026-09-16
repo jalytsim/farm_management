@@ -10,6 +10,7 @@ import tempfile
 from apscheduler.schedulers.background import BackgroundScheduler
 from app.utils.scheduler import run_weather_check
 from app.utils.schedulerpest import run_gdd_pest_check
+
 import os
 
 
@@ -97,7 +98,7 @@ def register_blueprints(app):
         api_sentinel,
         api_blog, api_hscode,
         ecommerce,
-        auction, api_tree_co2,
+        auction, api_tree_co2,ecommerce_stats,
     )
 
     blueprints = [
@@ -117,7 +118,7 @@ def register_blueprints(app):
         api_sentinel.sentinel_bp,
         api_blog.bp, api_hscode.bp,
         ecommerce.bp,
-        auction.bp, api_tree_co2.bp,
+        auction.bp, api_tree_co2.bp,ecommerce_stats.bp,
     ]
 
     for blueprint in blueprints:
