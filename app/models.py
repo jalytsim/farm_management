@@ -209,6 +209,28 @@ class ForestReport(db.Model):
         return f'<ForestReport {self.id} - Forest {self.forest_id}>'
 
 
+class CropPredictionConfirmation(db.Model):
+    """
+    Confirmation humaine d'une prédiction de culture (crop_classifier_utils.py,
+    SentinelDashboard > CropPredictionPanel.jsx). Ne touche PAS FarmData (données
+    de production réelles : rendement, récolte, etc.) — c'est un signal ML
+    séparé, utilisé par build_training_dataset() en complément/fallback de
+    FarmData.crop_id pour enrichir la banque d'entraînement au fil des
+    confirmations, sans polluer les vraies données agronomiques de la ferme.
+    """
+    __tablename__ = 'croppredictionconfirmation'
+    id = db.Column(db.Integer, primary_key=True)
+    farm_id = db.Column(db.String(50), db.ForeignKey('farm.farm_id'), nullable=False, unique=True, index=True)
+    crop_id = db.Column(db.Integer, db.ForeignKey('crop.id'), nullable=False)
+    predicted_crop = db.Column(db.String(255), nullable=True)   # ce que le modèle avait prédit
+    confidence = db.Column(db.Float, nullable=True)             # confiance du modèle à ce moment
+    confirmed_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    confirmed_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<CropPredictionConfirmation farm={self.farm_id} crop_id={self.crop_id}>'
+
+
 class FarmData(db.Model):
     __tablename__ = 'farmdata'
     id = db.Column(db.Integer, primary_key=True)
@@ -512,6 +534,11 @@ class PaidFeatureAccess(db.Model):
     dpo_trans_ref = db.Column(db.String(100), nullable=True)
     currency = db.Column(db.String(10), default='UGX')
     amount = db.Column(db.Numeric(12, 2), nullable=True)
+    # ✅ Référent/agent de terrain (même convention que GFWLog.agent_id) — permet
+    # de calculer le montant réellement facturé par agent sur une période (le
+    # prix pouvant varier dans le temps, on ne recalcule jamais depuis le prix
+    # courant : `amount` ci-dessus est déjà celui figé au moment du paiement).
+    agent_id = db.Column(db.String(100), nullable=True, index=True)
 
     def __repr__(self):
         return f'<PaidFeatureAccess {self.feature_name} - {self.payment_status}>'
@@ -730,6 +757,10 @@ class GFWLog(db.Model):
     action_type = db.Column(db.String(50), nullable=False)
     entity_type = db.Column(db.String(20), nullable=True)
     entity_id   = db.Column(db.String(100), nullable=True)
+    # ✅ Référent/agent de terrain ayant accompagné la soumission guest (saisi
+    # librement dans StepUserInfo.jsx côté frontend) — permet l'export CSV
+    # des soumissions par agent (commissions, suivi terrain).
+    agent_id    = db.Column(db.String(100), nullable=True, index=True)
     ip_address  = db.Column(db.String(50), nullable=True)
     user_agent  = db.Column(db.String(255), nullable=True)
     created_at  = db.Column(db.DateTime, default=datetime.utcnow)

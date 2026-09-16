@@ -59,9 +59,9 @@ def start_scheduler(app):
         scheduler.add_job(lambda: run_weather_check(app), 'cron', hour=22, minute=59)
         scheduler.add_job(lambda: run_gdd_pest_check(app), 'cron', hour=23, minute=00)
         scheduler.start()
-        print("✅ Scheduler lancé dans le process principal.")
+        print("[OK] Scheduler lance dans le process principal.")
     else:
-        print("⚠️ Ce n'est pas le process principal, scheduler ignoré.")
+        print("[i] Ce n'est pas le process principal, scheduler ignore.")
 
 
 def init_extensions(app):

@@ -1,0 +1,12 @@
+code,libelle
+NV_IND_MANF,9.2.1 - Manufacturing value added as a proportion of GDP (%)
+NV_IND_MANFPC,9.2.1 - Manufacturing value added per capita (constant 2020 United States dollars)
+SL_TLF_MANF,9.2.2 - Manufacturing employment as a proportion of total employment (%)
+NV_IND_SSIVA,9.3.1 - Proportion of small-scale industries in total industry value added based on international classification [9.3.1]
+NV_IND_SSIVA_NC,9.3.1 - Proportion of small-scale industries in total industry value added based on national classification [9.3.1]
+NV_IND_SSIFIN,9.3.2 - Proportion of small-scale industries with a loan or line of credit (%)
+EN_ATM_CO2MAN,9.4.1 - Carbon dioxide emissions from fuel combustion (millions of tonnes)
+EN_ATM_CO2MVA,9.4.1 - Carbon dioxide emissions per unit of manufacturing value added (kilogrammes of CO2 per constant 2020 United States dollars)
+NV_IND_TECH,9.b.1 - Proportion of medium and high-tech industry value added in total value added (%)
+SDG_index_score,SDG 9 Industry Index score
+SDG_index_rank,SDG 9 Industry Index rank

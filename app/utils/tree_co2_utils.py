@@ -184,6 +184,51 @@ def compute_tree_co2_full(tree: Tree, reference_date: date = None) -> dict:
     }
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# 4) AGB/BGB FORÊT ENTIÈRE — à partir d'un indice satellite (NDVI), quand on
+#    n'a PAS de mesures diamètre/hauteur arbre-par-arbre (cas typique : forêt
+#    non inventoriée, estimation par imagerie Sentinel-2 seule).
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Modèle exponentiel générique AGB(Mg/ha) = NDVI_AGB_A * exp(NDVI_AGB_B * NDVI).
+# ⚠️ Calibration ILLUSTRATIVE (pas issue d'une étude de terrain locale) : ancrée
+# sur NDVI≈0.2 (végétation clairsemée) → ~5 Mg/ha et NDVI≈0.9 (forêt tropicale
+# dense) → ~400 Mg/ha, une plage haute usuelle en littérature pour l'AGB de
+# forêt tropicale dense. À recalibrer avec des parcelles d'inventaire locales
+# (mesures diamètre/hauteur réelles, cf. calculate_agb ci-dessus) avant tout
+# usage réglementaire — ce modèle est une estimation de dégrossissage, pas un
+# remplacement des données GFW/inventaire terrain.
+NDVI_AGB_A = 1.43
+NDVI_AGB_B = 6.26
+
+
+def calculate_agb_per_ha_from_ndvi(ndvi: float) -> float:
+    """AGB (Mg/ha) estimé à partir du NDVI moyen d'une parcelle/forêt."""
+    ndvi = max(0.0, min(1.0, ndvi or 0.0))
+    return NDVI_AGB_A * math.exp(NDVI_AGB_B * ndvi)
+
+
+def compute_forest_biomass_from_index(ndvi: float, area_ha: float, index_date: str = None) -> dict:
+    """
+    Biomasse forêt entière (AGB/BGB/CO2) estimée depuis le NDVI moyen (Sentinel-2)
+    et la surface (ha) du polygone — même chaîne de conversion biomasse→CO2 que
+    calculate_biomass_and_co2() (mesure arbre par arbre), pour rester cohérent
+    dans toute l'app, seule la source de l'AGB change (indice satellite au lieu
+    de diamètre/hauteur mesurés).
+    """
+    agb_per_ha_mg = calculate_agb_per_ha_from_ndvi(ndvi)
+    agb_total_kg  = agb_per_ha_mg * area_ha * 1000.0  # Mg/ha -> kg total
+    result = calculate_biomass_and_co2(agb_total_kg)
+    result.update({
+        'ndvi_used':     round(ndvi, 4) if ndvi is not None else None,
+        'ndvi_date':     index_date,
+        'area_ha':       round(area_ha, 4),
+        'agb_per_ha_mg': round(agb_per_ha_mg, 2),
+        'model':         f'AGB(Mg/ha) = {NDVI_AGB_A} * exp({NDVI_AGB_B} * NDVI) — generic estimate, requires local calibration',
+    })
+    return result
+
+
 def compute_forest_co2_summary(forest_id: int, reference_date: date = None) -> dict:
     """
     Agrège le calcul CO2 (mesuré + sigmoid) sur tous les arbres vivants

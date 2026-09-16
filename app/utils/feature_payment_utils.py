@@ -9,7 +9,8 @@ logger = logging.getLogger(__name__)
 
 
 def create_payment_attempt(user_id=None, guest_phone_number=None, feature_name=None,
-                            txn_id=None, payment_method='mobile_money', currency=None):
+                            txn_id=None, payment_method='mobile_money', currency=None,
+                            agent_id=None):
     supported = current_app.config.get("SUPPORTED_CURRENCIES", ["UGX"])
     default_currency = current_app.config.get("DEFAULT_CURRENCY", "UGX")
 
@@ -44,6 +45,7 @@ def create_payment_attempt(user_id=None, guest_phone_number=None, feature_name=N
         payment_method=payment_method,
         currency=currency,
         amount=amount,
+        agent_id=str(agent_id)[:100] if agent_id else None,
     )
 
     db.session.add(new_payment)

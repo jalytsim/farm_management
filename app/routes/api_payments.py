@@ -44,6 +44,10 @@ def initiate_payment():
     txn_id = data.get("txn_id")
     feature_name = data.get("feature_name")
     currency = data.get("currency")
+    # ✅ agent_id (référent terrain guest, saisi dans StepUserInfo.jsx) — permet
+    # de calculer le montant réellement facturé par agent (comptabilité), pas
+    # seulement le nombre de rapports générés.
+    agent_id = data.get("agent_id")
 
     if not phone or not txn_id or not feature_name:
         return jsonify({"error": "Missing required fields"}), 400
@@ -56,6 +60,7 @@ def initiate_payment():
             txn_id=txn_id,
             payment_method='mobile_money',
             currency=currency,
+            agent_id=agent_id,
         )
     except Exception:
         logger.exception("create_payment_attempt failed")
@@ -135,6 +140,7 @@ def initiate_dpo_payment():
     phone = data.get("phone_number", "")
     email = data.get("email", "")
     currency = data.get("currency") or current_app.config["DEFAULT_CURRENCY"]
+    agent_id = data.get("agent_id")
 
     if not feature_name:
         return jsonify({"error": "Missing feature_name"}), 400
@@ -149,6 +155,7 @@ def initiate_dpo_payment():
             txn_id=txn_id,
             payment_method='dpo',
             currency=currency,
+            agent_id=agent_id,
         )
     except Exception:
         logger.exception("create_payment_attempt failed for DPO")

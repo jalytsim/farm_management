@@ -1,0 +1,22 @@
+code,libelle
+cip,CIP score
+cipRank,CIP rank
+quintile,CIP quintile
+ImWMT,Impact of a country on world manufactures trade
+ImWMT_index,Share of world manufacturing exports index
+ImWMVA,Impact of a country on world MVA
+ImWMVA_index,Share of world MVA index
+INDint_index,Industrialization intensity index
+MHVAsh,Medium- and high-tech MVA share in total MVA
+MHVAsh_index,Share of medium and high-tech activities in total MVA index
+MHXsh,Medium- and high-tech manufactured exports share in total manufactured exports
+MHXsh_index,Share of medium and high-tech activities in manufacturing export index
+MVApc,Manufacturing value added per capita
+MVApc_index,MVA per capita index
+MVAsh,Manufacturing value added share in total GDP
+MVAsh_index,Share of MVA in GDP index
+MXpc,Manufactured exports per capita
+MXpc_index,Manufactured exports per capita index
+MXQual_index,Industrial export quality index
+MXsh,Manufactured exports share in total exports
+MXsh_index,Share of manufactured exports in total exports index

@@ -101,6 +101,9 @@ venv.bak/
 venv/
 ENV/
 uploads/
+
+# Global geospatial rasters downloaded on demand (see app/utils/soc_seq_utils.py)
+app/data/gsocseq/*.tif
 # Spyder project settings
 .spyderproject
 .spyproject

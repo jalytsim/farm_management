@@ -1,0 +1,1419 @@
+{
+  "id": 165,
+  "name": "CIP - Competitive Industrial Performance Index",
+  "location": "450",
+  "production_year": "2026",
+  "dat_ins": "19 Aug 2026",
+  "units": "D",
+  "countries": [
+    {
+      "iso2": "AF",
+      "iso3": "AFG",
+      "c": "004",
+      "lang": {
+        "en": "Afghanistan"
+      }
+    },
+    {
+      "iso2": "AL",
+      "iso3": "ALB",
+      "c": "008",
+      "lang": {
+        "en": "Albania"
+      }
+    },
+    {
+      "iso2": "DZ",
+      "iso3": "DZA",
+      "c": "012",
+      "lang": {
+        "en": "Algeria"
+      }
+    },
+    {
+      "iso2": "AO",
+      "iso3": "AGO",
+      "c": "024",
+      "lang": {
+        "en": "Angola"
+      }
+    },
+    {
+      "iso2": "AR",
+      "iso3": "ARG",
+      "c": "032",
+      "lang": {
+        "en": "Argentina"
+      }
+    },
+    {
+      "iso2": "AM",
+      "iso3": "ARM",
+      "c": "051",
+      "lang": {
+        "en": "Armenia"
+      }
+    },
+    {
+      "iso2": "AU",
+      "iso3": "AUS",
+      "c": "036",
+      "lang": {
+        "en": "Australia"
+      }
+    },
+    {
+      "iso2": "AT",
+      "iso3": "AUT",
+      "c": "040",
+      "lang": {
+        "en": "Austria"
+      }
+    },
+    {
+      "iso2": "AZ",
+      "iso3": "AZE",
+      "c": "031",
+      "lang": {
+        "en": "Azerbaijan"
+      }
+    },
+    {
+      "iso2": "BS",
+      "iso3": "BHS",
+      "c": "044",
+      "lang": {
+        "en": "Bahamas"
+      }
+    },
+    {
+      "iso2": "BH",
+      "iso3": "BHR",
+      "c": "048",
+      "lang": {
+        "en": "Bahrain"
+      }
+    },
+    {
+      "iso2": "BD",
+      "iso3": "BGD",
+      "c": "050",
+      "lang": {
+        "en": "Bangladesh"
+      }
+    },
+    {
+      "iso2": "BB",
+      "iso3": "BRB",
+      "c": "052",
+      "lang": {
+        "en": "Barbados"
+      }
+    },
+    {
+      "iso2": "BY",
+      "iso3": "BLR",
+      "c": "112",
+      "lang": {
+        "en": "Belarus"
+      }
+    },
+    {
+      "iso2": "BE",
+      "iso3": "BEL",
+      "c": "056",
+      "lang": {
+        "en": "Belgium"
+      }
+    },
+    {
+      "iso2": "BZ",
+      "iso3": "BLZ",
+      "c": "084",
+      "lang": {
+        "en": "Belize"
+      }
+    },
+    {
+      "iso2": "BM",
+      "iso3": "BMU",
+      "c": "060",
+      "lang": {
+        "en": "Bermuda"
+      }
+    },
+    {
+      "iso2": "BO",
+      "iso3": "BOL",
+      "c": "068",
+      "lang": {
+        "en": "Bolivia (Plurinational State of)"
+      }
+    },
+    {
+      "iso2": "BA",
+      "iso3": "BIH",
+      "c": "070",
+      "lang": {
+        "en": "Bosnia and Herzegovina"
+      }
+    },
+    {
+      "iso2": "BW",
+      "iso3": "BWA",
+      "c": "072",
+      "lang": {
+        "en": "Botswana"
+      }
+    },
+    {
+      "iso2": "BR",
+      "iso3": "BRA",
+      "c": "076",
+      "lang": {
+        "en": "Brazil"
+      }
+    },
+    {
+      "iso2": "BN",
+      "iso3": "BRN",
+      "c": "096",
+      "lang": {
+        "en": "Brunei Darussalam"
+      }
+    },
+    {
+      "iso2": "BG",
+      "iso3": "BGR",
+      "c": "100",
+      "lang": {
+        "en": "Bulgaria"
+      }
+    },
+    {
+      "iso2": "BI",
+      "iso3": "BDI",
+      "c": "108",
+      "lang": {
+        "en": "Burundi"
+      }
+    },
+    {
+      "iso2": "CV",
+      "iso3": "CPV",
+      "c": "132",
+      "lang": {
+        "en": "Cabo Verde"
+      }
+    },
+    {
+      "iso2": "KH",
+      "iso3": "KHM",
+      "c": "116",
+      "lang": {
+        "en": "Cambodia"
+      }
+    },
+    {
+      "iso2": "CM",
+      "iso3": "CMR",
+      "c": "120",
+      "lang": {
+        "en": "Cameroon"
+      }
+    },
+    {
+      "iso2": "CA",
+      "iso3": "CAN",
+      "c": "124",
+      "lang": {
+        "en": "Canada"
+      }
+    },
+    {
+      "iso2": "CF",
+      "iso3": "CAF",
+      "c": "140",
+      "lang": {
+        "en": "Central African Republic"
+      }
+    },
+    {
+      "iso2": "CL",
+      "iso3": "CHL",
+      "c": "152",
+      "lang": {
+        "en": "Chile"
+      }
+    },
+    {
+      "iso2": "CN",
+      "iso3": "CHN",
+      "c": "156",
+      "lang": {
+        "en": "China"
+      }
+    },
+    {
+      "iso2": "HK",
+      "iso3": "HKG",
+      "c": "344",
+      "lang": {
+        "en": "China, Hong Kong SAR"
+      }
+    },
+    {
+      "iso2": "MO",
+      "iso3": "MAC",
+      "c": "446",
+      "lang": {
+        "en": "China, Macao SAR"
+      }
+    },
+    {
+      "iso2": "CO",
+      "iso3": "COL",
+      "c": "170",
+      "lang": {
+        "en": "Colombia"
+      }
+    },
+    {
+      "iso2": "CG",
+      "iso3": "COG",
+      "c": "178",
+      "lang": {
+        "en": "Congo"
+      }
+    },
+    {
+      "iso2": "CR",
+      "iso3": "CRI",
+      "c": "188",
+      "lang": {
+        "en": "Costa Rica"
+      }
+    },
+    {
+      "iso2": "CI",
+      "iso3": "CIV",
+      "c": "384",
+      "lang": {
+        "en": "Côte d'Ivoire"
+      }
+    },
+    {
+      "iso2": "HR",
+      "iso3": "HRV",
+      "c": "191",
+      "lang": {
+        "en": "Croatia"
+      }
+    },
+    {
+      "iso2": "CU",
+      "iso3": "CUB",
+      "c": "192",
+      "lang": {
+        "en": "Cuba"
+      }
+    },
+    {
+      "currency": "Pounds",
+      "iso2": "CY",
+      "iso3": "CYP",
+      "c": "196",
+      "lang": {
+        "en": "Cyprus"
+      }
+    },
+    {
+      "iso2": "CZ",
+      "iso3": "CZE",
+      "c": "203",
+      "lang": {
+        "en": "Czechia"
+      }
+    },
+    {
+      "iso2": "DK",
+      "iso3": "DNK",
+      "c": "208",
+      "lang": {
+        "en": "Denmark"
+      }
+    },
+    {
+      "iso2": "EC",
+      "iso3": "ECU",
+      "c": "218",
+      "lang": {
+        "en": "Ecuador"
+      }
+    },
+    {
+      "iso2": "EG",
+      "iso3": "EGY",
+      "c": "818",
+      "lang": {
+        "en": "Egypt"
+      }
+    },
+    {
+      "iso2": "SV",
+      "iso3": "SLV",
+      "c": "222",
+      "lang": {
+        "en": "El Salvador"
+      }
+    },
+    {
+      "iso2": "ER",
+      "iso3": "ERI",
+      "c": "232",
+      "lang": {
+        "en": "Eritrea"
+      }
+    },
+    {
+      "iso2": "EE",
+      "iso3": "EST",
+      "c": "233",
+      "lang": {
+        "en": "Estonia"
+      }
+    },
+    {
+      "iso2": "SZ",
+      "iso3": "SWZ",
+      "c": "748",
+      "lang": {
+        "en": "Eswatini"
+      }
+    },
+    {
+      "iso2": "ET",
+      "iso3": "ETH",
+      "c": "231",
+      "lang": {
+        "en": "Ethiopia"
+      }
+    },
+    {
+      "iso2": "FJ",
+      "iso3": "FJI",
+      "c": "242",
+      "lang": {
+        "en": "Fiji"
+      }
+    },
+    {
+      "iso2": "FI",
+      "iso3": "FIN",
+      "c": "246",
+      "lang": {
+        "en": "Finland"
+      }
+    },
+    {
+      "iso2": "FR",
+      "iso3": "FRA",
+      "c": "250",
+      "lang": {
+        "en": "France"
+      }
+    },
+    {
+      "iso2": "GA",
+      "iso3": "GAB",
+      "c": "266",
+      "lang": {
+        "en": "Gabon"
+      }
+    },
+    {
+      "iso2": "GM",
+      "iso3": "GMB",
+      "c": "270",
+      "lang": {
+        "en": "Gambia"
+      }
+    },
+    {
+      "iso2": "GE",
+      "iso3": "GEO",
+      "c": "268",
+      "lang": {
+        "en": "Georgia"
+      }
+    },
+    {
+      "iso2": "DE",
+      "iso3": "DEU",
+      "c": "276",
+      "lang": {
+        "en": "Germany"
+      }
+    },
+    {
+      "iso2": "GH",
+      "iso3": "GHA",
+      "c": "288",
+      "lang": {
+        "en": "Ghana"
+      }
+    },
+    {
+      "iso2": "GR",
+      "iso3": "GRC",
+      "c": "300",
+      "lang": {
+        "en": "Greece"
+      }
+    },
+    {
+      "iso2": "GT",
+      "iso3": "GTM",
+      "c": "320",
+      "lang": {
+        "en": "Guatemala"
+      }
+    },
+    {
+      "iso2": "HT",
+      "iso3": "HTI",
+      "c": "332",
+      "lang": {
+        "en": "Haiti"
+      }
+    },
+    {
+      "iso2": "HN",
+      "iso3": "HND",
+      "c": "340",
+      "lang": {
+        "en": "Honduras"
+      }
+    },
+    {
+      "iso2": "HU",
+      "iso3": "HUN",
+      "c": "348",
+      "lang": {
+        "en": "Hungary"
+      }
+    },
+    {
+      "iso2": "IS",
+      "iso3": "ISL",
+      "c": "352",
+      "lang": {
+        "en": "Iceland"
+      }
+    },
+    {
+      "iso2": "IN",
+      "iso3": "IND",
+      "c": "356",
+      "lang": {
+        "en": "India"
+      }
+    },
+    {
+      "iso2": "ID",
+      "iso3": "IDN",
+      "c": "360",
+      "lang": {
+        "en": "Indonesia"
+      }
+    },
+    {
+      "iso2": "IR",
+      "iso3": "IRN",
+      "c": "364",
+      "lang": {
+        "en": "Iran (Islamic Republic of)"
+      }
+    },
+    {
+      "iso2": "IQ",
+      "iso3": "IRQ",
+      "c": "368",
+      "lang": {
+        "en": "Iraq"
+      }
+    },
+    {
+      "iso2": "IE",
+      "iso3": "IRL",
+      "c": "372",
+      "lang": {
+        "en": "Ireland"
+      }
+    },
+    {
+      "iso2": "IL",
+      "iso3": "ISR",
+      "c": "376",
+      "lang": {
+        "en": "Israel"
+      }
+    },
+    {
+      "iso2": "IT",
+      "iso3": "ITA",
+      "c": "380",
+      "lang": {
+        "en": "Italy"
+      }
+    },
+    {
+      "iso2": "JM",
+      "iso3": "JAM",
+      "c": "388",
+      "lang": {
+        "en": "Jamaica"
+      }
+    },
+    {
+      "iso2": "JP",
+      "iso3": "JPN",
+      "c": "392",
+      "lang": {
+        "en": "Japan"
+      }
+    },
+    {
+      "iso2": "JO",
+      "iso3": "JOR",
+      "c": "400",
+      "lang": {
+        "en": "Jordan"
+      }
+    },
+    {
+      "iso2": "KZ",
+      "iso3": "KAZ",
+      "c": "398",
+      "lang": {
+        "en": "Kazakhstan"
+      }
+    },
+    {
+      "iso2": "KE",
+      "iso3": "KEN",
+      "c": "404",
+      "lang": {
+        "en": "Kenya"
+      }
+    },
+    {
+      "iso2": "KW",
+      "iso3": "KWT",
+      "c": "414",
+      "lang": {
+        "en": "Kuwait"
+      }
+    },
+    {
+      "iso2": "KG",
+      "iso3": "KGZ",
+      "c": "417",
+      "lang": {
+        "en": "Kyrgyzstan"
+      }
+    },
+    {
+      "iso2": "LA",
+      "iso3": "LAO",
+      "c": "418",
+      "lang": {
+        "en": "Lao People's Democratic Republic"
+      }
+    },
+    {
+      "iso2": "LV",
+      "iso3": "LVA",
+      "c": "428",
+      "lang": {
+        "en": "Latvia"
+      }
+    },
+    {
+      "iso2": "LB",
+      "iso3": "LBN",
+      "c": "422",
+      "lang": {
+        "en": "Lebanon"
+      }
+    },
+    {
+      "iso2": "LT",
+      "iso3": "LTU",
+      "c": "440",
+      "lang": {
+        "en": "Lithuania"
+      }
+    },
+    {
+      "iso2": "LU",
+      "iso3": "LUX",
+      "c": "442",
+      "lang": {
+        "en": "Luxembourg"
+      }
+    },
+    {
+      "iso2": "MG",
+      "iso3": "MDG",
+      "c": "450",
+      "lang": {
+        "en": "Madagascar"
+      }
+    },
+    {
+      "iso2": "MW",
+      "iso3": "MWI",
+      "c": "454",
+      "lang": {
+        "en": "Malawi"
+      }
+    },
+    {
+      "iso2": "MY",
+      "iso3": "MYS",
+      "c": "458",
+      "lang": {
+        "en": "Malaysia"
+      }
+    },
+    {
+      "iso2": "MV",
+      "iso3": "MDV",
+      "c": "462",
+      "lang": {
+        "en": "Maldives"
+      }
+    },
+    {
+      "iso2": "MT",
+      "iso3": "MLT",
+      "c": "470",
+      "lang": {
+        "en": "Malta"
+      }
+    },
+    {
+      "iso2": "MU",
+      "iso3": "MUS",
+      "c": "480",
+      "lang": {
+        "en": "Mauritius"
+      }
+    },
+    {
+      "iso2": "MX",
+      "iso3": "MEX",
+      "c": "484",
+      "lang": {
+        "en": "Mexico"
+      }
+    },
+    {
+      "iso2": "MN",
+      "iso3": "MNG",
+      "c": "496",
+      "lang": {
+        "en": "Mongolia"
+      }
+    },
+    {
+      "iso2": "ME",
+      "iso3": "MNE",
+      "c": "499",
+      "lang": {
+        "en": "Montenegro"
+      }
+    },
+    {
+      "iso2": "MA",
+      "iso3": "MAR",
+      "c": "504",
+      "lang": {
+        "en": "Morocco"
+      }
+    },
+    {
+      "iso2": "MZ",
+      "iso3": "MOZ",
+      "c": "508",
+      "lang": {
+        "en": "Mozambique"
+      }
+    },
+    {
+      "iso2": "MM",
+      "iso3": "MMR",
+      "c": "104",
+      "lang": {
+        "en": "Myanmar"
+      }
+    },
+    {
+      "iso2": "NA",
+      "iso3": "NAM",
+      "c": "516",
+      "lang": {
+        "en": "Namibia"
+      }
+    },
+    {
+      "iso2": "NP",
+      "iso3": "NPL",
+      "c": "524",
+      "lang": {
+        "en": "Nepal"
+      }
+    },
+    {
+      "iso2": "NL",
+      "iso3": "NLD",
+      "c": "528",
+      "lang": {
+        "en": "Netherlands (Kingdom of the)"
+      }
+    },
+    {
+      "iso2": "NZ",
+      "iso3": "NZL",
+      "c": "554",
+      "lang": {
+        "en": "New Zealand"
+      }
+    },
+    {
+      "iso2": "NI",
+      "iso3": "NIC",
+      "c": "558",
+      "lang": {
+        "en": "Nicaragua"
+      }
+    },
+    {
+      "iso2": "NE",
+      "iso3": "NER",
+      "c": "562",
+      "lang": {
+        "en": "Niger"
+      }
+    },
+    {
+      "iso2": "NG",
+      "iso3": "NGA",
+      "c": "566",
+      "lang": {
+        "en": "Nigeria"
+      }
+    },
+    {
+      "currency": "Denars",
+      "iso2": "MK",
+      "iso3": "MKD",
+      "c": "807",
+      "lang": {
+        "en": "North Macedonia"
+      }
+    },
+    {
+      "iso2": "NO",
+      "iso3": "NOR",
+      "c": "578",
+      "lang": {
+        "en": "Norway"
+      }
+    },
+    {
+      "iso2": "OM",
+      "iso3": "OMN",
+      "c": "512",
+      "lang": {
+        "en": "Oman"
+      }
+    },
+    {
+      "iso2": "PK",
+      "iso3": "PAK",
+      "c": "586",
+      "lang": {
+        "en": "Pakistan"
+      }
+    },
+    {
+      "iso2": "PA",
+      "iso3": "PAN",
+      "c": "591",
+      "lang": {
+        "en": "Panama"
+      }
+    },
+    {
+      "iso2": "PG",
+      "iso3": "PNG",
+      "c": "598",
+      "lang": {
+        "en": "Papua New Guinea"
+      }
+    },
+    {
+      "iso2": "PY",
+      "iso3": "PRY",
+      "c": "600",
+      "lang": {
+        "en": "Paraguay"
+      }
+    },
+    {
+      "iso2": "PE",
+      "iso3": "PER",
+      "c": "604",
+      "lang": {
+        "en": "Peru"
+      }
+    },
+    {
+      "iso2": "PH",
+      "iso3": "PHL",
+      "c": "608",
+      "lang": {
+        "en": "Philippines"
+      }
+    },
+    {
+      "iso2": "PL",
+      "iso3": "POL",
+      "c": "616",
+      "lang": {
+        "en": "Poland"
+      }
+    },
+    {
+      "iso2": "PT",
+      "iso3": "PRT",
+      "c": "620",
+      "lang": {
+        "en": "Portugal"
+      }
+    },
+    {
+      "iso2": "QA",
+      "iso3": "QAT",
+      "c": "634",
+      "lang": {
+        "en": "Qatar"
+      }
+    },
+    {
+      "iso2": "KR",
+      "iso3": "KOR",
+      "c": "410",
+      "lang": {
+        "en": "Republic of Korea"
+      }
+    },
+    {
+      "iso2": "MD",
+      "iso3": "MDA",
+      "c": "498",
+      "lang": {
+        "en": "Republic of Moldova"
+      }
+    },
+    {
+      "iso2": "RO",
+      "iso3": "ROU",
+      "c": "642",
+      "lang": {
+        "en": "Romania"
+      }
+    },
+    {
+      "iso2": "RU",
+      "iso3": "RUS",
+      "c": "643",
+      "lang": {
+        "en": "Russian Federation"
+      }
+    },
+    {
+      "iso2": "RW",
+      "iso3": "RWA",
+      "c": "646",
+      "lang": {
+        "en": "Rwanda"
+      }
+    },
+    {
+      "iso2": "LC",
+      "iso3": "LCA",
+      "c": "662",
+      "lang": {
+        "en": "Saint Lucia"
+      }
+    },
+    {
+      "iso2": "SA",
+      "iso3": "SAU",
+      "c": "682",
+      "lang": {
+        "en": "Saudi Arabia"
+      }
+    },
+    {
+      "iso2": "SN",
+      "iso3": "SEN",
+      "c": "686",
+      "lang": {
+        "en": "Senegal"
+      }
+    },
+    {
+      "iso2": "RS",
+      "iso3": "SRB",
+      "c": "688",
+      "lang": {
+        "en": "Serbia"
+      }
+    },
+    {
+      "iso2": "SG",
+      "iso3": "SGP",
+      "c": "702",
+      "lang": {
+        "en": "Singapore"
+      }
+    },
+    {
+      "iso2": "SK",
+      "iso3": "SVK",
+      "c": "703",
+      "lang": {
+        "en": "Slovakia"
+      }
+    },
+    {
+      "iso2": "SI",
+      "iso3": "SVN",
+      "c": "705",
+      "lang": {
+        "en": "Slovenia"
+      }
+    },
+    {
+      "iso2": "ZA",
+      "iso3": "ZAF",
+      "c": "710",
+      "lang": {
+        "en": "South Africa"
+      }
+    },
+    {
+      "iso2": "ES",
+      "iso3": "ESP",
+      "c": "724",
+      "lang": {
+        "en": "Spain"
+      }
+    },
+    {
+      "iso2": "LK",
+      "iso3": "LKA",
+      "c": "144",
+      "lang": {
+        "en": "Sri Lanka"
+      }
+    },
+    {
+      "iso2": "PS",
+      "iso3": "PSE",
+      "c": "275",
+      "lang": {
+        "en": "State of Palestine"
+      }
+    },
+    {
+      "currency": "Roubles",
+      "iso2": "SR",
+      "iso3": "SUR",
+      "c": "740",
+      "lang": {
+        "en": "Suriname"
+      }
+    },
+    {
+      "iso2": "SE",
+      "iso3": "SWE",
+      "c": "752",
+      "lang": {
+        "en": "Sweden"
+      }
+    },
+    {
+      "iso2": "CH",
+      "iso3": "CHE",
+      "c": "756",
+      "lang": {
+        "en": "Switzerland"
+      }
+    },
+    {
+      "iso2": "SY",
+      "iso3": "SYR",
+      "c": "760",
+      "lang": {
+        "en": "Syrian Arab Republic"
+      }
+    },
+    {
+      "iso2": "TJ",
+      "iso3": "TJK",
+      "c": "762",
+      "lang": {
+        "en": "Tajikistan"
+      }
+    },
+    {
+      "iso2": "TH",
+      "iso3": "THA",
+      "c": "764",
+      "lang": {
+        "en": "Thailand"
+      }
+    },
+    {
+      "iso2": "TO",
+      "iso3": "TON",
+      "c": "776",
+      "lang": {
+        "en": "Tonga"
+      }
+    },
+    {
+      "iso2": "TT",
+      "iso3": "TTO",
+      "c": "780",
+      "lang": {
+        "en": "Trinidad and Tobago"
+      }
+    },
+    {
+      "iso2": "TN",
+      "iso3": "TUN",
+      "c": "788",
+      "lang": {
+        "en": "Tunisia"
+      }
+    },
+    {
+      "iso2": "TR",
+      "iso3": "TUR",
+      "c": "792",
+      "lang": {
+        "en": "Türkiye"
+      }
+    },
+    {
+      "iso2": "UG",
+      "iso3": "UGA",
+      "c": "800",
+      "lang": {
+        "en": "Uganda"
+      }
+    },
+    {
+      "iso2": "UA",
+      "iso3": "UKR",
+      "c": "804",
+      "lang": {
+        "en": "Ukraine"
+      }
+    },
+    {
+      "iso2": "AE",
+      "iso3": "ARE",
+      "c": "784",
+      "lang": {
+        "en": "United Arab Emirates"
+      }
+    },
+    {
+      "iso2": "GB",
+      "iso3": "GBR",
+      "c": "826",
+      "lang": {
+        "en": "United Kingdom"
+      }
+    },
+    {
+      "iso2": "TZ",
+      "iso3": "TZA",
+      "c": "834",
+      "lang": {
+        "en": "United Republic of Tanzania"
+      }
+    },
+    {
+      "iso2": "US",
+      "iso3": "USA",
+      "c": "840",
+      "lang": {
+        "en": "United States of America"
+      }
+    },
+    {
+      "iso2": "UY",
+      "iso3": "URY",
+      "c": "858",
+      "lang": {
+        "en": "Uruguay"
+      }
+    },
+    {
+      "iso2": "UZ",
+      "iso3": "UZB",
+      "c": "860",
+      "lang": {
+        "en": "Uzbekistan"
+      }
+    },
+    {
+      "iso2": "VE",
+      "iso3": "VEN",
+      "c": "862",
+      "lang": {
+        "en": "Venezuela (Bolivarian Republic of)"
+      }
+    },
+    {
+      "iso2": "VN",
+      "iso3": "VNM",
+      "c": "704",
+      "lang": {
+        "en": "Viet Nam"
+      }
+    },
+    {
+      "iso2": "YE",
+      "iso3": "YEM",
+      "c": "887",
+      "lang": {
+        "en": "Yemen"
+      }
+    },
+    {
+      "iso2": "ZM",
+      "iso3": "ZMB",
+      "c": "894",
+      "lang": {
+        "en": "Zambia"
+      }
+    },
+    {
+      "iso2": "ZW",
+      "iso3": "ZWE",
+      "c": "716",
+      "lang": {
+        "en": "Zimbabwe"
+      }
+    }
+  ],
+  "groups": [],
+  "variables": [
+    {
+      "c": "cip",
+      "lang": {
+        "en": "CIP score"
+      },
+      "type": "I"
+    },
+    {
+      "c": "cipRank",
+      "lang": {
+        "en": "CIP rank"
+      },
+      "type": "N"
+    },
+    {
+      "c": "quintile",
+      "lang": {
+        "en": "CIP quintile"
+      },
+      "type": "N"
+    },
+    {
+      "c": "ImWMT",
+      "lang": {
+        "en": "Impact of a country on world manufactures trade"
+      },
+      "type": "I"
+    },
+    {
+      "c": "ImWMT_index",
+      "lang": {
+        "en": "Share of world manufacturing exports index"
+      },
+      "type": "I"
+    },
+    {
+      "c": "ImWMVA",
+      "lang": {
+        "en": "Impact of a country on world MVA"
+      },
+      "type": "I"
+    },
+    {
+      "c": "ImWMVA_index",
+      "lang": {
+        "en": "Share of world MVA index"
+      },
+      "type": "I"
+    },
+    {
+      "c": "INDint_index",
+      "lang": {
+        "en": "Industrialization intensity index"
+      },
+      "type": "I"
+    },
+    {
+      "c": "MHVAsh",
+      "lang": {
+        "en": "Medium- and high-tech MVA share in total MVA"
+      },
+      "type": "I"
+    },
+    {
+      "c": "MHVAsh_index",
+      "lang": {
+        "en": "Share of medium and high-tech activities in total MVA index"
+      },
+      "type": "I"
+    },
+    {
+      "c": "MHXsh",
+      "lang": {
+        "en": "Medium- and high-tech manufactured exports share in total manufactured exports"
+      },
+      "type": "I"
+    },
+    {
+      "c": "MHXsh_index",
+      "lang": {
+        "en": "Share of medium and high-tech activities in manufacturing export index"
+      },
+      "type": "I"
+    },
+    {
+      "c": "MVApc",
+      "lang": {
+        "en": "Manufacturing value added per capita"
+      },
+      "type": "M"
+    },
+    {
+      "c": "MVApc_index",
+      "lang": {
+        "en": "MVA per capita index"
+      },
+      "type": "I"
+    },
+    {
+      "c": "MVAsh",
+      "lang": {
+        "en": "Manufacturing value added share in total GDP"
+      },
+      "type": "I"
+    },
+    {
+      "c": "MVAsh_index",
+      "lang": {
+        "en": "Share of MVA in GDP index"
+      },
+      "type": "I"
+    },
+    {
+      "c": "MXpc",
+      "lang": {
+        "en": "Manufactured exports per capita"
+      },
+      "type": "N"
+    },
+    {
+      "c": "MXpc_index",
+      "lang": {
+        "en": "Manufactured exports per capita index"
+      },
+      "type": "I"
+    },
+    {
+      "c": "MXQual_index",
+      "lang": {
+        "en": "Industrial export quality index"
+      },
+      "type": "I"
+    },
+    {
+      "c": "MXsh",
+      "lang": {
+        "en": "Manufactured exports share in total exports"
+      },
+      "type": "I"
+    },
+    {
+      "c": "MXsh_index",
+      "lang": {
+        "en": "Share of manufactured exports in total exports index"
+      },
+      "type": "I"
+    }
+  ],
+  "periods": [
+    "1990",
+    "1991",
+    "1992",
+    "1993",
+    "1994",
+    "1995",
+    "1996",
+    "1997",
+    "1998",
+    "1999",
+    "2000",
+    "2001",
+    "2002",
+    "2003",
+    "2004",
+    "2005",
+    "2006",
+    "2007",
+    "2008",
+    "2009",
+    "2010",
+    "2011",
+    "2012",
+    "2013",
+    "2014",
+    "2015",
+    "2016",
+    "2017",
+    "2018",
+    "2019",
+    "2020",
+    "2021",
+    "2022",
+    "2023",
+    "2024"
+  ],
+  "activities": [],
+  "unitList": [],
+  "in_local_currency": true
+}
