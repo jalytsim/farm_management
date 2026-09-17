@@ -1555,7 +1555,82 @@ def get_monthly_trend(entity_type, entity_id, months=12):
         'tiers_meta':       TIERS,
         'out_of_bounds':    out_of_bounds,
     }, None
-    
+
+
+def get_monthly_trend_guest(geojson, months=12):
+    """
+    Variante guest de get_monthly_trend() : géométrie fournie directement par
+    le frontend (polygone dessiné/uploadé), pas de lookup Farm/Forest en DB —
+    permet à SeasonalNdviRainfallPanel.jsx de fonctionner pour un guest, comme
+    pour un utilisateur connecté (même format de retour, y compris
+    `geolocation` pour le lookup pluviométrie Open-Meteo côté frontend).
+    """
+    indices = ['ndvi', 'ndmi', 'ndwi', 'nmdi', 'evi', 'savi', 'nbr', 'bsi']
+
+    coords = _extract_polygon_coords(geojson)
+    if not coords:
+        return None, 'Invalid or missing polygon geometry'
+
+    ring = list(coords)
+    if ring[0] != ring[-1]:
+        ring.append(ring[0])
+    geometry = {'type': 'Polygon', 'coordinates': [ring]}
+
+    lons = [c[0] for c in coords]
+    lats = [c[1] for c in coords]
+    geolocation = f'{sum(lats) / len(lats):.6f}, {sum(lons) / len(lons):.6f}'
+
+    now = datetime.utcnow()
+    first_of_this_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    start_month = first_of_this_month - relativedelta(months=months - 1)
+
+    date_from = start_month.strftime('%Y-%m-%dT00:00:00Z')
+    date_to   = now.strftime('%Y-%m-%dT23:59:59Z')
+
+    try:
+        raw = _call_statistics(
+            geometry, date_from, date_to,
+            interval='P1M', mosaicking_order='leastCC',
+        )
+        historical, out_of_bounds = _parse_response(raw)
+    except Exception as e:
+        logger.error(f'[Sentinel] Guest monthly trend API call failed: {e}')
+        return None, f'Sentinel API error: {e}'
+
+    by_month = {row['date'][:7]: row for row in historical}
+
+    full_months = []
+    for i in range(months):
+        month_dt  = start_month + relativedelta(months=i)
+        month_key = month_dt.strftime('%Y-%m')
+        if month_key in by_month:
+            row = dict(by_month[month_key])
+            row['date'] = month_dt.strftime('%Y-%m-01')
+            full_months.append(row)
+        else:
+            empty_row = {'date': month_dt.strftime('%Y-%m-01')}
+            for idx in indices:
+                empty_row[idx]          = None
+                empty_row[f'{idx}_raw'] = None
+            full_months.append(empty_row)
+
+    history_out      = _build_history_rows(full_months, indices)
+    months_with_data = sum(1 for r in full_months if r.get('ndvi') is not None)
+
+    return {
+        'entity_type':      'guest',
+        'name':             'Guest polygon',
+        'geolocation':      geolocation,
+        'granularity':      'monthly',
+        'months':           months,
+        'months_with_data': months_with_data,
+        'period':           {'from': date_from[:10], 'to': date_to[:10]},
+        'history':          history_out,
+        'tiers_meta':       TIERS,
+        'out_of_bounds':    out_of_bounds,
+    }, None
+
+
 def _extract_polygon_coords(geojson):
     """Normalise Polygon / Feature / FeatureCollection en liste [[lon, lat], ...]."""
     if not geojson:

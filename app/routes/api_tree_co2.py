@@ -150,6 +150,7 @@ def _compute_forest_biomass_index(forest_id):
     return {
         'forest_id':    forest_id,
         'forest_name':  forest.name,
+        'tree_type':    forest.tree_type,
         'area_ha':      round(area_ha, 4),
         'biomass':      biomass,
         'ndvi_history': rows,
@@ -187,6 +188,7 @@ def forest_biomass_from_index_pdf(forest_id):
             forest_name = result['forest_name'],
             area_ha     = result['area_ha'],
             biomass     = result['biomass'],
+            tree_type   = result.get('tree_type'),
             logo_parrot = LOGO_PARROT,
             logo_agri   = LOGO_AGRI,
         )

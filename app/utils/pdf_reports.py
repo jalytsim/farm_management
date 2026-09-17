@@ -496,12 +496,14 @@ def _calc_area_ha_simple(coordinates: list) -> tuple[float, float]:
         return 0.0, 0.0
 
 
-def _compliance_status(tree_cover_loss: float, has_forest: bool) -> dict:
+def _compliance_status(tree_cover_loss: float, has_forest: bool, is_in_protected_area: bool = False) -> dict:
     """
     Règles (ordre de priorité strict — corrigé) :
-    1) Forest cover detected (JRC 2020)            -> Not Compliant, quel que soit le tree cover loss
-    2) No forest cover AND no tree cover loss       -> 100% Compliant
-    3) No forest cover AND tree cover loss detected -> Compliant, plantation d'arbres d'ombrage recommandée
+    1) Forest cover detected (JRC 2020)                 -> Not Compliant, quel que soit le tree cover loss
+    2) No forest cover BUT plot in a protected/          -> Not Compliant (EUDR Article 10 — protected
+       conservation area (WDPA/IUCN cat. 1 ou 2)            area status)
+    3) No forest cover, not protected, no tree cover loss -> 100% Compliant
+    4) No forest cover, not protected, tree cover loss    -> Compliant, plantation d'arbres d'ombrage recommandée
     """
     if has_forest:
         return {
@@ -509,10 +511,20 @@ def _compliance_status(tree_cover_loss: float, has_forest: bool) -> dict:
             'description': 'Forest cover detected on this plot (EUDR Article 2). Not compliant with EUDR regulations, regardless of tree cover loss status.',
         }
 
+    if is_in_protected_area:
+        return {
+            'status':      'Not Compliant',
+            'description': (
+                'No forest cover detected, but this plot overlaps a gazetted protected/conservation area '
+                '(WDPA/IUCN category). Not compliant with EUDR regulations (Article 10 — Protected Area status), '
+                'regardless of forest cover or tree cover loss status.'
+            ),
+        }
+
     if tree_cover_loss == 0:
         return {
             'status':      '100% Compliant',
-            'description': 'No forest cover and no tree cover loss detected. Fully compliant with EUDR regulations.',
+            'description': 'No forest cover, no protected area overlap, and no tree cover loss detected. Fully compliant with EUDR regulations.',
         }
 
     return {
@@ -663,6 +675,11 @@ def _extract_eudr_metrics(gfw_data: dict) -> dict:
                      '2': 'In IUCN vulnerable area'}.get(str(k), f'Category {k}')
             prot_pct[label] = f'{v / total_prot * 100:.1f}%'
     m['protected_pct'] = prot_pct or {'No data': '–'}
+    # Catégories WDPA/IUCN 1 (in WDPA protected area) et 2 (in IUCN vulnerable
+    # area) — cf. label mapping ci-dessus. Utilisé par _compliance_status().
+    m['is_in_protected_area'] = any(
+        str(k) in ('1', '2') and v > 0 for k, v in prot_counts.items()
+    )
 
     # Cover extent
     extent_arr = gfw_data.get('wri tropical tree cover extent', [])
@@ -694,7 +711,7 @@ def _extract_eudr_metrics(gfw_data: dict) -> dict:
                            if has_land else 'No presence of indigenous and community lands')
 
     # Compliance
-    m['compliance'] = _compliance_status(m['tree_cover_loss_ha'], m['has_forest'])
+    m['compliance'] = _compliance_status(m['tree_cover_loss_ha'], m['has_forest'], m['is_in_protected_area'])
 
     return m
 
@@ -722,7 +739,8 @@ def _eudr_compliance_table(m: dict) -> Table:
     # ✅ FIX (rendu PDF) : Paragraph n'interprète pas "\n" comme un retour à la
     # ligne (contrairement à un <br/>) — le texte s'affichait donc écrasé sur
     # une seule ligne. On utilise la balise Paragraph correcte.
-    prot_text = '<br/>'.join(f'{k}: {v}' for k, v in m['protected_pct'].items())
+    prot_text  = '<br/>'.join(f'{k}: {v}' for k, v in m['protected_pct'].items())
+    prot_color = RED if m.get('is_in_protected_area') else GREEN
     vc_text   = ', '.join(
         f'Decile {r["decile"]}: {r["count"]}'
         for r in m['val_counts'] if r['count'] > 0
@@ -765,7 +783,7 @@ def _eudr_compliance_table(m: dict) -> Table:
          cell(f"{cs['status']}  —  {cs['description']}", bold=True, color=cs_color)],
 
         [cell('Protected Area Status'),
-         cell(prot_text)],
+         cell(prot_text, color=prot_color)],
 
         [cell('Tree Cover Extent'),
          cell(f"Coverage: {m['cover_pct']:.1f}%  —  Non-zero pts: {m['cover_count']}<br/>{vc_text}")],
@@ -1448,6 +1466,7 @@ def build_forest_biomass_index_pdf(
     forest_name: str,
     area_ha    : float,
     biomass    : dict,   # sortie de compute_forest_biomass_from_index()
+    tree_type  : str | None = None,
     logo_parrot: str | None = None,
     logo_agri  : str | None = None,
 ) -> bytes:
@@ -1475,6 +1494,7 @@ def build_forest_biomass_index_pdf(
     elems += _section_bar('Forest Information', st)
     elems.append(_info_table([
         ('Forest Name', forest_name),
+        ('Tree Type', tree_type or 'N/A'),
         ('Project Area', f"{area_ha:.2f} ha"),
         ('NDVI Used', biomass.get('ndvi_used')),
         ('NDVI Date', biomass.get('ndvi_date')),

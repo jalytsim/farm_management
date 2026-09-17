@@ -768,6 +768,129 @@ def guest_carbon_extra():
     return jsonify(result), 200
 
 
+# ══════════════════════════════════════════════════════════════════════════
+# Guest parity for SentinelDashboard.jsx — Seasonal NDVI/Rainfall, Soil
+# Carbon and Crop Prediction all required a real farm_id + JWT before, which
+# a guest polygon submission never has. These three mirror the account-based
+# routes above but take {geojson, phone} instead, gated by the same
+# 'reportndviguest' paid feature as /guest/sat-index.
+# ══════════════════════════════════════════════════════════════════════════
+
+@sentinel_bp.route('/guest/monthly-trend', methods=['POST'])
+def guest_monthly_trend():
+    from app.utils.sentinel_utils import get_monthly_trend_guest
+    from app.utils.feature_payment_utils import has_guest_access
+
+    data    = request.get_json(silent=True) or {}
+    phone   = data.get('phone')
+    geojson = data.get('geojson')
+    months  = int(data.get('months', 12))
+
+    if not phone or not geojson:
+        return jsonify({'error': 'phone and geojson are required'}), 400
+    try:
+        if not has_guest_access(phone, 'reportndviguest'):
+            return jsonify({'error': 'No active paid access for this phone number'}), 403
+    except Exception as e:
+        return jsonify({'error': f'Access check failed: {str(e)}'}), 500
+
+    result, error = get_monthly_trend_guest(geojson, months=months)
+    if error:
+        code = 400 if 'polygon' in error.lower() else 500
+        return jsonify({'error': error}), code
+    return jsonify(result), 200
+
+
+@sentinel_bp.route('/guest/soc', methods=['POST'])
+def guest_soc():
+    from app.utils.sentinel_utils import _extract_polygon_coords, _fetch_soc_soilgrids
+    from app.utils.feature_payment_utils import has_guest_access
+    import asyncio
+
+    data    = request.get_json(silent=True) or {}
+    phone   = data.get('phone')
+    geojson = data.get('geojson')
+
+    if not phone or not geojson:
+        return jsonify({'error': 'phone and geojson are required'}), 400
+    try:
+        if not has_guest_access(phone, 'reportndviguest'):
+            return jsonify({'error': 'No active paid access for this phone number'}), 403
+    except Exception as e:
+        return jsonify({'error': f'Access check failed: {str(e)}'}), 500
+
+    coords = _extract_polygon_coords(geojson)
+    if not coords:
+        return jsonify({'error': 'Invalid or missing polygon geometry'}), 400
+
+    lons = [c[0] for c in coords]
+    lats = [c[1] for c in coords]
+    lon_c, lat_c = sum(lons) / len(lons), sum(lats) / len(lats)
+
+    result = asyncio.run(_fetch_soc_soilgrids(lat_c, lon_c))
+    if not result:
+        return jsonify({'error': 'SoilGrids API failed'}), 500
+    return jsonify({'soc': result, 'centroid': {'lat': lat_c, 'lon': lon_c}}), 200
+
+
+@sentinel_bp.route('/guest/soc-seq', methods=['POST'])
+def guest_soc_seq():
+    from app.utils.sentinel_utils import _extract_polygon_coords
+    from app.utils.soc_seq_utils import get_gsocseq_ssm3, is_available
+    from app.utils.feature_payment_utils import has_guest_access
+
+    data    = request.get_json(silent=True) or {}
+    phone   = data.get('phone')
+    geojson = data.get('geojson')
+
+    if not phone or not geojson:
+        return jsonify({'error': 'phone and geojson are required'}), 400
+    try:
+        if not has_guest_access(phone, 'reportndviguest'):
+            return jsonify({'error': 'No active paid access for this phone number'}), 403
+    except Exception as e:
+        return jsonify({'error': f'Access check failed: {str(e)}'}), 500
+
+    if not is_available():
+        return jsonify({'error': 'GSOCseq rasters not installed on this server yet'}), 503
+
+    coords = _extract_polygon_coords(geojson)
+    if not coords:
+        return jsonify({'error': 'Invalid or missing polygon geometry'}), 400
+
+    ring = list(coords)
+    if ring[0] != ring[-1]:
+        ring.append(ring[0])
+    geometry = {'type': 'Polygon', 'coordinates': [ring]}
+
+    result = get_gsocseq_ssm3(geometry)
+    return jsonify(result), 200
+
+
+@sentinel_bp.route('/guest/predict-crop', methods=['POST'])
+def guest_predict_crop():
+    from app.utils.crop_classifier_utils import predict_crop_from_geojson
+    from app.utils.feature_payment_utils import has_guest_access
+
+    data    = request.get_json(silent=True) or {}
+    phone   = data.get('phone')
+    geojson = data.get('geojson')
+
+    if not phone or not geojson:
+        return jsonify({'error': 'phone and geojson are required'}), 400
+    try:
+        if not has_guest_access(phone, 'reportndviguest'):
+            return jsonify({'error': 'No active paid access for this phone number'}), 403
+    except Exception as e:
+        return jsonify({'error': f'Access check failed: {str(e)}'}), 500
+
+    result, error = predict_crop_from_geojson(geojson, phone)
+    if error:
+        code = 400 if 'not trained' in error.lower() or 'not enough' in error.lower() else 500
+        return jsonify({'error': error}), code
+    return jsonify(result), 200
+
+
 @sentinel_bp.route('/crop-model/train', methods=['POST'])
 @jwt_required()
 def train_crop_model():
