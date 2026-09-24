@@ -392,6 +392,19 @@ def extract_verification_info(xml_text):
         return {'error': 'XML Parse Error', 'details': str(e)}
 
 
+def _findtext_local(elem, local_name):
+    """
+    Cherche un descendant par nom local, sans tenir compte du préfixe de
+    namespace (v3, v3c, ou autre) — la réponse TRACES mélange les namespaces
+    entre les types 'response' (v3) et les types 'common' (v3c) réutilisés,
+    et deviner le bon préfixe champ par champ s'est révélé peu fiable.
+    """
+    for child in elem.iter():
+        if child.tag.rsplit('}', 1)[-1] == local_name:
+            return (child.text or '').strip()
+    return ''
+
+
 def extract_internal_ref_statements(xml_text):
     """
     ✅ CONFIRMÉ doc officielle: getDdsByInternalReference et getDds renvoient tous deux
@@ -406,14 +419,14 @@ def extract_internal_ref_statements(xml_text):
         statements = []
         for info in root.findall('.//v3:ddsOverviewList', ns):
             statements.append({
-                'identifier': info.findtext('v3:uuid', default='', namespaces=ns),
-                'internalReferenceNumber': info.findtext('v3:internalReferenceNumber', default='', namespaces=ns),
-                'referenceNumber': info.findtext('v3:referenceNumber', default='', namespaces=ns),
-                'verificationNumber': info.findtext('v3:verificationNumber', default='', namespaces=ns),
-                'status': info.findtext('v3:status', default='', namespaces=ns),
-                'rejectionReason': info.findtext('v3:rejectionReason', default='', namespaces=ns),
-                'date': info.findtext('v3:date', default='', namespaces=ns),
-                'updatedBy': info.findtext('v3:updatedBy', default='', namespaces=ns)
+                'identifier': _findtext_local(info, 'uuid'),
+                'internalReferenceNumber': _findtext_local(info, 'internalReferenceNumber'),
+                'referenceNumber': _findtext_local(info, 'referenceNumber'),
+                'verificationNumber': _findtext_local(info, 'verificationNumber'),
+                'status': _findtext_local(info, 'status'),
+                'rejectionReason': _findtext_local(info, 'rejectionReason'),
+                'date': _findtext_local(info, 'date'),
+                'updatedBy': _findtext_local(info, 'updatedBy')
             })
         return statements
     except ET.ParseError:

@@ -201,6 +201,8 @@ def get_by_internal_reference(reference):
         }), 502
 
     statements = extract_internal_ref_statements(response.text)
+    if statements and not any(s.get("identifier") for s in statements):
+        print("⚠️ Tous les champs sont vides — XML brut pour diagnostic :", response.text[:4000])
 
     if statements is not None:
         print("🧪 DEBUG - Statements reçus :", statements)
