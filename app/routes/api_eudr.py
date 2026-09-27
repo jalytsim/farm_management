@@ -30,7 +30,24 @@ def submit_statement():
     identity = get_jwt_identity()
     user_id = identity['id'] if identity else None
 
-    response = eudr_client.submit_statement(geojson, statement)
+    if not statement:
+        return jsonify({"status": 400, "error": "Missing 'statement' payload."}), 400
+
+    try:
+        response = eudr_client.submit_statement(geojson, statement)
+    except ValueError as e:
+        return jsonify({"status": 400, "error": str(e)}), 400
+
+    fault = extract_soap_fault(response.text)
+    if fault:
+        print("🔥 SOAP Fault (submit) :", fault, "| raw:", response.text[:2000])
+        return jsonify({
+            "status": response.status_code,
+            "error": fault.get("faultstring"),
+            "detail": fault.get("detail"),
+            "raw": response.text
+        }), 502
+
     dds_identifier = extract_dds_identifier(response.text)
 
     if response.status_code == 200 and dds_identifier:
@@ -83,10 +100,16 @@ def submit_statement():
                 "details": str(e)
             }), 500
 
+    if not dds_identifier:
+        return jsonify({
+            "status": response.status_code,
+            "error": "EUDR did not return a DDS identifier.",
+            "raw": response.text
+        }), 502
+
     return jsonify({
         "status": response.status_code,
         "ddsIdentifier": dds_identifier,
-        "raw": response.text if not dds_identifier else None
     })
 
 
@@ -100,10 +123,29 @@ def amend_statement():
     identity = get_jwt_identity()
     user_id = identity['id'] if identity else None
 
-    response = eudr_client.amend_statement(geojson, dds_id, statement)
-    status = extract_amend_status(response.text)
+    if not statement:
+        return jsonify({"status": 400, "error": "Missing 'statement' payload."}), 400
 
-    if response.status_code == 200 and status:
+    try:
+        response = eudr_client.amend_statement(geojson, dds_id, statement)
+    except ValueError as e:
+        return jsonify({"status": 400, "error": str(e)}), 400
+
+    fault = extract_soap_fault(response.text)
+    if fault:
+        print("🔥 SOAP Fault (amend) :", fault, "| raw:", response.text[:2000])
+        return jsonify({
+            "status": response.status_code,
+            "error": fault.get("faultstring"),
+            "detail": fault.get("detail"),
+            "raw": response.text
+        }), 502
+
+    # Un HTTP 200 sans Fault = amendement accepté, même si la réponse ne
+    # contient pas de <status> (auparavant considéré à tort comme un échec).
+    status = extract_amend_status(response.text) or ("AMENDED" if response.status_code == 200 else None)
+
+    if response.status_code == 200:
         try:
             record = EUDRStatement.query.filter_by(dds_identifier=dds_id).first()
             if record:
@@ -150,10 +192,17 @@ def amend_statement():
                 "details": str(e)
             }), 500
 
+    if response.status_code != 200:
+        return jsonify({
+            "status": response.status_code,
+            "error": "EUDR rejected the amendment.",
+            "raw": response.text
+        }), 502
+
     return jsonify({
         "status": response.status_code,
+        "ddsIdentifier": dds_id,
         "amendStatus": status,
-        "raw": response.text if not status else None
     })
 
 @api_eudr_bp.route('/retract/<dds_id>', methods=['DELETE'])

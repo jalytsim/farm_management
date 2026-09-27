@@ -23,7 +23,9 @@ matplotlib.use('Agg')                     # pas de GUI
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from datetime import datetime
-from shapely.geometry import Polygon
+# Alias: reportlab.graphics.shapes.Polygon (importé plus bas) écrasait celui de shapely,
+# ce qui faisait échouer le calcul de surface du PDF (Project Area "Not available").
+from shapely.geometry import Polygon as ShapelyPolygon
 
 from reportlab.lib              import colors
 from reportlab.lib.pagesizes    import A4
@@ -481,7 +483,7 @@ def _calc_area_ha(coordinates: list) -> tuple[float, float]:
 def _calc_area_ha_simple(coordinates: list) -> tuple[float, float]:
     """Calcul d'aire simplifié sans pyproj (shapely seul, degrés → m² approx)."""
     try:
-        poly = Polygon(coordinates)
+        poly = ShapelyPolygon(coordinates)
         # Correction latitude : 1 degré lat ≈ 111 320 m, 1 degré lon ≈ 111 320 * cos(lat) m
         import math
         lat_c = sum(c[1] for c in coordinates) / len(coordinates)
@@ -729,7 +731,6 @@ def _eudr_compliance_table(m: dict) -> Table:
                          ParagraphStyle('c', fontName=fn, fontSize=8,
                                         textColor=color, leading=11))
 
-    tcl_color  = GREEN if m['tree_cover_loss_ha'] == 0 else RED
     radd_color = GREEN if m['radd_ha'] == 0 else RED
     cs         = m['compliance']
     cs_color   = (colors.HexColor('#1b5e20') if cs['status'] == '100% Compliant'
@@ -746,19 +747,6 @@ def _eudr_compliance_table(m: dict) -> Table:
         for r in m['val_counts'] if r['count'] > 0
     ) or 'No data'
 
-    # ✅ FIX (annotation PDF) : le ratio n'est plus recalculé/affiché ici sur la ligne
-    # "Country Deforestation Risk" — il est déjà calculé (et plafonné) dans
-    # _extract_eudr_metrics et affiché sur la ligne "Tree Cover Loss" ci-dessous.
-    # ⚠ FIX (rendu PDF) : ✓/⚠ retirés — invisibles avec les polices Core Helvetica
-    # (hors encodage WinAnsi), la couleur du texte (vert/rouge) porte déjà le statut.
-    loss_ratio_text = f"{m['tree_cover_loss_ha']} ha — "
-    if m['tree_cover_loss_ha'] == 0:
-        loss_ratio_text += 'No loss detected'
-    else:
-        loss_ratio_text += f"Loss detected — Tree loss ratio: {m['tree_cover_loss_ratio']:.2f}% of plot area"
-        if m.get('tree_cover_loss_capped'):
-            loss_ratio_text += ' (capped — source value exceeded plot area, please verify)'
-
     rows = [
         # Header
         [cell('Metric', bold=True), cell('Value / Assessment', bold=True)],
@@ -772,9 +760,6 @@ def _eudr_compliance_table(m: dict) -> Table:
         [cell('RADD Alert'),
          cell(f"{m['radd_ha']} ha — {'No alert' if m['radd_ha']==0 else 'Alert detected'}",
               color=radd_color)],
-
-        [cell('Tree Cover Loss (since 2020)'),
-         cell(loss_ratio_text, color=tcl_color)],
 
         [cell('Forest Cover (JRC 2020)'),
          cell(m['forest_cover_text'], color=fc_color)],
@@ -927,21 +912,28 @@ def build_eudr_farm_pdf(
         elems.append(Spacer(1, 5 * mm))
 
     # ── Regulatory framework ──────────────────────────────────────────────────
+    # Même liste et mêmes textes que le rapport écran (EudrReportSection.jsx) —
+    # "Tree Cover Loss" n'y figure plus (demande utilisateur).
     elems += _section_bar('Regulatory Framework (EU) 2023/1115', st)
+    elems.append(Paragraph(
+        'This report provides a compliance assessment under the European Union Regulation 2023/1115, '
+        'which governs the import and export of products associated with deforestation and degradation.',
+        st['body']))
+    elems.append(Spacer(1, 3 * mm))
     articles = [
         ('1. RADD Alert (Article 2)',
-         'Applicable to most parts of Uganda, only parts of Lake Albert region neighbouring DRC Congo.'),
-        ('2. Tree Cover Loss (Article 2)',
-         'Area in which tree loss was identified since December 2020. Zero = Fully compliant. Non-Zero = Likely non-compliant.'),
-        ('3. Forest Cover (Article 2)',
-         'EU JRC Geostore for forest cover as of 2020. None detected = fully compliant. Forest detected = requires assessment.'),
-        ('4. Tree Cover Extent (Article 2)',
-         'Analysis of tree cover expressed in deciles (0–100) to evaluate forest coverage within the farm boundary.'),
-        ('5. Tree Cover Loss Drivers (Article 10)',
-         'Identifies the primary causes of deforestation or forest degradation.'),
-        ('6. Protected Area (Article 10)',
-         'Indicates if the plot is in a gazetted protected area (national park, wetland, game reserve).'),
-        ('7. Indigenous and Community Lands (Article 10)',
+         'Applicable to most parts of Uganda, only parts of Lake Albert region neighbouring DR Congo.'),
+        ('2. Forest Cover (Article 2)',
+         'EU Joint Research Centre Geostore for checking existence or not of forest cover as of 2020.<br/>'
+         '<b>None detected:</b> Plot/Farm is fully compliant with EUDR Law.<br/>'
+         '<b>Forest detected:</b> Farm is NOT compliant with EUDR Law, regardless of other indicators.'),
+        ('3. Tree Cover Extent (Article 2)',
+         'Analysis of tree cover, expressed in deciles (ranging from 0-100), to evaluate forest coverage.'),
+        ('4. Tree Cover Loss Drivers (Article 10)',
+         'Identifies the primary causes of deforestation or degradation.'),
+        ('5. Protected Area (Article 10)',
+         'Indicates if the plot is located in a gazetted protected area (national park, wetland, etc.).'),
+        ('6. Indigenous and Community Lands (Article 10)',
          'Determines whether the land overlaps with recognized indigenous or community land.'),
     ]
     art_data = [[Paragraph(f'<b>{t}</b>', ParagraphStyle('at', fontName='Helvetica-Bold',
@@ -970,7 +962,6 @@ def build_eudr_farm_pdf(
     elems += _section_bar('Risk Assessment Breakdown', st)
     risk_rows = [
         ('Farm Area',               f"{m['area_ha']:.2f} ha"),
-        ('Tree Cover Loss',         f"{m['tree_cover_loss_ha']} ha ({m['tree_cover_loss_ratio']:.2f}%)"),
         ('Average Tree Cover',      f"{m['avg_cover']:.1f}%"),
         ('RADD Alerts',             f"{m['radd_ha']} ha"),
         ('Primary Driver',          m['primary_driver_label']),

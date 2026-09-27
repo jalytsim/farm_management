@@ -6,6 +6,7 @@ import hashlib
 import uuid as uuid_lib
 from datetime import datetime, timedelta, timezone
 import xml.etree.ElementTree as ET
+from xml.sax.saxutils import escape as _xml_escape
 
 # Namespaces V3
 NS_V3 = "http://ec.europa.eu/tracesnt/certificate/eudr/due-diligence-statement/v3"
@@ -22,6 +23,23 @@ NS_V3 = "http://ec.europa.eu/tracesnt/certificate/eudr/due-diligence-statement/v
 # ⚠️ 'volume' n'existe PAS dans GoodsMeasureType en V3 (supprimé depuis V2) —
 # ne pas l'envoyer, le serveur le rejette.
 NS_COMMON = "http://ec.europa.eu/tracesnt/certificate/eudr/common/v3"
+
+
+def _txt(value):
+    """Échappe &, <, > — un nom d'opérateur/produit contenant '&' cassait tout l'envelope."""
+    return _xml_escape(str(value).strip()) if value is not None else ''
+
+
+def _el(tag, value):
+    """
+    Élément optionnel: omis s'il est vide. Le XSD V3 rejette les éléments vides
+    typés (decimal, integer, codes pays/qualifiers en énumération) — c'est ce qui
+    faisait échouer submit/amend alors que les retrievals (sans champs optionnels)
+    passaient.
+    """
+    if value is None or str(value).strip() == '':
+        return ''
+    return f"<{tag}>{_txt(value)}</{tag}>"
 
 
 class EUDRClient:
@@ -111,13 +129,13 @@ class EUDRClient:
                     continue
                 producer_xml += f"""
                     <v3:producers>
-                        <v3:position>{position}</v3:position>
-                        <v3:country>{country}</v3:country>
-                        <v3:name>{name}</v3:name>
+                        {_el('v3:position', position)}
+                        <v3:country>{_txt(country)}</v3:country>
+                        <v3:name>{_txt(name)}</v3:name>
                         <v3:geometryGeojson>{geojson_b64}</v3:geometryGeojson>
                     </v3:producers>"""
-        elif require_non_empty:
-            raise ValueError("'producers' must be a non-empty list of dictionaries.")
+        if require_non_empty and not producer_xml:
+            raise ValueError("At least one producer with a country and a name is required.")
         return producer_xml
 
     def _build_statement_xml(self, statement_data: dict, producer_xml: str) -> str:
@@ -134,32 +152,53 @@ class EUDRClient:
         if operator_role == 'REPRESENTATIVE_OPERATOR':
             operator_block = self._build_operator_block(statement_data.get('operator', {}))
 
-        internal_ref = statement_data['internalReferenceNumber']
+        internal_ref = (statement_data.get('internalReferenceNumber') or '').strip()
+        if not internal_ref:
+            raise ValueError("internalReferenceNumber is required.")
         if len(internal_ref) > 35:
             raise ValueError("internalReferenceNumber dépasse la longueur max de 35 caractères en V3 (était 50 en V2).")
 
+        missing = [k for k in ('activityType', 'countryOfActivity', 'descriptionOfGoods', 'hsHeading')
+                   if not str(statement_data.get(k) or '').strip()]
+        if missing:
+            raise ValueError(f"Missing required field(s): {', '.join(missing)}")
+
+        # V3 rejette les positions à 4 chiffres (EUDR-COMMODITIES-HS-CODE-INVALID, vérifié
+        # en prod avec 0901) ; 090111 est accepté.
+        hs_digits = ''.join(ch for ch in str(statement_data['hsHeading']) if ch.isdigit())
+        if len(hs_digits) < 6:
+            raise ValueError(f"HS code '{statement_data['hsHeading']}' is too short: EUDR V3 requires a 6-digit HS subheading (e.g. 090111 instead of 0901).")
+        statement_data = dict(statement_data, hsHeading=hs_digits)
+
+        goods = statement_data.get('goodsMeasure') or {}
+        species = statement_data.get('speciesInfo') or {}
+        # speciesInfo n'est envoyé que s'il est renseigné (bloc vide = rejet XSD)
+        species_xml = ""
+        if str(species.get('scientificName') or '').strip() or str(species.get('commonName') or '').strip():
+            species_xml = f"""<v3:speciesInfo>
+                    {_el('v3:scientificName', species.get('scientificName'))}
+                    {_el('v3:commonName', species.get('commonName'))}
+                </v3:speciesInfo>"""
+
         return f"""
-            <v3:internalReferenceNumber>{internal_ref}</v3:internalReferenceNumber>
-            <v3:activityType>{activity_type}</v3:activityType>
+            <v3:internalReferenceNumber>{_txt(internal_ref)}</v3:internalReferenceNumber>
+            <v3:activityType>{_txt(activity_type)}</v3:activityType>
             {operator_block}
-            <v3:countryOfActivity>{statement_data['countryOfActivity']}</v3:countryOfActivity>
-            <v3:borderCrossCountry>{statement_data.get('borderCrossCountry', '')}</v3:borderCrossCountry>
-            <v3:comment>{statement_data.get('comment', '')}</v3:comment>
+            <v3:countryOfActivity>{_txt(statement_data['countryOfActivity'])}</v3:countryOfActivity>
+            {_el('v3:borderCrossCountry', statement_data.get('borderCrossCountry'))}
+            {_el('v3:comment', statement_data.get('comment'))}
             <v3:commodities>
                 <v3:position>1</v3:position>
                 <v3:descriptors>
-                    <v3c:descriptionOfGoods>{statement_data['descriptionOfGoods']}</v3c:descriptionOfGoods>
+                    <v3c:descriptionOfGoods>{_txt(statement_data['descriptionOfGoods'])}</v3c:descriptionOfGoods>
                     <v3c:goodsMeasure>
-                        <v3c:netWeight>{statement_data['goodsMeasure'].get('netWeight', '')}</v3c:netWeight>
-                        <v3c:supplementaryUnit>{statement_data['goodsMeasure'].get('supplementaryUnit', '')}</v3c:supplementaryUnit>
-                        <v3c:supplementaryUnitQualifier>{statement_data['goodsMeasure'].get('supplementaryUnitQualifier', '')}</v3c:supplementaryUnitQualifier>
+                        {_el('v3c:netWeight', goods.get('netWeight'))}
+                        {_el('v3c:supplementaryUnit', goods.get('supplementaryUnit'))}
+                        {_el('v3c:supplementaryUnitQualifier', goods.get('supplementaryUnitQualifier'))}
                     </v3c:goodsMeasure>
                 </v3:descriptors>
-                <v3:hsHeading>{statement_data['hsHeading']}</v3:hsHeading>
-                <v3:speciesInfo>
-                    <v3:scientificName>{statement_data['speciesInfo'].get('scientificName', '')}</v3:scientificName>
-                    <v3:commonName>{statement_data['speciesInfo'].get('commonName', '')}</v3:commonName>
-                </v3:speciesInfo>
+                <v3:hsHeading>{_txt(statement_data['hsHeading'])}</v3:hsHeading>
+                {species_xml}
                 {producer_xml}
             </v3:commodities>
             <v3:geoLocationConfidential>{str(statement_data.get('geoLocationConfidential', False)).lower()}</v3:geoLocationConfidential>"""
@@ -204,6 +243,8 @@ class EUDRClient:
     # AMEND
     # ------------------------------------------------------------------
     def amend_statement(self, geojson_data: dict, uuid: str, statement_data: dict):
+        if not uuid or not str(uuid).strip():
+            raise ValueError("DDS identifier (uuid) is required to amend a statement.")
         geojson_b64 = base64.b64encode(json.dumps(geojson_data).encode('utf-8')).decode('utf-8')
         producer_xml = self._build_producer_xml(statement_data.get('producers', []), geojson_b64, require_non_empty=True)
         statement_xml = self._build_statement_xml(statement_data, producer_xml)
@@ -271,7 +312,10 @@ def extract_dds_identifier(xml_text):
         root = ET.fromstring(xml_text)
         ns = {'S': 'http://schemas.xmlsoap.org/soap/envelope/', 'v3': NS_V3}
         el = root.find('.//v3:uuid', ns)
-        return el.text if el is not None else None
+        if el is not None and el.text:
+            return el.text.strip()
+        # Fallback sans namespace (même problème que pour by-internal-ref)
+        return _findtext_local(root, 'uuid') or None
     except ET.ParseError:
         return None
 
@@ -286,7 +330,9 @@ def extract_amend_status(xml_text):
         root = ET.fromstring(xml_text)
         ns = {'S': 'http://schemas.xmlsoap.org/soap/envelope/', 'v3': NS_V3}
         status_el = root.find('.//v3:status', ns)
-        return status_el.text if status_el is not None else None
+        if status_el is not None and status_el.text:
+            return status_el.text.strip()
+        return _findtext_local(root, 'status') or None
     except ET.ParseError:
         return None
 
@@ -449,7 +495,15 @@ def extract_soap_fault(xml_text):
             faultstring = fault.findtext('faultstring')
             if faultstring is None:
                 faultstring = fault.findtext('.//{http://schemas.xmlsoap.org/soap/envelope/}Reason//{http://schemas.xmlsoap.org/soap/envelope/}Text')
-            detail = fault.findtext('.//detail')
+            # Les erreurs métier TRACES sont des éléments imbriqués dans <detail>
+            # (Error/ID + Error/Message) — findtext('.//detail') renvoyait donc ''.
+            errors = []
+            for el in fault.iter():
+                if el.tag.rsplit('}', 1)[-1] == 'Error':
+                    err_id = _findtext_local(el, 'ID')
+                    msg = _findtext_local(el, 'Message')
+                    errors.append(f"{err_id}: {msg}" if err_id else msg)
+            detail = "\n".join(e for e in errors if e) or fault.findtext('.//detail')
             return {
                 'faultstring': faultstring or 'Unknown SOAP fault',
                 'detail': detail or ''
