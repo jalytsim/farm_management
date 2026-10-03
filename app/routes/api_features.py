@@ -3,6 +3,7 @@ from datetime import datetime
 from flask import Blueprint, jsonify, request
 from app.models import db, PaidFeatureAccess, FeaturePrice, FeaturePriceCurrency
 from app.utils.feature_payment_utils import build_payment_narrative, payment_narrative
+from app.utils.decorators import admin_required
 
 logger = logging.getLogger(__name__)
 api_feature_bp = Blueprint('api_feature', __name__, url_prefix='/api/feature')
@@ -47,6 +48,7 @@ def get_feature_price(id):
 
 
 @api_feature_bp.route('/price/create', methods=['POST'])
+@admin_required
 def create_feature_price():
     data = request.get_json(silent=True) or {}
 
@@ -88,6 +90,7 @@ def create_feature_price():
 
 
 @api_feature_bp.route('/price/<int:id>/edit', methods=['PUT'])
+@admin_required
 def edit_feature_price(id):
     feature = FeaturePrice.query.get_or_404(id)
     data = request.get_json(silent=True) or {}
@@ -133,6 +136,7 @@ def edit_feature_price(id):
 
 
 @api_feature_bp.route('/price/<int:id>/delete', methods=['DELETE'])
+@admin_required
 def delete_feature_price(id):
     feature = FeaturePrice.query.get_or_404(id)
     db.session.delete(feature)
@@ -141,8 +145,11 @@ def delete_feature_price(id):
 
 
 # ---------------------- PaidFeatureAccess Endpoints ----------------------
+# Admin uniquement : ces lignes contiennent les numéros de téléphone des invités
+# et permettent d'accorder un accès payant sans paiement.
 
 @api_feature_bp.route('/access/', methods=['GET'])
+@admin_required
 def get_all_access():
     accesses = PaidFeatureAccess.query.order_by(PaidFeatureAccess.created_at.desc()).all()
     features_by_name = {f.feature_name: f for f in FeaturePrice.query.all()}
@@ -166,6 +173,7 @@ def get_all_access():
 
 
 @api_feature_bp.route('/access/<int:id>', methods=['GET'])
+@admin_required
 def get_access(id):
     a = PaidFeatureAccess.query.get_or_404(id)
     return jsonify({
@@ -186,6 +194,7 @@ def get_access(id):
 
 
 @api_feature_bp.route('/access/create', methods=['POST'])
+@admin_required
 def create_access():
     data = request.get_json(silent=True) or {}
     if not data.get('feature_name') or not data.get('txn_id'):
@@ -224,6 +233,7 @@ def create_access():
 
 
 @api_feature_bp.route('/access/<int:id>/edit', methods=['PUT'])
+@admin_required
 def edit_access(id):
     access = PaidFeatureAccess.query.get_or_404(id)
     data = request.get_json(silent=True) or {}
@@ -256,6 +266,7 @@ def edit_access(id):
 
 
 @api_feature_bp.route('/access/<int:id>/delete', methods=['DELETE'])
+@admin_required
 def delete_access(id):
     access = PaidFeatureAccess.query.get_or_404(id)
     db.session.delete(access)
