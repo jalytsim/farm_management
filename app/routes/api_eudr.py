@@ -15,6 +15,26 @@ import os
 api_eudr_bp = Blueprint('api_eudr', __name__, url_prefix='/api/eudr')
 
 
+def _hs_code_error(statement):
+    """
+    Refuse d'avance un code HS que TRACES a déjà rejeté (verdicts stockés par
+    hscode_sync.py), avec les codes acceptés de la même position. Code inconnu
+    de la table : on laisse TRACES trancher.
+    """
+    from app.models import HSCodeSubheading
+    from app.utils.hscode_sync import lookup_hs_status
+    digits = ''.join(ch for ch in str(statement.get('hsHeading') or '') if ch.isdigit())
+    if not digits or lookup_hs_status(digits) is not False:
+        return None
+    from app.models import HSCode
+    valid = [s.code for s in HSCodeSubheading.query
+             .filter(HSCodeSubheading.code.like(digits[:4] + '%'), HSCodeSubheading.traces_valid.is_(True)).all()]
+    valid += [h.digits for h in HSCode.query.filter_by(traces_valid=True).all()
+              if h.digits and digits.startswith(h.digits[:4])]
+    hint = f" Accepted codes for heading {digits[:4]}: {', '.join(sorted(set(valid)))}." if valid else ""
+    return f"HS code {digits} is not accepted by the EUDR information system (TRACES).{hint}"
+
+
 def _sent_summary(statement):
     """Champs clés réellement envoyés à TRACES, renvoyés avec l'erreur : le
     Fault TRACES ne dit jamais quelle valeur il rejette (ex. HS-CODE-INVALID)."""
@@ -60,6 +80,10 @@ def submit_statement():
 
     if not statement:
         return jsonify({"status": 400, "error": "Missing 'statement' payload."}), 400
+
+    hs_error = _hs_code_error(statement)
+    if hs_error:
+        return jsonify({"status": 400, "error": hs_error}), 400
 
     try:
         response = eudr_client.submit_statement(geojson, statement)
@@ -161,6 +185,10 @@ def amend_statement():
 
     if not statement:
         return jsonify({"status": 400, "error": "Missing 'statement' payload."}), 400
+
+    hs_error = _hs_code_error(statement)
+    if hs_error:
+        return jsonify({"status": 400, "error": hs_error}), 400
 
     try:
         response = eudr_client.amend_statement(geojson, dds_id, statement)

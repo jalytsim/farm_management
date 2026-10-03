@@ -874,6 +874,17 @@ class HSCode(db.Model):
 
     crops = db.relationship('Crop', secondary=crop_hscode, backref=db.backref('hs_codes', lazy=True))
 
+    # Verdict TRACES pour le code tel quel (ex. "0901") : True accepté, False refusé
+    # (EUDR-COMMODITIES-HS-CODE-INVALID), None pas encore vérifié. Voir hscode_sync.py.
+    traces_valid = db.Column(db.Boolean, nullable=True)
+    traces_checked_at = db.Column(db.DateTime, nullable=True)
+    subheadings = db.relationship('HSCodeSubheading', backref='hscode', lazy=True,
+                                  cascade='all, delete-orphan', order_by='HSCodeSubheading.code')
+
+    @property
+    def digits(self):
+        return ''.join(ch for ch in (self.code or '') if ch.isdigit())
+
     def __repr__(self):
         return f"<HSCode(code={self.code}, commodity={self.eudr_commodity})>"
 
@@ -886,6 +897,23 @@ class HSCode(db.Model):
             'is_ex_code': self.is_ex_code,
         }
 
+
+
+class HSCodeSubheading(db.Model):
+    """
+    Sous-positions HS à 6 chiffres (nomenclature du Système harmonisé) d'un code
+    de l'Annexe I, avec le verdict de TRACES. Alimentée par hscode_sync.py, pour
+    que le formulaire DDS ne propose que des codes acceptés par l'EUDR.
+    """
+    __tablename__ = 'hscode_subheading'
+    id = db.Column(db.Integer, primary_key=True)
+    hscode_id = db.Column(db.Integer, db.ForeignKey('hscode.id', ondelete='CASCADE'), nullable=False, index=True)
+    code = db.Column(db.String(6), nullable=False)
+    description = db.Column(db.String(500), nullable=True)
+    traces_valid = db.Column(db.Boolean, nullable=True)
+    traces_checked_at = db.Column(db.DateTime, nullable=True)
+
+    __table_args__ = (db.UniqueConstraint('hscode_id', 'code', name='uq_hscode_subheading_code'),)
 
 class ProductCategory(db.Model):
     __tablename__ = 'productcategory'

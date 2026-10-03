@@ -267,11 +267,13 @@ class EUDRClient:
         if missing:
             raise ValueError(f"Missing required field(s): {', '.join(missing)}")
 
-        # V3 rejette les positions à 4 chiffres (EUDR-COMMODITIES-HS-CODE-INVALID, vérifié
-        # en prod avec 0901) ; 090111 est accepté.
+        # HSHeadingType : 2 à 6 chiffres. TRACES accepte le code au niveau de l'Annexe I
+        # (ex. 0901, vérifié en prod le 2026-10-03) ou une sous-position existante
+        # (090111). L'existence du code est contrôlée en amont par la table
+        # hscode/hscode_subheading (verdicts TRACES, cf. hscode_sync.py).
         hs_digits = ''.join(ch for ch in str(statement_data['hsHeading']) if ch.isdigit())
-        if len(hs_digits) < 6:
-            raise ValueError(f"HS code '{statement_data['hsHeading']}' is too short: EUDR V3 requires a 6-digit HS subheading (e.g. 090111 instead of 0901).")
+        if not 2 <= len(hs_digits) <= 6:
+            raise ValueError(f"HS code '{statement_data['hsHeading']}' must have 2 to 6 digits.")
         statement_data = dict(statement_data, hsHeading=hs_digits)
 
         goods = statement_data.get('goodsMeasure') or {}
@@ -347,6 +349,58 @@ class EUDRClient:
         </v3:SubmitDdsRequest>"""
 
         return self._post(body)
+
+    # ------------------------------------------------------------------
+    # VÉRIFICATION D'UN CODE HS (sans créer de DDS)
+    # ------------------------------------------------------------------
+    def check_hs_code(self, hs_code: str):
+        """
+        Demande à TRACES si un code HS existe, sans jamais créer de DDS : la
+        déclaration envoyée a une géolocalisation volontairement invalide.
+        TRACES contrôle le code HS AVANT la géolocalisation (vérifié en prod) :
+          - EUDR-COMMODITIES-HS-CODE-INVALID   → False (code refusé)
+          - EUDR-COMMODITIES-PRODUCER-GEO-INVALID → True (code accepté)
+          - toute autre réponse                → None (indéterminé)
+        """
+        digits = ''.join(ch for ch in str(hs_code) if ch.isdigit())
+        if not 2 <= len(digits) <= 6:
+            return False
+        invalid_geo = base64.b64encode(b"not-a-geojson").decode()
+        body = f"""<v3:SubmitDdsRequest>
+            <v3:operatorRole>OPERATOR</v3:operatorRole>
+            <v3:statement>
+                <v3:internalReferenceNumber>HSCHECK-{digits}</v3:internalReferenceNumber>
+                <v3:activityType>IMPORT</v3:activityType>
+                <v3:countryOfActivity>BE</v3:countryOfActivity>
+                <v3:commodities>
+                    <v3:position>1</v3:position>
+                    <v3:descriptors>
+                        <v3c:descriptionOfGoods>HS code check, never submitted</v3c:descriptionOfGoods>
+                        <v3c:goodsMeasure><v3c:netWeight>1</v3c:netWeight></v3c:goodsMeasure>
+                    </v3:descriptors>
+                    <v3:hsHeading>{digits}</v3:hsHeading>
+                    <v3:producers>
+                        <v3:country>UG</v3:country>
+                        <v3:geometryGeojson>{invalid_geo}</v3:geometryGeojson>
+                    </v3:producers>
+                </v3:commodities>
+                <v3:geoLocationConfidential>false</v3:geoLocationConfidential>
+            </v3:statement>
+        </v3:SubmitDdsRequest>"""
+        response = self._post(body)
+        fault = extract_soap_fault(response.text)
+        if not fault:
+            # Ne devrait jamais arriver (géolocalisation invalide) : on retire la DDS par sécurité.
+            uuid = extract_dds_identifier(response.text)
+            if uuid:
+                self.withdraw_statement(uuid)
+            return None
+        detail = fault.get('detail') or ''
+        if 'EUDR-COMMODITIES-HS-CODE-INVALID' in detail:
+            return False
+        if 'EUDR-COMMODITIES-PRODUCER-GEO-INVALID' in detail:
+            return True
+        return None
 
     # ------------------------------------------------------------------
     # AMEND
