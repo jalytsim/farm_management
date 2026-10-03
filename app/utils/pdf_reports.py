@@ -332,9 +332,10 @@ def _compliance_badge_table(status: str, description: str) -> Table:
     badge_row = _icon_text_row(icon, status, ParagraphStyle(
         'badge', fontName='Helvetica-Bold', fontSize=13, textColor=fc, alignment=TA_LEFT,
     ))
-    desc_para = Paragraph(description or '', _styles()['small'])
-    t = Table([[badge_row], [desc_para]],
-              colWidths=[CONTENT_W])
+    rows = [[badge_row]]
+    if description:
+        rows.append([Paragraph(description, _styles()['small'])])
+    t = Table(rows, colWidths=[CONTENT_W])
     t.setStyle(TableStyle([
         ('BACKGROUND',   (0, 0), (0, -1), bg),
         ('BOX',          (0, 0), (-1, -1), 1, GRAY_BORDER),
@@ -500,44 +501,21 @@ def _calc_area_ha_simple(coordinates: list) -> tuple[float, float]:
 
 def _compliance_status(tree_cover_loss: float, has_forest: bool, is_in_protected_area: bool = False) -> dict:
     """
-    Règles (ordre de priorité strict — corrigé) :
-    1) Forest cover detected (JRC 2020)                 -> Not Compliant, quel que soit le tree cover loss
-    2) No forest cover BUT plot in a protected/          -> Not Compliant (EUDR Article 10 — protected
-       conservation area (WDPA/IUCN cat. 1 ou 2)            area status)
-    3) No forest cover, not protected, no tree cover loss -> 100% Compliant
-    4) No forest cover, not protected, tree cover loss    -> Compliant, plantation d'arbres d'ombrage recommandée
+    Règles (ordre de priorité strict) :
+    1) Forest cover detected (JRC 2020)                    -> Not Compliant
+    2) No forest cover BUT protected area (WDPA/IUCN 1-2)  -> Not Compliant (EUDR Article 10)
+    3) No forest cover, not protected, no tree cover loss  -> 100% Compliant
+    4) No forest cover, not protected, tree cover loss     -> Compliant
+    Le rapport n'affiche que le statut (demande utilisateur) : pas de description.
     """
-    if has_forest:
-        return {
-            'status':      'Not Compliant',
-            'description': 'Forest cover detected on this plot (EUDR Article 2). Not compliant with EUDR regulations, regardless of tree cover loss status.',
-        }
+    if has_forest or is_in_protected_area:
+        status = 'Not Compliant'
+    elif tree_cover_loss == 0:
+        status = '100% Compliant'
+    else:
+        status = 'Compliant'
+    return {'status': status, 'description': ''}
 
-    if is_in_protected_area:
-        return {
-            'status':      'Not Compliant',
-            'description': (
-                'No forest cover detected, but this plot overlaps a gazetted protected/conservation area '
-                '(WDPA/IUCN category). Not compliant with EUDR regulations (Article 10 — Protected Area status), '
-                'regardless of forest cover or tree cover loss status.'
-            ),
-        }
-
-    if tree_cover_loss == 0:
-        return {
-            'status':      '100% Compliant',
-            'description': 'No forest cover, no protected area overlap, and no tree cover loss detected. Fully compliant with EUDR regulations.',
-        }
-
-    return {
-        'status':      'Compliant',
-        'description': (
-            'No forest cover detected, but tree cover loss was recorded since 2020. Before finalizing this '
-            'status, verify whether the loss results from cyclical agroforestry practices (e.g. routine canopy '
-            'pruning, tree stumping, or shade-tree rejuvenation/cutting for pest mitigation) rather than '
-            'deforestation. Planting shade trees is recommended.'
-        ),
-    }
 
 def _get_array_depth(arr):
     depth = 0
@@ -676,7 +654,7 @@ def _extract_eudr_metrics(gfw_data: dict) -> dict:
             label = {'0': 'Not in protected area', '1': 'In WDPA protected area',
                      '2': 'In IUCN vulnerable area'}.get(str(k), f'Category {k}')
             prot_pct[label] = f'{v / total_prot * 100:.1f}%'
-    m['protected_pct'] = prot_pct or {'No data': '–'}
+    m['protected_pct'] = prot_pct or {'Protected area data': 'Not available'}
     # Catégories WDPA/IUCN 1 (in WDPA protected area) et 2 (in IUCN vulnerable
     # area) — cf. label mapping ci-dessus. Utilisé par _compliance_status().
     m['is_in_protected_area'] = any(
@@ -722,7 +700,26 @@ def _extract_eudr_metrics(gfw_data: dict) -> dict:
 # EUDR COMPLIANCE TABLE  (ReportLab)
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _eudr_compliance_table(m: dict) -> Table:
+def _farm_area_text(m: dict, farm_info: dict | None = None) -> str:
+    """
+    Surface de la ferme : polygone GPS en priorité, sinon surface déclarée
+    (FarmData.tilled_land_size, en ha) — même règle que dashboard_utils.get_farm_area_ha.
+    """
+    if m.get('area_ha'):
+        return f"{m['area_ha']:.2f} ha  ({m['area_m2']:.0f} m²)"
+    info = farm_info or {}
+    declared = info.get('farm_size_ha') or info.get('area_ha') or next(
+        (c.get('tilled_land_size') for c in (info.get('crops') or []) if c.get('tilled_land_size')), None)
+    try:
+        declared = float(declared) if declared else None
+    except (TypeError, ValueError):
+        declared = None
+    if declared:
+        return f"{declared:.2f} ha  ({declared * 10_000:.0f} m²), declared farm size"
+    return 'Not available'
+
+
+def _eudr_compliance_table(m: dict, farm_info: dict | None = None) -> Table:
     st = _styles()
 
     def cell(text, bold=False, color=BLACK):
@@ -752,26 +749,26 @@ def _eudr_compliance_table(m: dict) -> Table:
         [cell('Metric', bold=True), cell('Value / Assessment', bold=True)],
         # Data rows
         [cell('Project Area'),
-         cell(f"{m['area_ha']:.2f} ha  ({m['area_m2']:.0f} m²)" if m['area_ha'] else 'Not available')],
+         cell(_farm_area_text(m, farm_info))],
 
         [cell('Country Deforestation Risk'),
          cell('STANDARD')],
 
         [cell('RADD Alert'),
-         cell(f"{m['radd_ha']} ha — {'No alert' if m['radd_ha']==0 else 'Alert detected'}",
+         cell(f"{m['radd_ha']} ha, {'No alert' if m['radd_ha']==0 else 'Alert detected'}",
               color=radd_color)],
 
         [cell('Forest Cover (JRC 2020)'),
          cell(m['forest_cover_text'], color=fc_color)],
 
         [cell('EUDR Compliance'),
-         cell(f"{cs['status']}  —  {cs['description']}", bold=True, color=cs_color)],
+         cell(cs['status'], bold=True, color=cs_color)],
 
         [cell('Protected Area Status'),
          cell(prot_text, color=prot_color)],
 
         [cell('Tree Cover Extent'),
-         cell(f"Coverage: {m['cover_pct']:.1f}%  —  Non-zero pts: {m['cover_count']}<br/>{vc_text}")],
+         cell(f"Coverage: {m['cover_pct']:.1f}%, Non-zero pts: {m['cover_count']}<br/>{vc_text}")],
 
         [cell('Primary Deforestation Driver'),
          cell(m['primary_driver_label'])],
@@ -830,7 +827,7 @@ def build_eudr_farm_pdf(
         buf, pagesize=A4,
         leftMargin=MARGIN, rightMargin=MARGIN,
         topMargin=MARGIN, bottomMargin=22 * mm,
-        title=f'EUDR Compliance Report — {farm_id}',
+        title=f'EUDR Compliance Report {farm_id}',
         author='Agriyields',
     )
     st   = _styles()
@@ -906,8 +903,7 @@ def build_eudr_farm_pdf(
         if farm_info.get('crops'):
             rows.append(('Primary Crop', farm_info['crops'][0].get('crop', 'N/A')))
             rows.append(('Land Type',    farm_info['crops'][0].get('land_type', 'N/A')))
-        if m['area_ha']:
-            rows.append(('Farm Area', f"{m['area_ha']:.2f} ha  ({m['area_m2']:.0f} m²)"))
+        rows.append(('Farm Area', _farm_area_text(m, farm_info)))
         elems.append(_info_table(rows))
         elems.append(Spacer(1, 5 * mm))
 
@@ -955,13 +951,13 @@ def build_eudr_farm_pdf(
 
     # ── Summary compliance table ──────────────────────────────────────────────
     elems += _section_bar('Summary Compliance Table', st)
-    elems.append(_eudr_compliance_table(m))
+    elems.append(_eudr_compliance_table(m, farm_info))
     elems.append(Spacer(1, 5 * mm))
 
     # ── Risk assessment breakdown ─────────────────────────────────────────────
     elems += _section_bar('Risk Assessment Breakdown', st)
     risk_rows = [
-        ('Farm Area',               f"{m['area_ha']:.2f} ha"),
+        ('Farm Area',               _farm_area_text(m, farm_info)),
         ('Average Tree Cover',      f"{m['avg_cover']:.1f}%"),
         ('RADD Alerts',             f"{m['radd_ha']} ha"),
         ('Primary Driver',          m['primary_driver_label']),
@@ -974,7 +970,7 @@ def build_eudr_farm_pdf(
     if m['coordinates']:
         map_img = _mapbox_image(m['coordinates'])
         if map_img:
-            elems += _section_bar('Plot Map — Satellite View', st)
+            elems += _section_bar('Plot Map: Satellite View', st)
             elems.append(map_img)
             elems.append(Spacer(1, 5 * mm))
 
@@ -991,7 +987,7 @@ def build_eudr_farm_pdf(
             forest_img = Image(buf_img, width=CONTENT_W, height=110 * mm)
             forest_img.hAlign = 'CENTER'
             
-            elems += _section_bar('Tree Cover Spatial Analysis — Heatmap View', st)
+            elems += _section_bar('Tree Cover Spatial Analysis: Heatmap View', st)
             elems.append(forest_img)
             elems.append(Spacer(1, 3 * mm))
         except Exception as e:
@@ -1015,7 +1011,7 @@ def build_eudr_forest_pdf(
         buf, pagesize=A4,
         leftMargin=MARGIN, rightMargin=MARGIN,
         topMargin=MARGIN, bottomMargin=22 * mm,
-        title=f'EUDR Compliance Report — Forest {forest_id}',
+        title=f'EUDR Compliance Report Forest {forest_id}',
         author='Agriyields',
     )
     st    = _styles()
@@ -1025,7 +1021,7 @@ def build_eudr_forest_pdf(
 
     elems.append(_header_table(
         logo_parrot, logo_agri,
-        'EUDR COMPLIANCE REPORT — FOREST',
+        'EUDR COMPLIANCE REPORT FOREST',
         f'Generated on {today}  •  Regulation (EU) 2023/1115',
     ))
     elems.append(Spacer(1, 6 * mm))
@@ -1054,7 +1050,7 @@ def build_eudr_forest_pdf(
     if m['coordinates']:
         map_img = _mapbox_image(m['coordinates'])
         if map_img:
-            elems += _section_bar('Plot Map — Satellite View', st)
+            elems += _section_bar('Plot Map: Satellite View', st)
             elems.append(map_img)
 
     doc.build(elems, onFirstPage=_footer_canvas, onLaterPages=_footer_canvas, canvasmaker=_NumberedCanvas)

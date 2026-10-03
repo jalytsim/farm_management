@@ -1,4 +1,5 @@
 import json
+import re
 import requests
 import os
 import base64
@@ -40,6 +41,77 @@ def _el(tag, value):
     if value is None or str(value).strip() == '':
         return ''
     return f"<{tag}>{_txt(value)}</{tag}>"
+
+
+def _country(value):
+    """Codes pays ISO alpha-2 en majuscules (le XSD est une énumération sensible à la casse)."""
+    return str(value).strip().upper() if value is not None and str(value).strip() else None
+
+
+def _decimal(value, field):
+    """
+    Normalise une quantité pour DecimalSixteenTotalSixPrecType: accepte 1000, "1000",
+    "1 000,5", "1000 kg". Renvoie None si vide, lève ValueError si non numérique.
+    """
+    if value is None or str(value).strip() == '':
+        return None
+    raw = str(value).strip().lower().replace('kg', '').replace(' ', '').replace(' ', '')
+    if ',' in raw and '.' not in raw:
+        raw = raw.replace(',', '.')
+    else:
+        raw = raw.replace(',', '')
+    try:
+        num = float(raw)
+    except ValueError:
+        raise ValueError(f"'{field}' must be a number (got '{value}').")
+    if num <= 0:
+        raise ValueError(f"'{field}' must be greater than 0.")
+    return f"{num:.6f}".rstrip('0').rstrip('.')
+
+
+# ── Unité supplémentaire ─────────────────────────────────────────────────────
+# TRACES n'accepte le qualificatif (EUDR-COMMODITIES-DESCRIPTOR-SUPPLEMENTARY-
+# UNIT-QUALIFIER-INVALID) que s'il correspond à l'unité supplémentaire de la
+# Nomenclature combinée (NC) pour le code HS. Unités connues des positions EUDR :
+SUPPLEMENTARY_UNIT_BY_HS = {
+    '0102': 'NAR',   # bovins vivants : nombre de têtes (p/st)
+    '4011': 'NAR',   # pneumatiques neufs (p/st)
+    '4012': 'NAR',   # pneumatiques rechapés / usagés (p/st)
+    '4403': 'MTQ',   # bois brut (m³)
+    '4406': 'MTQ',   # traverses (m³)
+    '4407': 'MTQ',   # bois sciés (m³)
+    '4408': 'MTQ',   # feuilles de placage (m³)
+    '4412': 'MTQ',   # bois contreplaqués (m³)
+}
+# Chapitres sans unité supplémentaire en NC : seul le poids net (kg) est déclaré.
+# Viandes (02, 16), café (09), soja (12), huiles (15), cacao (18), tourteaux (23).
+NO_SUPPLEMENTARY_UNIT_CHAPTERS = ('02', '09', '12', '15', '16', '18', '23')
+
+
+def _supplementary_unit(hs_digits, unit, qualifier):
+    """
+    Renvoie (supplementaryUnit, qualifier) cohérents avec le code HS :
+      - chapitre sans unité supplémentaire → rien n'est envoyé (le qualificatif
+        choisi dans le formulaire était rejeté par TRACES) ;
+      - unité NC connue → qualificatif imposé (NAR, MTQ…) ;
+      - sinon → valeurs saisies, à condition d'avoir l'unité ET le qualificatif.
+    """
+    unit = _decimal(unit, 'goodsMeasure.supplementaryUnit')
+    qualifier = str(qualifier or '').strip().upper()
+    if hs_digits[:2] in NO_SUPPLEMENTARY_UNIT_CHAPTERS:
+        return None, ''
+    expected = SUPPLEMENTARY_UNIT_BY_HS.get(hs_digits[:4])
+    if expected:
+        if not unit:
+            raise ValueError(
+                f"HS {hs_digits} requires a supplementary unit in {expected} "
+                f"({'number of items' if expected == 'NAR' else 'cubic metres'}).")
+        return unit, expected
+    if not unit:
+        return None, ''  # qualificatif seul = rejeté par TRACES
+    if not qualifier:
+        raise ValueError("goodsMeasure.supplementaryUnitQualifier is required when supplementaryUnit is set.")
+    return unit, qualifier
 
 
 class EUDRClient:
@@ -98,44 +170,75 @@ class EUDRClient:
     # déduit du compte authentifié, comme en V2/V1 déjà normalement).
     # ------------------------------------------------------------------
     def _build_operator_block(self, operator_data: dict) -> str:
-        if not operator_data:
-            return ""
+        # Ordre imposé par EconomicOperatorIdentificationType (XSD V3):
+        # operatorReferenceNumber, operatorAddress, operatorEmail, operatorPhone, operatorName.
+        # L'ancien ordre (operatorName en 2e) et les valeurs non échappées / vides
+        # faisaient rejeter toute soumission en REPRESENTATIVE_OPERATOR.
+        op = operator_data or {}
+        name = str(op.get('name') or '').strip()
+        if not name:
+            raise ValueError("operator.name is required when operatorRole is REPRESENTATIVE_OPERATOR.")
+
+        ref_xml = ""
+        id_type = str(op.get('identifierType') or '').strip().lower()
+        id_value = str(op.get('identifierValue') or '').strip()
+        if id_type or id_value:
+            if id_type not in ('eori', 'vat') or not id_value:
+                raise ValueError("operator.identifierType must be 'eori' or 'vat' and operator.identifierValue is required.")
+            ref_xml = f"""<v3c:operatorReferenceNumber>
+                    <v3c:identifierType>{id_type}</v3c:identifierType>
+                    <v3c:identifierValue>{_txt(id_value)}</v3c:identifierValue>
+                </v3c:operatorReferenceNumber>"""
+
+        address_xml = ""
+        addr = {k: str(op.get(k) or '').strip() for k in ('country', 'street', 'postalCode', 'city')}
+        if any(addr.values()):
+            missing = [k for k, v in addr.items() if not v]
+            if missing:
+                raise ValueError(f"Operator address incomplete, missing: {', '.join('operator.' + m for m in missing)}")
+            address_xml = f"""<v3c:operatorAddress>
+                    <v3c:country>{_country(addr['country'])}</v3c:country>
+                    <v3c:street>{_txt(addr['street'])}</v3c:street>
+                    <v3c:postalCode>{_txt(addr['postalCode'])}</v3c:postalCode>
+                    <v3c:city>{_txt(addr['city'])}</v3c:city>
+                    {_el('v3c:fullAddress', op.get('address') or op.get('fullAddress'))}
+                </v3c:operatorAddress>"""
+
+        email = str(op.get('email') or '').strip()
+        if email and not re.fullmatch(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", email):
+            raise ValueError(f"operator.email '{email}' is not a valid email address.")
+
         return f"""
             <v3:representedOperator>
-                <v3c:operatorReferenceNumber>
-                    <v3c:identifierType>{operator_data.get('identifierType', '')}</v3c:identifierType>
-                    <v3c:identifierValue>{operator_data.get('identifierValue', '')}</v3c:identifierValue>
-                </v3c:operatorReferenceNumber>
-                <v3c:operatorName>{operator_data.get('name', '')}</v3c:operatorName>
-                <v3c:operatorAddress>
-                    <v3c:country>{operator_data.get('country', '')}</v3c:country>
-                    <v3c:street>{operator_data.get('street', '')}</v3c:street>
-                    <v3c:postalCode>{operator_data.get('postalCode', '')}</v3c:postalCode>
-                    <v3c:city>{operator_data.get('city', '')}</v3c:city>
-                    <v3c:fullAddress>{operator_data.get('address', operator_data.get('fullAddress', ''))}</v3c:fullAddress>
-                </v3c:operatorAddress>
-                <v3c:operatorEmail>{operator_data.get('email', '')}</v3c:operatorEmail>
-                <v3c:operatorPhone>{operator_data.get('phone', '')}</v3c:operatorPhone>
+                {ref_xml}
+                {address_xml}
+                {_el('v3c:operatorEmail', op.get('email'))}
+                {_el('v3c:operatorPhone', op.get('phone'))}
+                <v3c:operatorName>{_txt(name)}</v3c:operatorName>
             </v3:representedOperator>"""
 
     def _build_producer_xml(self, producers, geojson_b64, require_non_empty=False):
         producer_xml = ""
         if producers and isinstance(producers, list):
             for prod in producers:
-                country = prod.get('country')
-                name = prod.get('name')
+                if not isinstance(prod, dict):
+                    continue
+                country = _country(prod.get('country'))
                 position = prod.get('position', '')
-                if not country or not name or name.strip() == "":
+                # Le nom du producteur est optionnel dans le XSD V3 : seul le pays est
+                # obligatoire. Avant, un producteur sans nom était ignoré silencieusement,
+                # ce qui envoyait une DDS sans géolocalisation (rejetée par TRACES).
+                if not country:
                     continue
                 producer_xml += f"""
                     <v3:producers>
                         {_el('v3:position', position)}
-                        <v3:country>{_txt(country)}</v3:country>
-                        <v3:name>{_txt(name)}</v3:name>
+                        <v3:country>{country}</v3:country>
+                        {_el('v3:name', prod.get('name'))}
                         <v3:geometryGeojson>{geojson_b64}</v3:geometryGeojson>
                     </v3:producers>"""
         if require_non_empty and not producer_xml:
-            raise ValueError("At least one producer with a country and a name is required.")
+            raise ValueError("At least one producer with a country (ISO alpha-2, e.g. 'UG') is required.")
         return producer_xml
 
     def _build_statement_xml(self, statement_data: dict, producer_xml: str) -> str:
@@ -144,7 +247,7 @@ class EUDRClient:
         if operator_role in ('TRADER', 'REPRESENTATIVE_TRADER'):
             raise ValueError(f"operatorRole '{operator_role}' n'existe plus en V3 (traders exclus de la soumission DDS).")
 
-        activity_type = statement_data['activityType']
+        activity_type = str(statement_data.get('activityType') or '').strip().upper()
         if activity_type == 'TRADE':
             raise ValueError("activityType 'TRADE' n'existe plus en V3.")
 
@@ -155,8 +258,9 @@ class EUDRClient:
         internal_ref = (statement_data.get('internalReferenceNumber') or '').strip()
         if not internal_ref:
             raise ValueError("internalReferenceNumber is required.")
-        if len(internal_ref) > 35:
-            raise ValueError("internalReferenceNumber dépasse la longueur max de 35 caractères en V3 (était 50 en V2).")
+        # InternalReferenceNumberType: maxLength 50 dans le XSD V3 publié par TRACES
+        if len(internal_ref) > 50:
+            raise ValueError("internalReferenceNumber must not exceed 50 characters.")
 
         missing = [k for k in ('activityType', 'countryOfActivity', 'descriptionOfGoods', 'hsHeading')
                    if not str(statement_data.get(k) or '').strip()]
@@ -171,6 +275,11 @@ class EUDRClient:
         statement_data = dict(statement_data, hsHeading=hs_digits)
 
         goods = statement_data.get('goodsMeasure') or {}
+        net_weight = _decimal(goods.get('netWeight'), 'goodsMeasure.netWeight')
+        supp_unit, supp_qualifier = _supplementary_unit(
+            hs_digits, goods.get('supplementaryUnit'), goods.get('supplementaryUnitQualifier'))
+        if not net_weight and not supp_unit:
+            raise ValueError("goodsMeasure.netWeight (kg) is required.")
         species = statement_data.get('speciesInfo') or {}
         # speciesInfo n'est envoyé que s'il est renseigné (bloc vide = rejet XSD)
         species_xml = ""
@@ -184,24 +293,24 @@ class EUDRClient:
             <v3:internalReferenceNumber>{_txt(internal_ref)}</v3:internalReferenceNumber>
             <v3:activityType>{_txt(activity_type)}</v3:activityType>
             {operator_block}
-            <v3:countryOfActivity>{_txt(statement_data['countryOfActivity'])}</v3:countryOfActivity>
-            {_el('v3:borderCrossCountry', statement_data.get('borderCrossCountry'))}
+            <v3:countryOfActivity>{_country(statement_data['countryOfActivity'])}</v3:countryOfActivity>
+            {_el('v3:borderCrossCountry', _country(statement_data.get('borderCrossCountry')))}
             {_el('v3:comment', statement_data.get('comment'))}
             <v3:commodities>
                 <v3:position>1</v3:position>
                 <v3:descriptors>
                     <v3c:descriptionOfGoods>{_txt(statement_data['descriptionOfGoods'])}</v3c:descriptionOfGoods>
                     <v3c:goodsMeasure>
-                        {_el('v3c:netWeight', goods.get('netWeight'))}
-                        {_el('v3c:supplementaryUnit', goods.get('supplementaryUnit'))}
-                        {_el('v3c:supplementaryUnitQualifier', goods.get('supplementaryUnitQualifier'))}
+                        {_el('v3c:netWeight', net_weight)}
+                        {_el('v3c:supplementaryUnit', supp_unit)}
+                        {_el('v3c:supplementaryUnitQualifier', supp_qualifier)}
                     </v3c:goodsMeasure>
                 </v3:descriptors>
                 <v3:hsHeading>{_txt(statement_data['hsHeading'])}</v3:hsHeading>
                 {species_xml}
                 {producer_xml}
             </v3:commodities>
-            <v3:geoLocationConfidential>{str(statement_data.get('geoLocationConfidential', False)).lower()}</v3:geoLocationConfidential>"""
+            <v3:geoLocationConfidential>{'true' if str(statement_data.get('geoLocationConfidential')).strip().lower() in ('true', '1', 'yes') else 'false'}</v3:geoLocationConfidential>"""
         # TODO VÉRIFIER: groupedDeclarations (ex-associatedStatements) non géré ici
         # faute de payload d'exemple côté app. À ajouter si utilisé:
         # <v3:groupedDeclarations><v3:groupedDeclaration>REF</v3:groupedDeclaration>...</v3:groupedDeclarations>
@@ -227,7 +336,7 @@ class EUDRClient:
             raise ValueError("Invalid GeoJSON provided.")
 
         geojson_b64 = base64.b64encode(json.dumps(geojson_data).encode('utf-8')).decode('utf-8')
-        producer_xml = self._build_producer_xml(statement_data.get('producers', []), geojson_b64)
+        producer_xml = self._build_producer_xml(statement_data.get('producers', []), geojson_b64, require_non_empty=True)
         operator_role = statement_data.get('operatorRole', statement_data.get('operatorType', 'OPERATOR'))
         statement_xml = self._build_statement_xml(statement_data, producer_xml)
 

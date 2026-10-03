@@ -7,6 +7,73 @@ from app.models import PaidFeatureAccess, FeaturePrice, db
 
 logger = logging.getLogger(__name__)
 
+# Libellés des fonctionnalités payantes connues ; sinon FeaturePrice.description,
+# sinon le feature_name rendu lisible.
+FEATURE_LABELS = {
+    'report':            'Farm Report',
+    'reportfarmer':      'Farmer Report',
+    'reportcarbon':      'Carbon Report',
+    'reportcarbonguest': 'Carbon Report',
+    'reportndviguest':   'Satellite NDVI Report',
+    'reporteudrguest':   'EUDR Compliance Report',
+    'eudrsubmission':    'EUDR DDS Submission',
+    'qrexport':          'QR Code Export',
+}
+
+PAYMENT_METHOD_LABELS = {
+    'mobile_money': 'Mobile Money',
+    'dpo':          'Card / DPO Pay',
+}
+
+
+def feature_label(feature_name, feature=None):
+    if feature_name in FEATURE_LABELS:
+        return FEATURE_LABELS[feature_name]
+    if feature is not None and feature.description and len(feature.description) <= 60:
+        return feature.description.strip()
+    label = (feature_name or 'Unknown feature').replace('_', ' ').replace('-', ' ')
+    if label.endswith('guest'):
+        label = label[:-len('guest')]
+    return label.strip().title()
+
+
+def build_payment_narrative(feature_name, payment_method, amount, currency, txn_id,
+                            user_id=None, guest_phone_number=None, feature=None):
+    """
+    Ex: "Satellite NDVI Report - guest access (+256700000000) - Mobile Money - 15,000.00 UGX - Ref 123"
+    Permet de savoir, dans la base comme chez le prestataire, quel type de
+    paiement a été fait sans devoir décoder feature_name/txn_id.
+    """
+    who = f"user #{user_id}" if user_id else (
+        f"guest access ({guest_phone_number})" if guest_phone_number else "guest access")
+    parts = [
+        feature_label(feature_name, feature),
+        who,
+        PAYMENT_METHOD_LABELS.get(payment_method, (payment_method or '').replace('_', ' ').title()),
+        f"{float(amount):,.2f} {currency}" if amount is not None else currency,
+        f"Ref {txn_id}" if txn_id else None,
+    ]
+    return " - ".join(p for p in parts if p)[:255]
+
+
+def payment_narrative(access, features_by_name=None):
+    """
+    Narrative stockée, ou reconstruite pour les paiements antérieurs à la colonne.
+    features_by_name : {feature_name: FeaturePrice} préchargé pour éviter une
+    requête par ligne dans les listes.
+    """
+    if access.narrative:
+        return access.narrative
+    if features_by_name is not None:
+        feature = features_by_name.get(access.feature_name)
+    else:
+        feature = FeaturePrice.query.filter_by(feature_name=access.feature_name).first()
+    return build_payment_narrative(
+        access.feature_name, access.payment_method, access.amount, access.currency,
+        access.txn_id, user_id=access.user_id, guest_phone_number=access.guest_phone_number,
+        feature=feature,
+    )
+
 
 def create_payment_attempt(user_id=None, guest_phone_number=None, feature_name=None,
                             txn_id=None, payment_method='mobile_money', currency=None,
@@ -46,6 +113,10 @@ def create_payment_attempt(user_id=None, guest_phone_number=None, feature_name=N
         currency=currency,
         amount=amount,
         agent_id=str(agent_id)[:100] if agent_id else None,
+        narrative=build_payment_narrative(
+            feature_name, payment_method, amount, currency, txn_id,
+            user_id=user_id, guest_phone_number=guest_phone_number, feature=feature,
+        ),
     )
 
     db.session.add(new_payment)

@@ -659,6 +659,73 @@ def guest_sat_index():
     return jsonify(result), 200
 
 
+@sentinel_bp.route('/farm/<string:farm_id>/crop-biomass', methods=['GET'])
+@jwt_required()
+def farm_crop_biomass(farm_id):
+    """
+    GET /api/sentinel/farm/<farm_id>/crop-biomass
+    Biomasse de la parcelle selon la formule de sa culture (maize, rice, wheat,
+    cocoa via indices Sentinel ; coffee via allométrie).
+    Query : crop (sinon culture du dernier FarmData), dbh_cm, height_m,
+            wood_density, trees (café uniquement).
+    """
+    from datetime import datetime
+    from dateutil.relativedelta import relativedelta
+    from app.models import Farm, FarmData, Crop, Point
+    from app.utils.sentinel_utils import (
+        _build_geometry, _compute_area_ha_from_points, _call_statistics, _parse_response,
+    )
+    from app.utils.crop_biomass_utils import compute_crop_biomass, resolve_crop_key
+
+    farm = Farm.query.filter_by(farm_id=farm_id).first()
+    if not farm:
+        return jsonify({'error': 'Farm not found'}), 404
+
+    farm_data = (FarmData.query.filter_by(farm_id=farm_id)
+                 .order_by(FarmData.date_created.desc()).first())
+    crop_name = request.args.get('crop')
+    if not crop_name and farm_data:
+        crop = Crop.query.get(farm_data.crop_id)
+        crop_name = crop.name if crop else None
+    if not crop_name:
+        return jsonify({'error': 'No crop recorded for this farm — pass ?crop=maize|rice|wheat|coffee|cocoa'}), 400
+
+    points = Point.query.filter_by(owner_type='farmer', owner_id=str(farm_id)).order_by(Point.id).all()
+    area_ha, _ = _compute_area_ha_from_points(points)
+    if not area_ha and farm_data and farm_data.tilled_land_size:
+        area_ha = farm_data.tilled_land_size
+
+    rows = []
+    if resolve_crop_key(crop_name) != 'coffee':
+        geometry = _build_geometry(points, farm.geolocation)
+        if not geometry:
+            return jsonify({'error': 'No geometry available — add polygon points first'}), 400
+        now = datetime.utcnow()
+        try:
+            raw = _call_statistics(
+                geometry,
+                (now - relativedelta(months=6)).strftime('%Y-%m-%dT00:00:00Z'),
+                now.strftime('%Y-%m-%dT23:59:59Z'),
+                interval='P1M',
+            )
+            rows, _ = _parse_response(raw)
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            return jsonify({'error': f'Sentinel query failed: {str(e)}'}), 500
+
+    result, error = compute_crop_biomass(
+        crop_name, rows, area_ha,
+        dbh_cm=request.args.get('dbh_cm', type=float),
+        height_m=request.args.get('height_m', type=float),
+        wood_density=request.args.get('wood_density', type=float),
+        number_of_trees=request.args.get('trees', type=int) or (farm_data.number_of_tree if farm_data else None),
+    )
+    if error:
+        return jsonify({'error': error}), 400
+    result.update({'farm_id': farm_id, 'farm_name': farm.name})
+    return jsonify(result), 200
+
+
 @sentinel_bp.route('/guest/carbon-extra', methods=['POST'])
 def guest_carbon_extra():
     """
@@ -761,6 +828,25 @@ def guest_carbon_extra():
         result['crop_prediction'] = crop_result
         if crop_error:
             result['crop_prediction_error'] = crop_error
+
+        # Biomasse par culture : culture déclarée (body.crop) sinon culture prédite.
+        # Complémentaire comme la prédiction : un échec n'invalide pas la réponse.
+        from app.utils.crop_biomass_utils import compute_crop_biomass
+        crop_name = data.get('crop') or (crop_result or {}).get('predicted_crop')
+        if crop_name:
+            area_ha, _ = _compute_area_ha_from_coords(coords)
+            try:
+                crop_biomass, biomass_error = compute_crop_biomass(
+                    crop_name, history_result.get('history') or [], area_ha,
+                    dbh_cm=data.get('dbh_cm'), height_m=data.get('height_m'),
+                    wood_density=data.get('wood_density'), number_of_trees=data.get('trees'),
+                )
+            except Exception as e:
+                logger.error(f'[guest_carbon_extra] crop biomass failed: {e}\n{traceback.format_exc()}')
+                crop_biomass, biomass_error = None, str(e)
+            result['crop_biomass'] = crop_biomass
+            if biomass_error:
+                result['crop_biomass_error'] = biomass_error
 
     from app.routes.api_gfw import _log_gfw
     _log_gfw('guest_carbon_extra', 'guest', phone, agent_id=agent_id)

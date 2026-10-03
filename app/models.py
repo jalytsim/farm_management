@@ -539,6 +539,9 @@ class PaidFeatureAccess(db.Model):
     # prix pouvant varier dans le temps, on ne recalcule jamais depuis le prix
     # courant : `amount` ci-dessus est déjà celui figé au moment du paiement).
     agent_id = db.Column(db.String(100), nullable=True, index=True)
+    # Libellé lisible du paiement (fonctionnalité, guest/compte, moyen, montant, réf.)
+    # — figé à la création, envoyé à DPO comme ServiceDescription.
+    narrative = db.Column(db.String(255), nullable=True)
 
     def __repr__(self):
         return f'<PaidFeatureAccess {self.feature_name} - {self.payment_status}>'

@@ -130,9 +130,14 @@ def _build_farm_info(farm):
         'date_updated':    farm.date_updated.strftime('%Y-%m-%d') if farm.date_updated else 'N/A',
         'crops':           [],
     }
-    for fd in FarmData.query.filter_by(farm_id=farm.farm_id).all():
+    farm_data = FarmData.query.filter_by(farm_id=farm.farm_id).order_by(FarmData.id).all()
+    for fd in farm_data:
         crop_name = Crop.query.get(fd.crop_id).name if fd.crop_id else 'N/A'
-        info['crops'].append({'crop': crop_name, 'land_type': fd.land_type})
+        info['crops'].append({'crop': crop_name, 'land_type': fd.land_type,
+                              'tilled_land_size': fd.tilled_land_size})
+    # Surface déclarée de la dernière saison (ha) — utilisée par le PDF EUDR
+    # quand le polygone GPS ne permet pas de calculer la surface.
+    info['farm_size_ha'] = next((fd.tilled_land_size for fd in reversed(farm_data) if fd.tilled_land_size), None)
     return info
 
 

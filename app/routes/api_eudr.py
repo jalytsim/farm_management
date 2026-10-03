@@ -14,6 +14,18 @@ import os
 
 api_eudr_bp = Blueprint('api_eudr', __name__, url_prefix='/api/eudr')
 
+
+def _to_float(value):
+    """Les colonnes Float rejettent '' ou '1 000 kg' : on stocke None si non numérique."""
+    if value is None or str(value).strip() == '':
+        return None
+    raw = str(value).lower().replace('kg', '').replace(' ', '').replace(' ', '')
+    raw = raw.replace(',', '.') if (',' in raw and '.' not in raw) else raw.replace(',', '')
+    try:
+        return float(raw)
+    except ValueError:
+        return None
+
 # Crée une instance du client EUDR (à adapter pour intégrer à un système de configuration sécurisé)
 # 1. Credentials via variable d'env, avec fallback statique si absente
 eudr_client = EUDRClient(
@@ -24,7 +36,7 @@ eudr_client = EUDRClient(
 @api_eudr_bp.route('/submit', methods=['POST'])
 @jwt_required()
 def submit_statement():
-    data = request.json
+    data = request.get_json(silent=True) or {}
     geojson = data.get("geojson")
     statement = data.get("statement")
     identity = get_jwt_identity()
@@ -77,8 +89,8 @@ def submit_statement():
                 scientific_name=statement.get('speciesInfo', {}).get('scientificName'),
                 common_name=statement.get('speciesInfo', {}).get('commonName'),
 
-                volume=statement.get('goodsMeasure', {}).get('volume'),
-                net_weight=statement.get('goodsMeasure', {}).get('netWeight'),
+                volume=_to_float((statement.get('goodsMeasure') or {}).get('volume')),
+                net_weight=_to_float((statement.get('goodsMeasure') or {}).get('netWeight')),
                 supplementary_unit=statement.get('goodsMeasure', {}).get('supplementaryUnit'),
                 supplementary_unit_qualifier=statement.get('goodsMeasure', {}).get('supplementaryUnitQualifier'),
 
@@ -94,11 +106,16 @@ def submit_statement():
             db.session.commit()
         except Exception as e:
             db.session.rollback()
+            # La DDS EST déjà enregistrée côté TRACES : renvoyer une erreur ici poussait
+            # l'utilisateur à resoumettre et créait des doublons. On renvoie l'uuid
+            # avec un avertissement.
+            print("⚠️ DDS soumise mais sauvegarde locale échouée :", dds_identifier, e)
             return jsonify({
-                "status": 500,
-                "error": "Failed to save EUDR statement locally.",
+                "status": response.status_code,
+                "ddsIdentifier": dds_identifier,
+                "warning": "DDS submitted to EUDR but could not be saved locally.",
                 "details": str(e)
-            }), 500
+            }), 200
 
     if not dds_identifier:
         return jsonify({
@@ -172,8 +189,8 @@ def amend_statement():
                 record.scientific_name = statement.get('speciesInfo', {}).get('scientificName', record.scientific_name)
                 record.common_name = statement.get('speciesInfo', {}).get('commonName', record.common_name)
 
-                record.volume = statement.get('goodsMeasure', {}).get('volume', record.volume)
-                record.net_weight = statement.get('goodsMeasure', {}).get('netWeight', record.net_weight)
+                record.volume = _to_float((statement.get('goodsMeasure') or {}).get('volume', record.volume))
+                record.net_weight = _to_float((statement.get('goodsMeasure') or {}).get('netWeight', record.net_weight))
                 record.supplementary_unit = statement.get('goodsMeasure', {}).get('supplementaryUnit', record.supplementary_unit)
                 record.supplementary_unit_qualifier = statement.get('goodsMeasure', {}).get('supplementaryUnitQualifier', record.supplementary_unit_qualifier)
 

@@ -136,6 +136,60 @@ def register_filters(app):
     app.jinja_env.filters['remove_gfw'] = remove_gfw
 
 
+BINARY_TRANSPORT_HEADER = 'X-Binary-Transport'
+
+
+def register_binary_transport(app):
+    """
+    Les gestionnaires de téléchargement (IDM, XDM...) interceptent toute réponse
+    binaire (PDF, CSV, XLSX, images) même en XHR : le frontend recevait alors un
+    corps vide → "Échec de chargement du document PDF". Quand le client envoie
+    `X-Binary-Transport: base64` (axiosInstance le fait pour chaque requête
+    responseType 'blob'), on renvoie le fichier dans du JSON :
+        {"__binary__": true, "mimetype", "filename", "data": <base64>}
+    que ces outils ne capturent jamais ; l'intercepteur axios reconstruit le Blob.
+    Les réponses JSON (erreurs comprises) sont laissées telles quelles.
+    """
+    import base64
+    import json
+    import re
+    from flask import request
+
+    @app.after_request
+    def _binary_as_base64(response):
+        if request.headers.get(BINARY_TRANSPORT_HEADER, '').lower() != 'base64':
+            return response
+        if response.mimetype == 'application/json' or response.status_code >= 300:
+            return response
+
+        response.direct_passthrough = False  # send_file → corps lisible
+        payload = response.get_data()
+        disposition = response.headers.get('Content-Disposition', '')
+        match = re.search(r"filename\*=UTF-8''([^;]+)|filename=\"?([^\";]+)\"?", disposition)
+        filename = None
+        if match:
+            from urllib.parse import unquote
+            filename = unquote(match.group(1)) if match.group(1) else match.group(2)
+
+        mimetype = response.mimetype or 'application/octet-stream'
+        if mimetype == 'application/octet-stream' and (
+                payload[:4] == b'%PDF' or (filename or '').lower().endswith('.pdf')):
+            mimetype = 'application/pdf'
+
+        response.set_data(json.dumps({
+            '__binary__': True,
+            'mimetype':   mimetype,
+            'filename':   filename,
+            'data':       base64.b64encode(payload).decode('ascii'),
+        }))
+        response.mimetype = 'application/json'
+        response.headers.pop('Content-Disposition', None)
+        response.headers.pop('Content-Length', None)
+        response.headers['Content-Length'] = str(len(response.get_data()))
+        response.headers['Cache-Control'] = 'no-store'
+        return response
+
+
 def create_app():
     lock_path = os.path.join(tempfile.gettempdir(), "farm_scheduler.lock")
     if os.path.exists(lock_path):
@@ -147,6 +201,7 @@ def create_app():
     init_extensions(app)
     register_blueprints(app)
     register_filters(app)
+    register_binary_transport(app)
 
     with app.app_context():
         from app.models import User  # noqa: F401
