@@ -190,5 +190,5 @@ def compute_crop_biomass(crop_name, history_rows, area_ha,
         'history':       history,
     })
     if crop_key == 'cocoa' and COCOA_NDII_COEF == 0:
-        result['warning'] = 'NDII coefficient (x) not calibrated yet — cocoa biomass uses the NDVI term only.'
+        result['warning'] = 'NDII coefficient (x) not calibrated yet: cocoa biomass uses the NDVI term only.'
     return result, None

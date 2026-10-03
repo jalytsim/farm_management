@@ -1144,7 +1144,7 @@ def build_carbon_farm_pdf(
         buf, pagesize=A4,
         leftMargin=MARGIN, rightMargin=MARGIN,
         topMargin=MARGIN, bottomMargin=22 * mm,
-        title=f'Carbon Emissions Assessment — {farm_id}',
+        title=f'Carbon Emissions Assessment {farm_id}',
         author='Agriyields',
     )
     st    = _styles()
@@ -1220,7 +1220,7 @@ def build_carbon_farm_pdf(
         ('<b>Gross Emissions</b>', 'Carbon released through land-use change and disturbances.'),
         ('<b>Gross Removals</b>',  'Carbon absorbed by forest growth and regeneration.'),
         ('<b>Net Flux</b>',        f'Balance: {"positive (net source)" if net_positive else "negative (net sink)"}. Current value: {net:.4f} Mg CO<sub>2</sub>e.'),
-        ('<b>Sequestration</b>',   f'Reforestation potential — Belowground: {seq_below:.4f} Mg C, Aboveground: {seq_above:.4f} Mg C.'),
+        ('<b>Sequestration</b>',   f'Reforestation potential. Belowground: {seq_below:.4f} Mg C, Aboveground: {seq_above:.4f} Mg C.'),
     ]
     interp_data = [
         [Paragraph(t, ParagraphStyle('ik', fontName='Helvetica-Bold', fontSize=8,
@@ -1245,7 +1245,7 @@ def build_carbon_farm_pdf(
     if coords:
         map_img = _mapbox_image(coords)
         if map_img:
-            elems += _section_bar('Plot Map — Satellite View', st)
+            elems += _section_bar('Plot Map: Satellite View', st)
             elems.append(map_img)
 
     doc.build(elems, onFirstPage=_footer_canvas, onLaterPages=_footer_canvas, canvasmaker=_NumberedCanvas)
@@ -1269,7 +1269,7 @@ def build_carbon_forest_pdf(
         buf, pagesize=A4,
         leftMargin=MARGIN, rightMargin=MARGIN,
         topMargin=MARGIN, bottomMargin=22 * mm,
-        title=f'Carbon Emissions Assessment — Forest {forest_id}',
+        title=f'Carbon Emissions Assessment Forest {forest_id}',
         author='Agriyields',
     )
     st    = _styles()
@@ -1290,7 +1290,7 @@ def build_carbon_forest_pdf(
 
     elems.append(_header_table(
         logo_parrot, logo_agri,
-        'CARBON EMISSIONS ASSESSMENT — FOREST',
+        'CARBON EMISSIONS ASSESSMENT FOREST',
         f'Generated on {today}  •  Regulation (EU) 2023/1115',
     ))
     elems.append(Spacer(1, 5 * mm))
@@ -1332,7 +1332,7 @@ def build_carbon_forest_pdf(
     if coords:
         map_img = _mapbox_image(coords)
         if map_img:
-            elems += _section_bar('Plot Map — Satellite View', st)
+            elems += _section_bar('Plot Map: Satellite View', st)
             elems.append(map_img)
 
     doc.build(elems, onFirstPage=_footer_canvas, onLaterPages=_footer_canvas, canvasmaker=_NumberedCanvas)
@@ -1387,7 +1387,7 @@ def build_tree_co2_pdf(
         buf, pagesize=A4,
         leftMargin=MARGIN, rightMargin=MARGIN,
         topMargin=MARGIN, bottomMargin=22 * mm,
-        title=f'Tree CO2 Sequestration Report — Forest {forest_id}',
+        title=f'Tree CO2 Sequestration Report Forest {forest_id}',
         author='Agriyields',
     )
     st    = _styles()
@@ -1464,7 +1464,7 @@ def build_forest_biomass_index_pdf(
         buf, pagesize=A4,
         leftMargin=MARGIN, rightMargin=MARGIN,
         topMargin=MARGIN, bottomMargin=22 * mm,
-        title=f'Forest Biomass (Satellite Index) Report — Forest {forest_id}',
+        title=f'Forest Biomass (Satellite Index) Report Forest {forest_id}',
         author='Agriyields',
     )
     st    = _styles()
@@ -1473,7 +1473,7 @@ def build_forest_biomass_index_pdf(
 
     elems.append(_header_table(
         logo_parrot, logo_agri,
-        'FOREST CARBON ASSESSMENT — SATELLITE INDEX MODEL',
+        'FOREST CARBON ASSESSMENT: SATELLITE INDEX MODEL',
         f'Generated on {today}  •  AGB/BGB estimated from Sentinel-2 NDVI',
     ))
     elems.append(Spacer(1, 5 * mm))
@@ -1503,7 +1503,7 @@ def build_forest_biomass_index_pdf(
         f"{biomass.get('model', '')}. Total biomass = 1.2 x AGB (20% belowground). "
         'Dry weight = 72.5% of biomass, carbon = 50% of dry weight, CO2 = carbon x 3.67 '
         '(same conversion chain as the per-tree measured report). This satellite-index '
-        'estimate is a generic approximation for forests without a full tree inventory — '
+        'estimate is a generic approximation for forests without a full tree inventory: '
         'it is NOT calibrated on local field plots and should not replace ground '
         'measurements or GFW data for regulatory submissions without local validation.'
     )
