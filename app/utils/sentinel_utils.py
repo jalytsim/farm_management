@@ -293,7 +293,7 @@ def get_tier(index_name, value):
 
 INDEX_LTV_CONFIG = {
     'ndvi': {
-        'label':    'NDVI — Vegetation Health',
+        'label':    'NDVI: Vegetation Health',
         'icon':     '🌱',
         'color':    '#16a34a',
         'optimal':  0.70,
@@ -303,7 +303,7 @@ INDEX_LTV_CONFIG = {
         'weight':   0.28,
     },
     'evi': {
-        'label':    'EVI — Enhanced Vegetation',
+        'label':    'EVI: Enhanced Vegetation',
         'icon':     '🌿',
         'color':    '#0d9488',
         'optimal':  0.50,
@@ -313,7 +313,7 @@ INDEX_LTV_CONFIG = {
         'weight':   0.18,
     },
     'savi': {
-        'label':    'SAVI — Soil-Adj Vegetation',
+        'label':    'SAVI: Soil-Adj Vegetation',
         'icon':     '🌾',
         'color':    '#65a30d',
         'optimal':  0.50,
@@ -323,7 +323,7 @@ INDEX_LTV_CONFIG = {
         'weight':   0.14,
     },
     'ndmi': {
-        'label':    'NDMI — Canopy Moisture',
+        'label':    'NDMI: Canopy Moisture',
         'icon':     '💧',
         'color':    '#0284c7',
         'optimal':  0.30,
@@ -333,7 +333,7 @@ INDEX_LTV_CONFIG = {
         'weight':   0.18,
     },
     'ndwi': {
-        'label':    'NDWI — Water Content',
+        'label':    'NDWI: Water Content',
         'icon':     '🌊',
         'color':    '#0ea5e9',
         'optimal':  0.15,
@@ -343,7 +343,7 @@ INDEX_LTV_CONFIG = {
         'weight':   0.10,
     },
     'nmdi': {
-        'label':    'NMDI — Drought Index',
+        'label':    'NMDI: Drought Index',
         'icon':     '☀️',
         'color':    '#f97316',
         'optimal':  0.65,
@@ -353,7 +353,7 @@ INDEX_LTV_CONFIG = {
         'weight':   0.06,
     },
     'nbr': {
-        'label':    'NBR — Burn Ratio',
+        'label':    'NBR: Burn Ratio',
         'icon':     '🔥',
         'color':    '#ef4444',
         'optimal':  0.40,
@@ -363,7 +363,7 @@ INDEX_LTV_CONFIG = {
         'weight':   0.04,
     },
     'bsi': {
-        'label':    'BSI — Bare Soil Index',
+        'label':    'BSI: Bare Soil Index',
         'icon':     '⛰️',
         'color':    '#92400e',
         'optimal':  0.00,

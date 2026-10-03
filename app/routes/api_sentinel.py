@@ -312,7 +312,7 @@ def _build_pdf_html(data):
                 tc = f.get('tier', {}).get('color', color)
                 cells += f'<td style="color:{tc};font-weight:600">{f["value"]:.4f}</td>'
             else:
-                cells += '<td style="color:#4b5563">—</td>'
+                cells += '<td style="color:#4b5563">N/A</td>'
         fc_body += f'<tr><td class="qtr">{fc_q["quarter"]}</td>{cells}</tr>'
     if not fc_body:
         fc_body = '<tr><td colspan="9" style="color:#4b5563;text-align:center;padding:10px">No forecast data</td></tr>'
@@ -327,7 +327,7 @@ def _build_pdf_html(data):
                 tc = tier.get('color', color)
                 cells += f'<td style="color:{tc}">{val:.4f}</td>'
             else:
-                cells += '<td style="color:#4b5563">—</td>'
+                cells += '<td style="color:#4b5563">N/A</td>'
         hist_body += f'<tr><td class="qtr">{row["date"]}</td>{cells}</tr>'
     if not hist_body:
         hist_body = '<tr><td colspan="9" style="color:#4b5563;text-align:center;padding:10px">No data</td></tr>'
@@ -350,7 +350,7 @@ def _build_pdf_html(data):
             ltv_table_rows += f"""
             <tr>
                 <td style="text-align:left; font-weight:600; color:{idx_ltv['color']}">
-                    {idx_ltv['icon']} {idx_ltv['label'].split('—')[0].strip()}
+                    {idx_ltv['icon']} {idx_ltv['label'].split(':')[0].split('—')[0].strip()}
                 </td>
                 <td>{val_str}</td>
                 <td>{idx_ltv.get('factor', 0.3):.4f}</td>
@@ -369,7 +369,7 @@ def _build_pdf_html(data):
         ltv_table_rows += f"""
         <tr class="composite-row" style="background: #1e3a2a; border-top: 2px solid #34d399;">
             <td style="text-align:left; font-weight:bold; color:#34d399;">🧮 COMPOSITE PONDÉRÉ</td>
-            <td>—</td>
+            <td>N/A</td>
             <td style="font-weight:bold;">{composite_data.get('factor', 0.3):.4f}</td>
             <td style="font-weight:bold;">{composite_data.get('adjusted_yield_t_ha', 0):.3f} t/ha</td>
             <td style="text-align:right; font-weight:bold;">USD {composite_data.get('estimated_crop_value_usd', 0):,.2f}</td>
@@ -381,7 +381,7 @@ def _build_pdf_html(data):
 
         ltv_section = f"""
         <div class="section">
-          <h2>Financial Analysis (LTV) — Multi-Index Breakdown</h2>
+          <h2>Financial Analysis (LTV): Multi-Index Breakdown</h2>
           <div class="ltv-meta-info" style="margin-bottom: 8px; font-size: 7.5pt; color: #94a3b8;">
             <strong>Paramètres de base :</strong> Superficie: {data['ltv'].get('area_ha', 'N/A')} ha &nbsp;&middot;&nbsp; 
             Rendement cible: {data['ltv'].get('yield_t_per_ha', 'N/A')} t/ha &nbsp;&middot;&nbsp; 
@@ -409,7 +409,7 @@ def _build_pdf_html(data):
         """
 
     no_charts_msg = ('<p style="color:#4b5563;font-size:8pt;padding:8px 0">'
-                     'Charts unavailable — install matplotlib: pip install matplotlib</p>')
+                     'Charts unavailable: install matplotlib (pip install matplotlib)</p>')
 
     return f"""<!DOCTYPE html>
 <html><head><meta charset="UTF-8"/>
@@ -452,15 +452,15 @@ def _build_pdf_html(data):
   {ltv_section}
   
   <div class="section">
-    <h2>Historical Trends &amp; Forecast &mdash; NDVI &middot; NDMI &middot; EVI &middot; NMDI</h2>
+    <h2>Historical Trends &amp; Forecast: NDVI &middot; NDMI &middot; EVI &middot; NMDI</h2>
     {chart_rows if chart_rows else no_charts_msg}
   </div>
   <div class="section">
-    <h2>1-Year Forecast &mdash; All Indices</h2>
+    <h2>1-Year Forecast: All Indices</h2>
     <table><thead><tr><th>Quarter</th>{th}</tr></thead><tbody>{fc_body}</tbody></table>
   </div>
   <div class="section">
-    <h2>Historical Data &mdash; 5 Years</h2>
+    <h2>Historical Data: 5 Years</h2>
     <table><thead><tr><th>Date</th>{th}</tr></thead><tbody>{hist_body}</tbody></table>
   </div>
   <div class="footer">
