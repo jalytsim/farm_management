@@ -31,7 +31,16 @@ def _hs_code_error(statement):
              .filter(HSCodeSubheading.code.like(digits[:4] + '%'), HSCodeSubheading.traces_valid.is_(True)).all()]
     valid += [h.digits for h in HSCode.query.filter_by(traces_valid=True).all()
               if h.digits and digits.startswith(h.digits[:4])]
-    hint = f" Accepted codes for heading {digits[:4]}: {', '.join(sorted(set(valid)))}." if valid else ""
+    valid = sorted(set(valid))
+    # Correction automatique quand il n'y a aucun doute : position "…00" (ex.
+    # 180100, envoyé par d'anciennes versions du formulaire) ou position à
+    # 4 chiffres seule acceptée (ex. 010221 → 0102). TRACES accepte la position.
+    heading = digits[:4]
+    if len(digits) > 4 and heading in valid and (digits[4:].strip('0') == '' or valid == [heading]):
+        print(f"[EUDR] HS code {digits} refused by TRACES, sent as {heading}", flush=True)
+        statement['hsHeading'] = heading
+        return None
+    hint = f" Accepted codes for heading {heading}: {', '.join(valid)}." if valid else ""
     return f"HS code {digits} is not accepted by the EUDR information system (TRACES).{hint}"
 
 
