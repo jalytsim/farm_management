@@ -15,6 +15,22 @@ import os
 api_eudr_bp = Blueprint('api_eudr', __name__, url_prefix='/api/eudr')
 
 
+def _sent_summary(statement):
+    """Champs clés réellement envoyés à TRACES, renvoyés avec l'erreur : le
+    Fault TRACES ne dit jamais quelle valeur il rejette (ex. HS-CODE-INVALID)."""
+    goods = statement.get('goodsMeasure') or {}
+    return {
+        'hsHeading':  ''.join(ch for ch in str(statement.get('hsHeading') or '') if ch.isdigit()),
+        'activityType': statement.get('activityType'),
+        'countryOfActivity': statement.get('countryOfActivity'),
+        'descriptionOfGoods': statement.get('descriptionOfGoods'),
+        'netWeight': goods.get('netWeight'),
+        'supplementaryUnit': goods.get('supplementaryUnit'),
+        'supplementaryUnitQualifier': goods.get('supplementaryUnitQualifier'),
+        'producerCountries': [p.get('country') for p in (statement.get('producers') or []) if isinstance(p, dict)],
+    }
+
+
 def _to_float(value):
     """Les colonnes Float rejettent '' ou '1 000 kg' : on stocke None si non numérique."""
     if value is None or str(value).strip() == '':
@@ -52,11 +68,14 @@ def submit_statement():
 
     fault = extract_soap_fault(response.text)
     if fault:
-        print("🔥 SOAP Fault (submit) :", fault, "| raw:", response.text[:2000])
+        sent = _sent_summary(statement)
+        # flush=True : sans ça gunicorn bufferise stdout et rien n'arrive dans journalctl
+        print("🔥 SOAP Fault (submit) :", fault, "| sent:", sent, "| raw:", response.text[:2000], flush=True)
         return jsonify({
             "status": response.status_code,
             "error": fault.get("faultstring"),
             "detail": fault.get("detail"),
+            "sent": sent,
             "raw": response.text
         }), 502
 
@@ -150,11 +169,14 @@ def amend_statement():
 
     fault = extract_soap_fault(response.text)
     if fault:
-        print("🔥 SOAP Fault (amend) :", fault, "| raw:", response.text[:2000])
+        sent = _sent_summary(statement)
+        # flush=True : sans ça gunicorn bufferise stdout et rien n'arrive dans journalctl
+        print("🔥 SOAP Fault (amend) :", fault, "| sent:", sent, "| raw:", response.text[:2000], flush=True)
         return jsonify({
             "status": response.status_code,
             "error": fault.get("faultstring"),
             "detail": fault.get("detail"),
+            "sent": sent,
             "raw": response.text
         }), 502
 
