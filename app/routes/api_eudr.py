@@ -8,7 +8,10 @@ from app.models import db, EUDRStatement
 from datetime import datetime
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.models import User
-from app.utils.decorators import admin_required, load_current_user
+from app.utils.decorators import permission_required, load_current_user
+
+# Clé du JSON User.permissions cochée dans User Manager (admins toujours autorisés)
+DDS_PERMISSION = 'eudr_dds'
 from dateutil import parser  # pip install python-dateutil si nécessaire
 import os
 
@@ -51,6 +54,14 @@ def _owned_query(user):
     return query if user.is_admin else query.filter(EUDRStatement.created_by == user.id)
 
 
+def _forbidden_dds(dds_id):
+    """Réponse 404 si un non-admin vise une DDS qu'il n'a pas créée, sinon None."""
+    user = load_current_user()
+    if user.is_admin or _owned_query(user).filter_by(dds_identifier=dds_id).first():
+        return None
+    return jsonify({"status": 404, "error": "DDS not found for this account."}), 404
+
+
 def _sent_summary(statement):
     """Champs clés réellement envoyés à TRACES, renvoyés avec l'erreur : le
     Fault TRACES ne dit jamais quelle valeur il rejette (ex. HS-CODE-INVALID)."""
@@ -86,7 +97,7 @@ eudr_client = EUDRClient(
 )
 
 @api_eudr_bp.route('/submit', methods=['POST'])
-@admin_required
+@permission_required(DDS_PERMISSION)
 def submit_statement():
     data = request.get_json(silent=True) or {}
     geojson = data.get("geojson")
@@ -190,7 +201,7 @@ def submit_statement():
 
 
 @api_eudr_bp.route('/amend', methods=['POST'])
-@admin_required
+@permission_required(DDS_PERMISSION)
 def amend_statement():
     data = request.json
     geojson = data.get("geojson")
@@ -201,6 +212,10 @@ def amend_statement():
 
     if not statement:
         return jsonify({"status": 400, "error": "Missing 'statement' payload."}), 400
+
+    denied = _forbidden_dds(dds_id)
+    if denied:
+        return denied
 
     hs_error = _hs_code_error(statement)
     if hs_error:
@@ -289,8 +304,11 @@ def amend_statement():
     })
 
 @api_eudr_bp.route('/retract/<dds_id>', methods=['DELETE'])
-@admin_required
+@permission_required(DDS_PERMISSION)
 def retract_statement(dds_id):
+    denied = _forbidden_dds(dds_id)
+    if denied:
+        return denied
     response = eudr_client.withdraw_statement(dds_id)
 
     if response.status_code == 200:
@@ -311,7 +329,7 @@ def retract_statement(dds_id):
 
 
 @api_eudr_bp.route('/info/by-internal-ref/<reference>', methods=['GET'])
-@jwt_required()
+@permission_required(DDS_PERMISSION)
 def get_by_internal_reference(reference):
     from dateutil import parser
     import traceback
@@ -409,14 +427,15 @@ def get_by_internal_reference(reference):
 
 
 @api_eudr_bp.route('/info/by-dds-id/<dds_id>', methods=['GET'])
-@jwt_required()
+@permission_required(DDS_PERMISSION)
 def get_by_dds_identifier(dds_id):
     user = load_current_user()
     if not user:
         return jsonify({"msg": "Account not found"}), 401
     user_id = user.id
-    if not user.is_admin and not _owned_query(user).filter_by(dds_identifier=dds_id).first():
-        return jsonify({"status": 404, "error": "DDS not found for this account."}), 404
+    denied = _forbidden_dds(dds_id)
+    if denied:
+        return denied
 
     response = eudr_client.get_by_dds_identifier(dds_id)
     info = extract_statement_info(response.text)
@@ -528,7 +547,7 @@ def get_by_reference_and_verification():
 
 
 @api_eudr_bp.route('/', methods=['GET'])
-@jwt_required()
+@permission_required(DDS_PERMISSION)
 def list_statements():
     user = load_current_user()
     if not user:
