@@ -8,6 +8,7 @@ from app.models import db, EUDRStatement
 from datetime import datetime
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.models import User
+from app.utils.decorators import admin_required, load_current_user
 from dateutil import parser  # pip install python-dateutil si nécessaire
 import os
 
@@ -42,6 +43,12 @@ def _hs_code_error(statement):
         return None
     hint = f" Accepted codes for heading {heading}: {', '.join(valid)}." if valid else ""
     return f"HS code {digits} is not accepted by the EUDR information system (TRACES).{hint}"
+
+
+def _owned_query(user):
+    """DDS visibles par le compte : toutes pour un admin, les siennes sinon."""
+    query = EUDRStatement.query
+    return query if user.is_admin else query.filter(EUDRStatement.created_by == user.id)
 
 
 def _sent_summary(statement):
@@ -79,7 +86,7 @@ eudr_client = EUDRClient(
 )
 
 @api_eudr_bp.route('/submit', methods=['POST'])
-@jwt_required()
+@admin_required
 def submit_statement():
     data = request.get_json(silent=True) or {}
     geojson = data.get("geojson")
@@ -183,7 +190,7 @@ def submit_statement():
 
 
 @api_eudr_bp.route('/amend', methods=['POST'])
-@jwt_required()
+@admin_required
 def amend_statement():
     data = request.json
     geojson = data.get("geojson")
@@ -282,7 +289,7 @@ def amend_statement():
     })
 
 @api_eudr_bp.route('/retract/<dds_id>', methods=['DELETE'])
-@jwt_required()
+@admin_required
 def retract_statement(dds_id):
     response = eudr_client.withdraw_statement(dds_id)
 
@@ -309,8 +316,10 @@ def get_by_internal_reference(reference):
     from dateutil import parser
     import traceback
 
-    identity = get_jwt_identity()
-    user_id = identity['id'] if identity else None
+    user = load_current_user()
+    if not user:
+        return jsonify({"msg": "Account not found"}), 401
+    user_id = user.id
 
     response = eudr_client.get_by_internal_reference(reference)
 
@@ -326,6 +335,10 @@ def get_by_internal_reference(reference):
         }), 502
 
     statements = extract_internal_ref_statements(response.text)
+    if statements and not user.is_admin:
+        # Le compte TRACES est partagé : un non-admin ne voit que ses propres DDS
+        owned = {s.dds_identifier for s in _owned_query(user).all()}
+        statements = [s for s in statements if s.get("identifier") in owned]
     if statements and not any(s.get("identifier") for s in statements):
         print("⚠️ Tous les champs sont vides — XML brut pour diagnostic :", response.text[:4000])
 
@@ -356,7 +369,7 @@ def get_by_internal_reference(reference):
                     record.status_date = status_date
                     record.modified_by = user_id
                     record.updated_at = datetime.utcnow()
-                else:
+                elif user.is_admin:
                     new_stmt = EUDRStatement(
                         dds_identifier=identifier,
                         internal_reference_number=stmt_data.get("internalReferenceNumber"),
@@ -398,8 +411,12 @@ def get_by_internal_reference(reference):
 @api_eudr_bp.route('/info/by-dds-id/<dds_id>', methods=['GET'])
 @jwt_required()
 def get_by_dds_identifier(dds_id):
-    identity = get_jwt_identity()
-    user_id = identity['id'] if identity else None
+    user = load_current_user()
+    if not user:
+        return jsonify({"msg": "Account not found"}), 401
+    user_id = user.id
+    if not user.is_admin and not _owned_query(user).filter_by(dds_identifier=dds_id).first():
+        return jsonify({"status": 404, "error": "DDS not found for this account."}), 404
 
     response = eudr_client.get_by_dds_identifier(dds_id)
     info = extract_statement_info(response.text)
@@ -511,8 +528,12 @@ def get_by_reference_and_verification():
 
 
 @api_eudr_bp.route('/', methods=['GET'])
+@jwt_required()
 def list_statements():
-    statements = EUDRStatement.query.all()
+    user = load_current_user()
+    if not user:
+        return jsonify({"msg": "Account not found"}), 401
+    statements = _owned_query(user).all()
     results = []
     for s in statements:
         results.append({
