@@ -99,14 +99,14 @@ def _compute_safe_resolution(geometry, max_dim=500, min_res=0.0001):
     return round(resx, 6), round(resy, 6)
 
 EVALSCRIPT = """//VERSION=3
-function setup(){return{input:[{bands:['B02','B03','B04','B08','B11','B12','dataMask']}],output:[
+function setup(){return{input:[{bands:['B02','B03','B04','B05','B08','B11','B12','dataMask']}],output:[
   {id:'ndvi',bands:1},{id:'ndmi',bands:1},{id:'ndwi',bands:1},{id:'nmdi',bands:1},
   {id:'evi',bands:1},{id:'savi',bands:1},{id:'nbr',bands:1},{id:'bsi',bands:1},
-  {id:'dataMask',bands:1}
+  {id:'ndre',bands:1},{id:'dataMask',bands:1}
 ]};}
 function clamp(v,lo,hi){return Math.max(lo,Math.min(hi,v));}
 function evaluatePixel(s){
-  if(s.dataMask===0)return{ndvi:[0],ndmi:[0],ndwi:[0],nmdi:[0],evi:[0],savi:[0],nbr:[0],bsi:[0],dataMask:[0]};
+  if(s.dataMask===0)return{ndvi:[0],ndmi:[0],ndwi:[0],nmdi:[0],evi:[0],savi:[0],nbr:[0],bsi:[0],ndre:[0],dataMask:[0]};
   var ndvi=(s.B08-s.B04)/(s.B08+s.B04+1e-10);
   var ndmi=(s.B08-s.B11)/(s.B08+s.B11+1e-10);
   var ndwi=(s.B03-s.B08)/(s.B03+s.B08+1e-10);
@@ -115,10 +115,11 @@ function evaluatePixel(s){
   var savi=1.5*(s.B08-s.B04)/(s.B08+s.B04+0.5+1e-10);
   var nbr=(s.B08-s.B12)/(s.B08+s.B12+1e-10);
   var bsiD=(s.B11+s.B04)+(s.B08+s.B02); var bsi=Math.abs(bsiD)>1e-6?((s.B11+s.B04)-(s.B08+s.B02))/bsiD:0;
+  var ndre=(s.B08-s.B05)/(s.B08+s.B05+1e-10);
   return{
     ndvi:[clamp(ndvi,-1,1)],ndmi:[clamp(ndmi,-1,1)],ndwi:[clamp(ndwi,-1,1)],nmdi:[clamp(nmdi,-1,1)],
     evi:[clamp(evi,-1,1)],savi:[clamp(savi,-1,1)],nbr:[clamp(nbr,-1,1)],bsi:[clamp(bsi,-1,1)],
-    dataMask:[s.dataMask]
+    ndre:[clamp(ndre,-1,1)],dataMask:[s.dataMask]
   };
 }"""  
 

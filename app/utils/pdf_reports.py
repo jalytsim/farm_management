@@ -7,8 +7,9 @@ Aucune dépendance navigateur, aucun HTML à parser.
 Rapports disponibles :
   • build_eudr_farm_pdf(farm_id, farm_info, gfw_data)   → bytes
   • build_eudr_forest_pdf(forest_id, forest_info, gfw_data) → bytes
-  • build_carbon_farm_pdf(farm_id, farm_info, report)   → bytes
-  • build_carbon_forest_pdf(forest_id, forest_info, report) → bytes
+  • build_carbon_farm_pdf(farm_id, farm_info, carbon, coords)     → bytes
+  • build_carbon_forest_pdf(forest_id, forest_info, carbon, coords) → bytes
+    (carbon = carbon_index_utils.compute_carbon_from_indices, Sentinel-2)
 
 Dépendances Python :
   reportlab  matplotlib  shapely  requests
@@ -1088,10 +1089,10 @@ def _carbon_table(vals: dict) -> Table:
         [Paragraph('Carbon Net Emissions',               _styles()['body']),
          badge_cell(vals['net'],
                     BADGE_COLORS['net_pos'] if vals['net'] >= 0 else BADGE_COLORS['net_neg'])],
-        [Paragraph('Sequestration Potential (Belowground)', _styles()['body']),
-         Paragraph(f"{vals['seq_below']:.4f} Mg C", _styles()['body'])],
-        [Paragraph('Sequestration Potential (Aboveground)', _styles()['body']),
-         Paragraph(f"{vals['seq_above']:.4f} Mg C", _styles()['body'])],
+        [Paragraph('Carbon Stock (Aboveground)', _styles()['body']),
+         Paragraph(f"{vals['stock_above_c']:.4f} Mg C", _styles()['body'])],
+        [Paragraph('Carbon Stock (Belowground)', _styles()['body']),
+         Paragraph(f"{vals['stock_below_c']:.4f} Mg C", _styles()['body'])],
     ]
 
     t = Table(rows, colWidths=[CONTENT_W * 0.65, CONTENT_W * 0.35])
@@ -1131,14 +1132,98 @@ def _carbon_status_badge(net_positive: bool) -> Table:
     return t
 
 
+def _carbon_indices_table(carbon: dict) -> Table:
+    """Indices Sentinel-2 (dernière lecture) + formule de chaque indice."""
+    labels = {'ndvi': 'NDVI', 'evi': 'EVI', 'savi': 'SAVI', 'ndre': 'NDRE'}
+    rows = [[Paragraph('<b>Index</b>',   _styles()['body_bold']),
+             Paragraph('<b>Formula</b>', _styles()['body_bold']),
+             Paragraph(f"<b>Value ({carbon.get('end_date') or 'N/A'})</b>", _styles()['body_bold'])]]
+    for key, label in labels.items():
+        val = (carbon.get('indices') or {}).get(key)
+        rows.append([
+            Paragraph(label, _styles()['body']),
+            Paragraph((carbon.get('index_formulas') or {}).get(key, ''), _styles()['body']),
+            Paragraph('N/A' if val is None else f'{float(val):.4f}', _styles()['body']),
+        ])
+    t = Table(rows, colWidths=[25 * mm, CONTENT_W - 60 * mm, 35 * mm])
+    t.setStyle(TableStyle([
+        ('BACKGROUND',   (0, 0), (-1, 0),  GREEN),
+        ('TEXTCOLOR',    (0, 0), (-1, 0),  WHITE),
+        ('GRID',         (0, 0), (-1, -1), 0.5, GRAY_BORDER),
+        ('VALIGN',       (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING',   (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING',(0, 0), (-1, -1), 5),
+        ('LEFTPADDING',  (0, 0), (-1, -1), 6),
+    ]))
+    return t
+
+
+def _carbon_assessment_elems(carbon: dict, st: dict) -> list:
+    """Résumé carbone + indices + méthode — commun aux rapports ferme et forêt."""
+    emissions, removals, net = carbon['emissions'], carbon['removals'], carbon['net']
+    net_positive = net >= 0
+    elems = []
+
+    elems += _section_bar('Carbon Assessment Summary', st)
+    pie = _pie_chart_image({
+        'Gross Emissions': abs(emissions),
+        'Gross Removals':  abs(removals),
+        'Net Flux':        abs(net),
+        'Carbon Stock':    abs(carbon['stock_above_c'] + carbon['stock_below_c']),
+    }, size=60 * mm)
+    side_t = Table([[_carbon_table(carbon), pie]], colWidths=[CONTENT_W - 68 * mm, 68 * mm])
+    side_t.setStyle(TableStyle([
+        ('VALIGN',       (0, 0), (-1, -1), 'TOP'),
+        ('LEFTPADDING',  (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+    ]))
+    elems.append(side_t)
+    elems.append(Spacer(1, 5 * mm))
+
+    elems += _section_bar('Vegetation Indices (Sentinel-2)', st)
+    elems.append(_carbon_indices_table(carbon))
+    elems.append(Spacer(1, 5 * mm))
+
+    elems += _section_bar('Methodology & Interpretation', st)
+    period = f"{carbon.get('start_date') or 'N/A'} → {carbon.get('end_date') or 'N/A'}"
+    interp = [
+        ('<b>Biomass (AGB)</b>',  f"{carbon['agb_formula']}, computed for each monthly Sentinel-2 reading."),
+        ('<b>Carbon Stock</b>',   'AGB × area, + BGB (20 % of AGB) × 72.5 % dry matter × 50 % carbon × 3.67 (CO<sub>2</sub>/C). '
+                                  f"Start: {carbon['stock_start_co2e_mg']:.4f}, end: {carbon['stock_end_co2e_mg']:.4f} Mg CO<sub>2</sub>e."),
+        ('<b>Gross Emissions</b>', f'Loss of carbon stock over {period} (max(−ΔStock, 0)).'),
+        ('<b>Gross Removals</b>',  f'Gain of carbon stock over {period} (max(ΔStock, 0)).'),
+        ('<b>Net Flux</b>',        f'Emissions − Removals: {"positive (net source)" if net_positive else "negative (net sink)"}. '
+                                   f'Current value: {net:.4f} Mg CO<sub>2</sub>e.'),
+    ]
+    for w in carbon.get('warnings') or []:
+        interp.append(('<b>Note</b>', w))
+    interp_t = Table([
+        [Paragraph(t, ParagraphStyle('ik', fontName='Helvetica-Bold', fontSize=8, textColor=GREEN)),
+         Paragraph(d, ParagraphStyle('id', fontName='Helvetica', fontSize=8, textColor=BLACK, leading=11))]
+        for t, d in interp
+    ], colWidths=[42 * mm, CONTENT_W - 42 * mm])
+    interp_t.setStyle(TableStyle([
+        ('BACKGROUND',   (0, 0), (-1, -1), GRAY_BG),
+        ('GRID',         (0, 0), (-1, -1), 0.5, GRAY_BORDER),
+        ('VALIGN',       (0, 0), (-1, -1), 'TOP'),
+        ('TOPPADDING',   (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING',(0, 0), (-1, -1), 5),
+        ('LEFTPADDING',  (0, 0), (-1, -1), 6),
+    ]))
+    elems.append(interp_t)
+    elems.append(Spacer(1, 5 * mm))
+    return elems
+
+
 def build_carbon_farm_pdf(
     farm_id    : str,
     farm_info  : dict,
-    report     : list,
+    carbon     : dict,
+    coords     : list | None = None,
     logo_parrot: str | None = None,
     logo_agri  : str | None = None,
 ) -> bytes:
-    """Génère le rapport Carbon pour une ferme."""
+    """Génère le rapport Carbon pour une ferme (indices Sentinel-2)."""
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
         buf, pagesize=A4,
@@ -1150,20 +1235,7 @@ def build_carbon_farm_pdf(
     st    = _styles()
     today = datetime.now().strftime('%d %B %Y')
     elems = []
-
-    # Extraire les valeurs
-    emissions  = (report[0].get('data_fields', {}).get('gfw_forest_carbon_gross_emissions__Mg_CO2e', 0) or 0) if len(report) > 0 else 0
-    removals   = (report[1].get('data_fields', {}).get('gfw_forest_carbon_gross_removals__Mg_CO2e',  0) or 0) if len(report) > 1 else 0
-    net        = (report[2].get('data_fields', {}).get('gfw_forest_carbon_net_flux__Mg_CO2e',        0) or 0) if len(report) > 2 else 0
-    seq_below  = (report[3].get('data_fields', {}).get('gfw_reforestable_extent_belowground_carbon_potential_sequestration__Mg_C', 0) or 0) if len(report) > 3 else 0
-    seq_above  = (report[4].get('data_fields', {}).get('gfw_reforestable_extent_aboveground_carbon_potential_sequestration__Mg_C', 0) or 0) if len(report) > 4 else 0
-    coords     = report[0].get('coordinates', [[]])[0] if report else []
-
-    area_m2, area_ha = _calc_area_ha_simple(coords) if coords else (0, 0)
-    net_positive     = net >= 0
-
-    vals = {'emissions': emissions, 'removals': removals,
-            'net': net, 'seq_below': seq_below, 'seq_above': seq_above}
+    area_ha = carbon.get('area_ha') or 0
 
     # ── En-tête ──────────────────────────────────────────────────────────────
     elems.append(_header_table(
@@ -1174,7 +1246,7 @@ def build_carbon_farm_pdf(
     elems.append(Spacer(1, 5 * mm))
 
     # ── Net status badge ──────────────────────────────────────────────────────
-    elems.append(_carbon_status_badge(net_positive))
+    elems.append(_carbon_status_badge(carbon['net'] >= 0))
     elems.append(Spacer(1, 5 * mm))
 
     # ── Farm info ─────────────────────────────────────────────────────────────
@@ -1184,62 +1256,16 @@ def build_carbon_farm_pdf(
         ('Owner',        farm_info.get('name')),
         ('Geolocation',  farm_info.get('geolocation')),
     ]
+    if carbon.get('crop'):
+        rows.append(('Crop', carbon['crop']))
     if farm_info.get('crops'):
-        rows.append(('Primary Crop', farm_info['crops'][0].get('crop', 'N/A')))
-        rows.append(('Land Type',    farm_info['crops'][0].get('land_type', 'N/A')))
+        rows.append(('Land Type', farm_info['crops'][-1].get('land_type', 'N/A')))
     if area_ha:
-        rows.append(('Project Area', f"{area_m2:.2f} m²  ({area_ha:.2f} ha)"))
+        rows.append(('Project Area', f"{area_ha * 10_000:.2f} m²  ({area_ha:.2f} ha)"))
     elems.append(_info_table(rows))
     elems.append(Spacer(1, 5 * mm))
 
-    # ── Carbon table + pie chart côte à côte ─────────────────────────────────
-    elems += _section_bar('Carbon Assessment Summary', st)
-
-    pie = _pie_chart_image({
-        'Gross Emissions': abs(emissions),
-        'Gross Removals':  abs(removals),
-        'Net Flux':        abs(net),
-        'Sequestration':   abs(seq_below),
-    }, size=60 * mm)
-
-    side_t = Table(
-        [[_carbon_table(vals), pie]],
-        colWidths=[CONTENT_W - 68 * mm, 68 * mm],
-    )
-    side_t.setStyle(TableStyle([
-        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('LEFTPADDING',  (0, 0), (-1, -1), 0),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
-    ]))
-    elems.append(side_t)
-    elems.append(Spacer(1, 5 * mm))
-
-    # ── Interpretation box ────────────────────────────────────────────────────
-    elems += _section_bar('Carbon Balance Interpretation', st)
-    interp = [
-        ('<b>Gross Emissions</b>', 'Carbon released through land-use change and disturbances.'),
-        ('<b>Gross Removals</b>',  'Carbon absorbed by forest growth and regeneration.'),
-        ('<b>Net Flux</b>',        f'Balance: {"positive (net source)" if net_positive else "negative (net sink)"}. Current value: {net:.4f} Mg CO<sub>2</sub>e.'),
-        ('<b>Sequestration</b>',   f'Reforestation potential. Belowground: {seq_below:.4f} Mg C, Aboveground: {seq_above:.4f} Mg C.'),
-    ]
-    interp_data = [
-        [Paragraph(t, ParagraphStyle('ik', fontName='Helvetica-Bold', fontSize=8,
-                                     textColor=GREEN)),
-         Paragraph(d, ParagraphStyle('id', fontName='Helvetica', fontSize=8,
-                                     textColor=BLACK, leading=11))]
-        for t, d in interp
-    ]
-    interp_t = Table(interp_data, colWidths=[42 * mm, CONTENT_W - 42 * mm])
-    interp_t.setStyle(TableStyle([
-        ('BACKGROUND',   (0, 0), (-1, -1), GRAY_BG),
-        ('GRID',         (0, 0), (-1, -1), 0.5, GRAY_BORDER),
-        ('VALIGN',       (0, 0), (-1, -1), 'TOP'),
-        ('TOPPADDING',   (0, 0), (-1, -1), 5),
-        ('BOTTOMPADDING',(0, 0), (-1, -1), 5),
-        ('LEFTPADDING',  (0, 0), (-1, -1), 6),
-    ]))
-    elems.append(interp_t)
-    elems.append(Spacer(1, 5 * mm))
+    elems += _carbon_assessment_elems(carbon, st)
 
     # ── Satellite map ─────────────────────────────────────────────────────────
     if coords:
@@ -1259,7 +1285,8 @@ def build_carbon_farm_pdf(
 def build_carbon_forest_pdf(
     forest_id  : int | str,
     forest_info: dict,
-    report     : list,
+    carbon     : dict,
+    coords     : list | None = None,
     logo_parrot: str | None = None,
     logo_agri  : str | None = None,
 ) -> bytes:
@@ -1275,18 +1302,7 @@ def build_carbon_forest_pdf(
     st    = _styles()
     today = datetime.now().strftime('%d %B %Y')
     elems = []
-
-    emissions = (report[0].get('data_fields', {}).get('gfw_forest_carbon_gross_emissions__Mg_CO2e', 0) or 0) if len(report) > 0 else 0
-    removals  = (report[1].get('data_fields', {}).get('gfw_forest_carbon_gross_removals__Mg_CO2e',  0) or 0) if len(report) > 1 else 0
-    net       = (report[2].get('data_fields', {}).get('gfw_forest_carbon_net_flux__Mg_CO2e',        0) or 0) if len(report) > 2 else 0
-    seq_below = (report[3].get('data_fields', {}).get('gfw_reforestable_extent_belowground_carbon_potential_sequestration__Mg_C', 0) or 0) if len(report) > 3 else 0
-    seq_above = (report[4].get('data_fields', {}).get('gfw_reforestable_extent_aboveground_carbon_potential_sequestration__Mg_C', 0) or 0) if len(report) > 4 else 0
-    coords    = report[0].get('coordinates', [[]])[0] if report else []
-
-    area_m2, area_ha = _calc_area_ha_simple(coords) if coords else (0, 0)
-    net_positive     = net >= 0
-    vals = {'emissions': emissions, 'removals': removals,
-            'net': net, 'seq_below': seq_below, 'seq_above': seq_above}
+    area_ha = carbon.get('area_ha') or 0
 
     elems.append(_header_table(
         logo_parrot, logo_agri,
@@ -1295,7 +1311,7 @@ def build_carbon_forest_pdf(
     ))
     elems.append(Spacer(1, 5 * mm))
 
-    elems.append(_carbon_status_badge(net_positive))
+    elems.append(_carbon_status_badge(carbon['net'] >= 0))
     elems.append(Spacer(1, 5 * mm))
 
     elems += _section_bar('Forest Information', st)
@@ -1306,28 +1322,11 @@ def build_carbon_forest_pdf(
         ('Last Updated', forest_info.get('date_updated', 'N/A')),
     ]
     if area_ha:
-        rows.append(('Project Area', f"{area_m2:.2f} m²  ({area_ha:.2f} ha)"))
+        rows.append(('Project Area', f"{area_ha * 10_000:.2f} m²  ({area_ha:.2f} ha)"))
     elems.append(_info_table(rows))
     elems.append(Spacer(1, 5 * mm))
 
-    elems += _section_bar('Carbon Assessment Summary', st)
-    pie = _pie_chart_image({
-        'Gross Emissions': abs(emissions),
-        'Gross Removals':  abs(removals),
-        'Net Flux':        abs(net),
-        'Sequestration':   abs(seq_below),
-    }, size=60 * mm)
-    side_t = Table(
-        [[_carbon_table(vals), pie]],
-        colWidths=[CONTENT_W - 68 * mm, 68 * mm],
-    )
-    side_t.setStyle(TableStyle([
-        ('VALIGN',       (0, 0), (-1, -1), 'TOP'),
-        ('LEFTPADDING',  (0, 0), (-1, -1), 0),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
-    ]))
-    elems.append(side_t)
-    elems.append(Spacer(1, 5 * mm))
+    elems += _carbon_assessment_elems(carbon, st)
 
     if coords:
         map_img = _mapbox_image(coords)

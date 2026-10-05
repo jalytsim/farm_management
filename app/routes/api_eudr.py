@@ -2,7 +2,7 @@
 import base64
 import json
 from flask import Blueprint, request, jsonify
-from app.utils.eudr_utils import EUDRClient, extract_amend_status, extract_dds_identifier, extract_internal_ref_statements, extract_statement_info, extract_verification_info, extract_soap_fault  # Ton fichier contenant la classe EUDRClient
+from app.utils.eudr_utils import EUDRClient, extract_amend_status, extract_dds_identifier, extract_internal_ref_statements, extract_statement_info, extract_verification_info, extract_soap_fault, extract_operator_identity  # Ton fichier contenant la classe EUDRClient
 import xml.etree.ElementTree as ET
 from app.models import db, EUDRStatement
 from datetime import datetime
@@ -91,10 +91,82 @@ def _to_float(value):
 
 # Crée une instance du client EUDR (à adapter pour intégrer à un système de configuration sécurisé)
 # 1. Credentials via variable d'env, avec fallback statique si absente
+# ⚠️ C'est le login WS-Security (EUDR_USERNAME) qui décide de l'opérateur
+# sous lequel TRACES enregistre une DDS en operatorRole=OPERATOR : aucun
+# identifiant d'entreprise (EORI, TIN…) n'est envoyé dans l'enveloppe.
+EUDR_USERNAME_FROM_ENV = bool(os.environ.get("EUDR_USERNAME"))
 eudr_client = EUDRClient(
     username=os.environ.get("EUDR_USERNAME", "n00hsq5u"),
-    auth_key=os.environ.get("EUDR_AUTH_KEY", "axtAeJM0216XSNGfI7RCztDKOSh99NkuAjLmXAHR")
+    auth_key=os.environ.get("EUDR_AUTH_KEY", "axtAeJM0216XSNGfI7RCztDKOSh99NkuAjLmXAHR"),
+    client_id=os.environ.get("EUDR_CLIENT_ID", "eudr-repository"),
 )
+print(f"[EUDR] WS login={eudr_client.username} (from {'env' if EUDR_USERNAME_FROM_ENV else 'code fallback'}) "
+      f"client_id={eudr_client.client_id} endpoint={eudr_client.service_url.split('?')[0]}", flush=True)
+
+# Identifiants attendus de l'opérateur (fiche TRACES AGRIYIELDS ENTERPRISES UG SMC LTD)
+EXPECTED_OPERATOR = {
+    'name': os.environ.get("EUDR_OPERATOR_NAME", "AGRIYIELDS ENTERPRISES UG SMC LTD"),
+    'identifiers': {
+        'eori': os.environ.get("EUDR_OPERATOR_EORI", "HRUG000004679"),
+        'tin':  os.environ.get("EUDR_OPERATOR_TIN", "1043535141"),
+        'cbr':  os.environ.get("EUDR_OPERATOR_CBR", "8003457050645"),
+    },
+    'webservice_access_identifier': os.environ.get("EUDR_OPERATOR_WS_IDENTIFIER", "UGhPT7Jq"),
+}
+
+
+def _norm_id(value):
+    return ''.join(ch for ch in str(value or '').upper() if ch.isalnum())
+
+
+def _compare_operator(found):
+    """Compare l'opérateur renvoyé par TRACES aux identifiants attendus."""
+    if not found:
+        return None
+    found_values = {_norm_id(i.get('value')) for i in found.get('identifiers', [])}
+    return {
+        'name_matches': _norm_id(found.get('name')) == _norm_id(EXPECTED_OPERATOR['name']) if found.get('name') else None,
+        'identifiers': {
+            kind: (_norm_id(value) in found_values) if found_values else None
+            for kind, value in EXPECTED_OPERATOR['identifiers'].items()
+        },
+    }
+
+
+@api_eudr_bp.route('/identity-check', methods=['GET'])
+@permission_required(DDS_PERMISSION)
+def identity_check():
+    """
+    GET /api/eudr/identity-check[?dds_id=<uuid>]
+    Montre le login WS réellement utilisé et, avec dds_id, l'opérateur auquel
+    TRACES a rattaché cette DDS comparé aux identifiants AGRIYIELDS attendus.
+    """
+    user = load_current_user()
+    if not user or not user.is_admin:
+        return jsonify({"status": 403, "error": "Admin only."}), 403
+    result = {
+        'sent_in_envelope': {
+            'ws_username': eudr_client.username,
+            'ws_username_source': 'env (EUDR_USERNAME)' if EUDR_USERNAME_FROM_ENV else 'code fallback',
+            'auth_key_source': 'env (EUDR_AUTH_KEY)' if os.environ.get("EUDR_AUTH_KEY") else 'code fallback',
+            'web_service_client_id': eudr_client.client_id,
+            'endpoint': eudr_client.service_url.split('?')[0],
+            'company_identifiers_sent': 'none when operatorRole=OPERATOR; EORI/VAT of the represented '
+                                        'operator only when operatorRole=REPRESENTATIVE_OPERATOR',
+        },
+        'expected_operator': EXPECTED_OPERATOR,
+    }
+    dds_id = request.args.get('dds_id')
+    if dds_id:
+        response = eudr_client.get_by_dds_identifier(dds_id)
+        fault = extract_soap_fault(response.text)
+        if fault:
+            result['traces_error'] = fault
+        else:
+            found = extract_operator_identity(response.text)
+            result['operator_in_traces'] = found
+            result['match'] = _compare_operator(found)
+    return jsonify(result), 200
 
 @api_eudr_bp.route('/submit', methods=['POST'])
 @permission_required(DDS_PERMISSION)
@@ -473,9 +545,12 @@ def get_by_dds_identifier(dds_id):
             "details": str(e)
         }), 500
 
+    operator = extract_operator_identity(response.text)
     return jsonify({
         "status": response.status_code,
-        **info
+        **info,
+        "operator": operator,
+        "operator_match": _compare_operator(operator),
     })
 
 @api_eudr_bp.route('/info/by-ref-verification', methods=['POST'])

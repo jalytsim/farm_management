@@ -515,6 +515,35 @@ def extract_amend_response(xml_text):
         return None
 
 
+def extract_operator_identity(xml_text):
+    """
+    Opérateur que TRACES a rattaché à la DDS (réponse GetDds / GetDdsByIdentifiers) :
+    nom, identifiants (EORI, VAT, TIN, CBR…), pays, email. Recherche par nom
+    local, sans dépendre du namespace (v3 / v3c varient selon l'élément).
+    """
+    try:
+        root = ET.fromstring(xml_text)
+    except ET.ParseError:
+        return None
+    local = lambda el: el.tag.rsplit('}', 1)[-1]
+    identity = {'name': '', 'identifiers': [], 'country': '', 'email': ''}
+    for el in root.iter():
+        tag = local(el)
+        text = (el.text or '').strip()
+        if tag == 'operatorName' and text and not identity['name']:
+            identity['name'] = text
+        elif tag == 'operatorEmail' and text and not identity['email']:
+            identity['email'] = text
+        elif tag in ('operatorReferenceNumber', 'operatorIdentifier'):
+            kids = {local(c): (c.text or '').strip() for c in el}
+            pair = {'type': kids.get('identifierType', ''), 'value': kids.get('identifierValue', '')}
+            if pair['value'] and pair not in identity['identifiers']:
+                identity['identifiers'].append(pair)
+        elif tag == 'operatorAddress' and not identity['country']:
+            identity['country'] = next(((c.text or '').strip() for c in el if local(c) == 'country'), '')
+    return identity
+
+
 def extract_statement_info(xml_text):
     try:
         root = ET.fromstring(xml_text)
@@ -550,10 +579,9 @@ def extract_verification_info(xml_text):
             'activityType': statement.findtext('v3:activityType', default='', namespaces=ns),
             'status': statement.findtext('.//v3c:status', default='', namespaces=ns),
             'statusDate': statement.findtext('.//v3c:date', default='', namespaces=ns),
-            'operator': {
-                'name': statement.findtext('.//v3:operatorName', default='', namespaces=ns),
-                'country': statement.findtext('.//v3c:country', default='', namespaces=ns)
-            },
+            # operatorName est en v3c (cf. NS_COMMON) : l'ancien './/v3:operatorName'
+            # renvoyait toujours '' → impossible de voir à quel opérateur la DDS est rattachée.
+            'operator': extract_operator_identity(xml_text) or {},
             'commodities': []
         }
 
