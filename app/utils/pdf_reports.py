@@ -527,10 +527,24 @@ def _get_array_depth(arr):
     return depth
 
 
+def _as_float_lists(coords):
+    """Tuples → listes, Decimal → float. Les fermes en base arrivent en
+    [(Decimal lon, Decimal lat), ...] (map.get_coordinates) : _get_array_depth
+    s'arrêtait au tuple, l'anneau était mal détecté et la surface valait 0
+    → "declared farm size" ou "Not available" au lieu de la surface GPS."""
+    if isinstance(coords, (list, tuple)):
+        return [_as_float_lists(c) for c in coords]
+    try:
+        return float(coords)
+    except (TypeError, ValueError):
+        return coords
+
+
 def _get_outer_rings(coords):
     """Anneaux extérieurs, que la géométrie soit Polygon (1 anneau) ou
     MultiPolygon (N anneaux) — miroir de getOuterRings() côté frontend
     (EudrReportSection.jsx). Les trous internes sont ignorés."""
+    coords = _as_float_lists(coords)
     if not isinstance(coords, list) or not coords:
         return []
     depth = _get_array_depth(coords)
