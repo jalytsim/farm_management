@@ -10,9 +10,10 @@ from app.utils.feature_payment_utils import (
     create_payment_attempt,
     has_user_access,
     has_guest_access,
-    consume_feature_usage
+    consume_feature_usage,
+    payment_narrative,
 )
-from app.models import PaidFeatureAccess, db
+from app.models import PaidFeatureAccess, FeaturePrice, db
 from app.utils.dpo_payment import DPOPayment
 
 logger = logging.getLogger(__name__)
@@ -88,6 +89,7 @@ def initiate_payment():
         "msg": res.text,
         "amount": float(amount_or_error),
         "currency": payment.currency,
+        "narrative": payment.narrative,
         "user_type": "logged_in" if user_id else "guest",
     }), res.status_code
 
@@ -174,6 +176,7 @@ def initiate_dpo_payment():
         back_url=current_app.config["DPO_BACK_URL"],
         customer_phone=phone,
         customer_email=email,
+        description=payment.narrative,
     )
 
     if result['success']:
@@ -191,6 +194,7 @@ def initiate_dpo_payment():
             "amount": float(amount),
             "currency": currency,
             "txn_id": txn_id,
+            "narrative": payment.narrative,
         }), 200
 
     logger.warning("[DPO] Échec création token: %s", result.get('error'))
@@ -276,10 +280,13 @@ def list_my_payments():
     user_id = identity['id'] if isinstance(identity, dict) else identity
 
     results = PaidFeatureAccess.query.filter_by(user_id=user_id).all()
+    features_by_name = {f.feature_name: f for f in FeaturePrice.query.all()}
 
     return jsonify([
         {
             "feature": a.feature_name,
+            "narrative": payment_narrative(a, features_by_name),
+            "txn_id": a.txn_id,
             "status": a.payment_status,
             "payment_method": a.payment_method,
             "currency": a.currency,

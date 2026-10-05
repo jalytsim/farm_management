@@ -312,7 +312,7 @@ def _build_pdf_html(data):
                 tc = f.get('tier', {}).get('color', color)
                 cells += f'<td style="color:{tc};font-weight:600">{f["value"]:.4f}</td>'
             else:
-                cells += '<td style="color:#4b5563">—</td>'
+                cells += '<td style="color:#4b5563">N/A</td>'
         fc_body += f'<tr><td class="qtr">{fc_q["quarter"]}</td>{cells}</tr>'
     if not fc_body:
         fc_body = '<tr><td colspan="9" style="color:#4b5563;text-align:center;padding:10px">No forecast data</td></tr>'
@@ -327,7 +327,7 @@ def _build_pdf_html(data):
                 tc = tier.get('color', color)
                 cells += f'<td style="color:{tc}">{val:.4f}</td>'
             else:
-                cells += '<td style="color:#4b5563">—</td>'
+                cells += '<td style="color:#4b5563">N/A</td>'
         hist_body += f'<tr><td class="qtr">{row["date"]}</td>{cells}</tr>'
     if not hist_body:
         hist_body = '<tr><td colspan="9" style="color:#4b5563;text-align:center;padding:10px">No data</td></tr>'
@@ -350,7 +350,7 @@ def _build_pdf_html(data):
             ltv_table_rows += f"""
             <tr>
                 <td style="text-align:left; font-weight:600; color:{idx_ltv['color']}">
-                    {idx_ltv['icon']} {idx_ltv['label'].split('—')[0].strip()}
+                    {idx_ltv['icon']} {idx_ltv['label'].split(':')[0].split('—')[0].strip()}
                 </td>
                 <td>{val_str}</td>
                 <td>{idx_ltv.get('factor', 0.3):.4f}</td>
@@ -369,7 +369,7 @@ def _build_pdf_html(data):
         ltv_table_rows += f"""
         <tr class="composite-row" style="background: #1e3a2a; border-top: 2px solid #34d399;">
             <td style="text-align:left; font-weight:bold; color:#34d399;">🧮 COMPOSITE PONDÉRÉ</td>
-            <td>—</td>
+            <td>N/A</td>
             <td style="font-weight:bold;">{composite_data.get('factor', 0.3):.4f}</td>
             <td style="font-weight:bold;">{composite_data.get('adjusted_yield_t_ha', 0):.3f} t/ha</td>
             <td style="text-align:right; font-weight:bold;">USD {composite_data.get('estimated_crop_value_usd', 0):,.2f}</td>
@@ -381,7 +381,7 @@ def _build_pdf_html(data):
 
         ltv_section = f"""
         <div class="section">
-          <h2>Financial Analysis (LTV) — Multi-Index Breakdown</h2>
+          <h2>Financial Analysis (LTV): Multi-Index Breakdown</h2>
           <div class="ltv-meta-info" style="margin-bottom: 8px; font-size: 7.5pt; color: #94a3b8;">
             <strong>Paramètres de base :</strong> Superficie: {data['ltv'].get('area_ha', 'N/A')} ha &nbsp;&middot;&nbsp; 
             Rendement cible: {data['ltv'].get('yield_t_per_ha', 'N/A')} t/ha &nbsp;&middot;&nbsp; 
@@ -409,7 +409,7 @@ def _build_pdf_html(data):
         """
 
     no_charts_msg = ('<p style="color:#4b5563;font-size:8pt;padding:8px 0">'
-                     'Charts unavailable — install matplotlib: pip install matplotlib</p>')
+                     'Charts unavailable: install matplotlib (pip install matplotlib)</p>')
 
     return f"""<!DOCTYPE html>
 <html><head><meta charset="UTF-8"/>
@@ -452,15 +452,15 @@ def _build_pdf_html(data):
   {ltv_section}
   
   <div class="section">
-    <h2>Historical Trends &amp; Forecast &mdash; NDVI &middot; NDMI &middot; EVI &middot; NMDI</h2>
+    <h2>Historical Trends &amp; Forecast: NDVI &middot; NDMI &middot; EVI &middot; NMDI</h2>
     {chart_rows if chart_rows else no_charts_msg}
   </div>
   <div class="section">
-    <h2>1-Year Forecast &mdash; All Indices</h2>
+    <h2>1-Year Forecast: All Indices</h2>
     <table><thead><tr><th>Quarter</th>{th}</tr></thead><tbody>{fc_body}</tbody></table>
   </div>
   <div class="section">
-    <h2>Historical Data &mdash; 5 Years</h2>
+    <h2>Historical Data: 5 Years</h2>
     <table><thead><tr><th>Date</th>{th}</tr></thead><tbody>{hist_body}</tbody></table>
   </div>
   <div class="footer">
@@ -659,6 +659,73 @@ def guest_sat_index():
     return jsonify(result), 200
 
 
+@sentinel_bp.route('/farm/<string:farm_id>/crop-biomass', methods=['GET'])
+@jwt_required()
+def farm_crop_biomass(farm_id):
+    """
+    GET /api/sentinel/farm/<farm_id>/crop-biomass
+    Biomasse de la parcelle selon la formule de sa culture (maize, rice, wheat,
+    cocoa via indices Sentinel ; coffee via allométrie).
+    Query : crop (sinon culture du dernier FarmData), dbh_cm, height_m,
+            wood_density, trees (café uniquement).
+    """
+    from datetime import datetime
+    from dateutil.relativedelta import relativedelta
+    from app.models import Farm, FarmData, Crop, Point
+    from app.utils.sentinel_utils import (
+        _build_geometry, _compute_area_ha_from_points, _call_statistics, _parse_response,
+    )
+    from app.utils.crop_biomass_utils import compute_crop_biomass, resolve_crop_key
+
+    farm = Farm.query.filter_by(farm_id=farm_id).first()
+    if not farm:
+        return jsonify({'error': 'Farm not found'}), 404
+
+    farm_data = (FarmData.query.filter_by(farm_id=farm_id)
+                 .order_by(FarmData.date_created.desc()).first())
+    crop_name = request.args.get('crop')
+    if not crop_name and farm_data:
+        crop = Crop.query.get(farm_data.crop_id)
+        crop_name = crop.name if crop else None
+    if not crop_name:
+        return jsonify({'error': 'No crop recorded for this farm — pass ?crop=maize|rice|wheat|coffee|cocoa'}), 400
+
+    points = Point.query.filter_by(owner_type='farmer', owner_id=str(farm_id)).order_by(Point.id).all()
+    area_ha, _ = _compute_area_ha_from_points(points)
+    if not area_ha and farm_data and farm_data.tilled_land_size:
+        area_ha = farm_data.tilled_land_size
+
+    rows = []
+    if resolve_crop_key(crop_name) != 'coffee':
+        geometry = _build_geometry(points, farm.geolocation)
+        if not geometry:
+            return jsonify({'error': 'No geometry available — add polygon points first'}), 400
+        now = datetime.utcnow()
+        try:
+            raw = _call_statistics(
+                geometry,
+                (now - relativedelta(months=6)).strftime('%Y-%m-%dT00:00:00Z'),
+                now.strftime('%Y-%m-%dT23:59:59Z'),
+                interval='P1M',
+            )
+            rows, _ = _parse_response(raw)
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            return jsonify({'error': f'Sentinel query failed: {str(e)}'}), 500
+
+    result, error = compute_crop_biomass(
+        crop_name, rows, area_ha,
+        dbh_cm=request.args.get('dbh_cm', type=float),
+        height_m=request.args.get('height_m', type=float),
+        wood_density=request.args.get('wood_density', type=float),
+        number_of_trees=request.args.get('trees', type=int) or (farm_data.number_of_tree if farm_data else None),
+    )
+    if error:
+        return jsonify({'error': error}), 400
+    result.update({'farm_id': farm_id, 'farm_name': farm.name})
+    return jsonify(result), 200
+
+
 @sentinel_bp.route('/guest/carbon-extra', methods=['POST'])
 def guest_carbon_extra():
     """
@@ -761,6 +828,25 @@ def guest_carbon_extra():
         result['crop_prediction'] = crop_result
         if crop_error:
             result['crop_prediction_error'] = crop_error
+
+        # Biomasse par culture : culture déclarée (body.crop) sinon culture prédite.
+        # Complémentaire comme la prédiction : un échec n'invalide pas la réponse.
+        from app.utils.crop_biomass_utils import compute_crop_biomass
+        crop_name = data.get('crop') or (crop_result or {}).get('predicted_crop')
+        if crop_name:
+            area_ha, _ = _compute_area_ha_from_coords(coords)
+            try:
+                crop_biomass, biomass_error = compute_crop_biomass(
+                    crop_name, history_result.get('history') or [], area_ha,
+                    dbh_cm=data.get('dbh_cm'), height_m=data.get('height_m'),
+                    wood_density=data.get('wood_density'), number_of_trees=data.get('trees'),
+                )
+            except Exception as e:
+                logger.error(f'[guest_carbon_extra] crop biomass failed: {e}\n{traceback.format_exc()}')
+                crop_biomass, biomass_error = None, str(e)
+            result['crop_biomass'] = crop_biomass
+            if biomass_error:
+                result['crop_biomass_error'] = biomass_error
 
     from app.routes.api_gfw import _log_gfw
     _log_gfw('guest_carbon_extra', 'guest', phone, agent_id=agent_id)

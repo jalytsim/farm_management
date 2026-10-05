@@ -13,6 +13,7 @@
 # =============================================================================
 
 import os
+import time
 import uuid
 import traceback
 from decimal import Decimal, InvalidOperation
@@ -22,6 +23,7 @@ from flask import Blueprint, jsonify, request, redirect, current_app, send_from_
 from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request, jwt_required
 from sqlalchemy import or_, func as sa_func       # ★ recherche et agrégats
 from werkzeug.utils import secure_filename
+import requests
 
 from app import db
 from app.models import (
@@ -556,8 +558,27 @@ def _build_order_items(cart_items):
     return order_items, total, (currency or 'USD'), None
 
 
+# Mobile Money (passerelle Nkusu, la même que pour les rapports invités) ne
+# prélève qu'en shillings ougandais. Une commande dans une autre devise passe
+# par DPO.
+MOBILE_MONEY_CURRENCIES = {'UGX'}
+
+
+def _normalize_msisdn(phone):
+    """« +256 772 123 456 » → « 256772123456 », le format attendu par la passerelle."""
+    return ''.join(ch for ch in (phone or '') if ch.isdigit())
+
+
 @bp.route('/checkout/initiate', methods=['POST'])
 def initiate_checkout():
+    """Crée la commande puis lance le paiement.
+
+    payment_method :
+      - 'dpo' (défaut)  → renvoie payment_url + trans_token, à vérifier via
+                          /checkout/verify/<trans_token>
+      - 'mobile_money'  → envoie la demande sur le téléphone, renvoie txn_id,
+                          à vérifier via /checkout/mobile/status/<txn_id>
+    """
     try:
         user_id = None
         try:
@@ -579,10 +600,23 @@ def initiate_checkout():
         email = data.get("email", "")
         guest_name = data.get("guest_name", "")
         shipping_address = data.get("shipping_address", "")
+        payment_method = (data.get("payment_method") or 'dpo').lower()
+
+        if payment_method not in ('dpo', 'mobile_money'):
+            return jsonify({"error": f"Unknown payment method: {payment_method}"}), 400
 
         order_items, total, currency, err = _build_order_items(cart_items)
         if err:
             return jsonify({"error": err}), 400
+
+        msisdn = _normalize_msisdn(phone)
+        if payment_method == 'mobile_money':
+            if currency not in MOBILE_MONEY_CURRENCIES:
+                return jsonify({"error": f"Mobile Money is only available for orders in "
+                                         f"{', '.join(sorted(MOBILE_MONEY_CURRENCIES))}. "
+                                         f"Please pay by card (DPO)."}), 400
+            if len(msisdn) < 9:
+                return jsonify({"error": "A valid phone number is required for Mobile Money"}), 400
 
         order = EcoOrder(
             user_id=user_id,
@@ -591,7 +625,7 @@ def initiate_checkout():
             guest_phone=phone or None,
             shipping_address=shipping_address,
             total_amount=total, currency=currency,
-            status='pending', payment_method='dpo',
+            status='pending', payment_method=payment_method,
         )
         db.session.add(order)
         db.session.flush()
@@ -602,6 +636,9 @@ def initiate_checkout():
                 quantity=qty, unit_price=product.price, unit=product.unit,
             ))
         db.session.commit()
+
+        if payment_method == 'mobile_money':
+            return _start_mobile_money(order, msisdn)
 
         result = DPOPayment().create_payment_token(
             amount=float(total), currency=currency,
@@ -623,6 +660,7 @@ def initiate_checkout():
 
         return jsonify({
             "success": True, "order_id": order.id,
+            "payment_method": "dpo",
             "payment_url": result['payment_url'],
             "trans_token": result['trans_token'],
             "amount": float(total), "currency": currency,
@@ -632,6 +670,92 @@ def initiate_checkout():
         db.session.rollback()
         traceback.print_exc()
         return jsonify({"error": "Unexpected server error"}), 500
+
+
+def _start_mobile_money(order, msisdn):
+    """Envoie la demande de paiement sur le téléphone de l'acheteur.
+
+    Pas de colonne dédiée sur EcoOrder : la référence de transaction Mobile
+    Money est rangée dans dpo_trans_ref (« référence de paiement »), ce qui la
+    rend aussi cherchable depuis l'admin des commandes. payment_method dit
+    laquelle des deux passerelles l'a émise.
+    """
+    txn_id = f"NKUSHOP{order.id}T{int(time.time())}"
+    order.dpo_trans_ref = txn_id
+    db.session.commit()
+
+    try:
+        res = requests.post(
+            current_app.config["MOBILE_MONEY_API_URL"],
+            params={"amount": order.total_amount, "msisdn": msisdn, "txnId": txn_id},
+            verify=current_app.config["MOBILE_MONEY_VERIFY_SSL"],
+            timeout=15,
+        )
+    except requests.RequestException:
+        traceback.print_exc()
+        order.status = 'payment_failed'
+        db.session.commit()
+        return jsonify({"success": False, "error": "Mobile Money provider unreachable"}), 502
+
+    if res.status_code >= 400:
+        order.status = 'payment_failed'
+        db.session.commit()
+        return jsonify({"success": False,
+                        "error": res.text or "Mobile Money request rejected"}), 400
+
+    return jsonify({
+        "success": True, "order_id": order.id,
+        "payment_method": "mobile_money",
+        "txn_id": txn_id,
+        "msg": res.text,
+        "amount": float(order.total_amount), "currency": order.currency,
+    }), 200
+
+
+@bp.route('/checkout/mobile/status/<txn_id>', methods=['GET'])
+def mobile_money_checkout_status(txn_id):
+    """Même contrat que /checkout/verify : 200 'paid' ou 'failed', sinon 202 'pending'."""
+    try:
+        order = EcoOrder.query.filter_by(dpo_trans_ref=txn_id,
+                                         payment_method='mobile_money').first()
+        if not order:
+            return jsonify({"success": False, "status": "pending",
+                            "message": "Order not recorded yet"}), 202
+
+        if order.status in PAID_STATUSES:
+            return jsonify({"success": True, "status": "paid",
+                            "order": order.to_dict()}), 200
+
+        try:
+            res = requests.get(
+                f"{current_app.config['MOBILE_MONEY_STATUS_URL']}/{txn_id}",
+                verify=current_app.config["MOBILE_MONEY_VERIFY_SSL"],
+                timeout=15,
+            )
+        except requests.RequestException:
+            return jsonify({"success": False, "status": "pending",
+                            "message": "Provider unreachable, will retry"}), 202
+
+        status_text = res.text.strip().lower()
+
+        if "success" in status_text or "confirmed" in status_text:
+            order = _confirm_order_paid(order.id)
+            return jsonify({"success": True, "status": "paid",
+                            "order": order.to_dict()}), 200
+
+        if "failed" in status_text or "rejected" in status_text:
+            if order.status == 'pending':
+                order.status = 'payment_failed'
+                db.session.commit()
+            return jsonify({"success": False, "status": "failed"}), 200
+
+        return jsonify({"success": False, "status": "pending"}), 202
+
+    except Exception:
+        db.session.rollback()
+        traceback.print_exc()
+        return jsonify({"success": False, "status": "pending",
+                        "message": "Verification failed, will retry"}), 202
 
 
 def _confirm_order_paid(order_id):

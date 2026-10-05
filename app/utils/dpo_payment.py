@@ -2,6 +2,7 @@
 
 import requests
 import xml.etree.ElementTree as ET
+from xml.sax.saxutils import escape as xml_escape
 from datetime import datetime
 
 
@@ -20,8 +21,12 @@ class DPOPayment:
         return node.text if node is not None else None
 
     def create_payment_token(self, amount, currency, reference, redirect_url, back_url,
-                           customer_phone="", customer_email=""):
+                           customer_phone="", customer_email="", description=None):
         """Crée un token de paiement DPO et retourne l'URL de paiement"""
+
+        # Narrative affichée chez DPO (back-office + page de paiement) : indique
+        # quel type de paiement a été fait au lieu d'un simple "Payment for <ref>".
+        service_description = xml_escape(description or f"Payment for {reference}")
 
         # Format de date YYYY-MM-DD (comme dans ton script de test qui marche)
         today = datetime.today().strftime("%Y-%m-%d")
@@ -42,7 +47,7 @@ class DPOPayment:
     <Services>
         <Service>
             <ServiceType>{self.service_id}</ServiceType>
-            <ServiceDescription>Payment for {reference}</ServiceDescription>
+            <ServiceDescription>{service_description}</ServiceDescription>
             <ServiceDate>{today}</ServiceDate>
         </Service>
     </Services>

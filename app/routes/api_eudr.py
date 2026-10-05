@@ -2,29 +2,176 @@
 import base64
 import json
 from flask import Blueprint, request, jsonify
-from app.utils.eudr_utils import EUDRClient, extract_amend_status, extract_dds_identifier, extract_internal_ref_statements, extract_statement_info, extract_verification_info, extract_soap_fault  # Ton fichier contenant la classe EUDRClient
+from app.utils.eudr_utils import EUDRClient, extract_amend_status, extract_dds_identifier, extract_internal_ref_statements, extract_statement_info, extract_verification_info, extract_soap_fault, extract_operator_identity  # Ton fichier contenant la classe EUDRClient
 import xml.etree.ElementTree as ET
 from app.models import db, EUDRStatement
 from datetime import datetime
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.models import User
+from app.utils.decorators import permission_required, load_current_user
+
+# Clé du JSON User.permissions cochée dans User Manager (admins toujours autorisés)
+DDS_PERMISSION = 'eudr_dds'
 from dateutil import parser  # pip install python-dateutil si nécessaire
 import os
 
 
 api_eudr_bp = Blueprint('api_eudr', __name__, url_prefix='/api/eudr')
 
+
+def _hs_code_error(statement):
+    """
+    Refuse d'avance un code HS que TRACES a déjà rejeté (verdicts stockés par
+    hscode_sync.py), avec les codes acceptés de la même position. Code inconnu
+    de la table : on laisse TRACES trancher.
+    """
+    from app.models import HSCodeSubheading
+    from app.utils.hscode_sync import lookup_hs_status
+    digits = ''.join(ch for ch in str(statement.get('hsHeading') or '') if ch.isdigit())
+    if not digits or lookup_hs_status(digits) is not False:
+        return None
+    from app.models import HSCode
+    valid = [s.code for s in HSCodeSubheading.query
+             .filter(HSCodeSubheading.code.like(digits[:4] + '%'), HSCodeSubheading.traces_valid.is_(True)).all()]
+    valid += [h.digits for h in HSCode.query.filter_by(traces_valid=True).all()
+              if h.digits and digits.startswith(h.digits[:4])]
+    valid = sorted(set(valid))
+    # Correction automatique quand il n'y a aucun doute : position "…00" (ex.
+    # 180100, envoyé par d'anciennes versions du formulaire) ou position à
+    # 4 chiffres seule acceptée (ex. 010221 → 0102). TRACES accepte la position.
+    heading = digits[:4]
+    if len(digits) > 4 and heading in valid and (digits[4:].strip('0') == '' or valid == [heading]):
+        print(f"[EUDR] HS code {digits} refused by TRACES, sent as {heading}", flush=True)
+        statement['hsHeading'] = heading
+        return None
+    hint = f" Accepted codes for heading {heading}: {', '.join(valid)}." if valid else ""
+    return f"HS code {digits} is not accepted by the EUDR information system (TRACES).{hint}"
+
+
+def _owned_query(user):
+    """DDS visibles par le compte : toutes pour un admin, les siennes sinon."""
+    query = EUDRStatement.query
+    return query if user.is_admin else query.filter(EUDRStatement.created_by == user.id)
+
+
+def _forbidden_dds(dds_id):
+    """Réponse 404 si un non-admin vise une DDS qu'il n'a pas créée, sinon None."""
+    user = load_current_user()
+    if user.is_admin or _owned_query(user).filter_by(dds_identifier=dds_id).first():
+        return None
+    return jsonify({"status": 404, "error": "DDS not found for this account."}), 404
+
+
+def _sent_summary(statement):
+    """Champs clés réellement envoyés à TRACES, renvoyés avec l'erreur : le
+    Fault TRACES ne dit jamais quelle valeur il rejette (ex. HS-CODE-INVALID)."""
+    goods = statement.get('goodsMeasure') or {}
+    return {
+        'hsHeading':  ''.join(ch for ch in str(statement.get('hsHeading') or '') if ch.isdigit()),
+        'activityType': statement.get('activityType'),
+        'countryOfActivity': statement.get('countryOfActivity'),
+        'descriptionOfGoods': statement.get('descriptionOfGoods'),
+        'netWeight': goods.get('netWeight'),
+        'supplementaryUnit': goods.get('supplementaryUnit'),
+        'supplementaryUnitQualifier': goods.get('supplementaryUnitQualifier'),
+        'producerCountries': [p.get('country') for p in (statement.get('producers') or []) if isinstance(p, dict)],
+    }
+
+
+def _to_float(value):
+    """Les colonnes Float rejettent '' ou '1 000 kg' : on stocke None si non numérique."""
+    if value is None or str(value).strip() == '':
+        return None
+    raw = str(value).lower().replace('kg', '').replace(' ', '').replace(' ', '')
+    raw = raw.replace(',', '.') if (',' in raw and '.' not in raw) else raw.replace(',', '')
+    try:
+        return float(raw)
+    except ValueError:
+        return None
+
 # Crée une instance du client EUDR (à adapter pour intégrer à un système de configuration sécurisé)
 # 1. Credentials via variable d'env, avec fallback statique si absente
+# ⚠️ C'est le login WS-Security (EUDR_USERNAME) qui décide de l'opérateur
+# sous lequel TRACES enregistre une DDS en operatorRole=OPERATOR : aucun
+# identifiant d'entreprise (EORI, TIN…) n'est envoyé dans l'enveloppe.
+EUDR_USERNAME_FROM_ENV = bool(os.environ.get("EUDR_USERNAME"))
 eudr_client = EUDRClient(
     username=os.environ.get("EUDR_USERNAME", "n00hsq5u"),
-    auth_key=os.environ.get("EUDR_AUTH_KEY", "axtAeJM0216XSNGfI7RCztDKOSh99NkuAjLmXAHR")
+    auth_key=os.environ.get("EUDR_AUTH_KEY", "axtAeJM0216XSNGfI7RCztDKOSh99NkuAjLmXAHR"),
+    client_id=os.environ.get("EUDR_CLIENT_ID", "eudr-repository"),
 )
+print(f"[EUDR] WS login={eudr_client.username} (from {'env' if EUDR_USERNAME_FROM_ENV else 'code fallback'}) "
+      f"client_id={eudr_client.client_id} endpoint={eudr_client.service_url.split('?')[0]}", flush=True)
+
+# Identifiants attendus de l'opérateur (fiche TRACES AGRIYIELDS ENTERPRISES UG SMC LTD)
+EXPECTED_OPERATOR = {
+    'name': os.environ.get("EUDR_OPERATOR_NAME", "AGRIYIELDS ENTERPRISES UG SMC LTD"),
+    'identifiers': {
+        'eori': os.environ.get("EUDR_OPERATOR_EORI", "HRUG000004679"),
+        'tin':  os.environ.get("EUDR_OPERATOR_TIN", "1043535141"),
+        'cbr':  os.environ.get("EUDR_OPERATOR_CBR", "8003457050645"),
+    },
+    'webservice_access_identifier': os.environ.get("EUDR_OPERATOR_WS_IDENTIFIER", "UGhPT7Jq"),
+}
+
+
+def _norm_id(value):
+    return ''.join(ch for ch in str(value or '').upper() if ch.isalnum())
+
+
+def _compare_operator(found):
+    """Compare l'opérateur renvoyé par TRACES aux identifiants attendus."""
+    if not found:
+        return None
+    found_values = {_norm_id(i.get('value')) for i in found.get('identifiers', [])}
+    return {
+        'name_matches': _norm_id(found.get('name')) == _norm_id(EXPECTED_OPERATOR['name']) if found.get('name') else None,
+        'identifiers': {
+            kind: (_norm_id(value) in found_values) if found_values else None
+            for kind, value in EXPECTED_OPERATOR['identifiers'].items()
+        },
+    }
+
+
+@api_eudr_bp.route('/identity-check', methods=['GET'])
+@permission_required(DDS_PERMISSION)
+def identity_check():
+    """
+    GET /api/eudr/identity-check[?dds_id=<uuid>]
+    Montre le login WS réellement utilisé et, avec dds_id, l'opérateur auquel
+    TRACES a rattaché cette DDS comparé aux identifiants AGRIYIELDS attendus.
+    """
+    user = load_current_user()
+    if not user or not user.is_admin:
+        return jsonify({"status": 403, "error": "Admin only."}), 403
+    result = {
+        'sent_in_envelope': {
+            'ws_username': eudr_client.username,
+            'ws_username_source': 'env (EUDR_USERNAME)' if EUDR_USERNAME_FROM_ENV else 'code fallback',
+            'auth_key_source': 'env (EUDR_AUTH_KEY)' if os.environ.get("EUDR_AUTH_KEY") else 'code fallback',
+            'web_service_client_id': eudr_client.client_id,
+            'endpoint': eudr_client.service_url.split('?')[0],
+            'company_identifiers_sent': 'none when operatorRole=OPERATOR; EORI/VAT of the represented '
+                                        'operator only when operatorRole=REPRESENTATIVE_OPERATOR',
+        },
+        'expected_operator': EXPECTED_OPERATOR,
+    }
+    dds_id = request.args.get('dds_id')
+    if dds_id:
+        response = eudr_client.get_by_dds_identifier(dds_id)
+        fault = extract_soap_fault(response.text)
+        if fault:
+            result['traces_error'] = fault
+        else:
+            found = extract_operator_identity(response.text)
+            result['operator_in_traces'] = found
+            result['match'] = _compare_operator(found)
+    return jsonify(result), 200
 
 @api_eudr_bp.route('/submit', methods=['POST'])
-@jwt_required()
+@permission_required(DDS_PERMISSION)
 def submit_statement():
-    data = request.json
+    data = request.get_json(silent=True) or {}
     geojson = data.get("geojson")
     statement = data.get("statement")
     identity = get_jwt_identity()
@@ -33,6 +180,10 @@ def submit_statement():
     if not statement:
         return jsonify({"status": 400, "error": "Missing 'statement' payload."}), 400
 
+    hs_error = _hs_code_error(statement)
+    if hs_error:
+        return jsonify({"status": 400, "error": hs_error}), 400
+
     try:
         response = eudr_client.submit_statement(geojson, statement)
     except ValueError as e:
@@ -40,11 +191,14 @@ def submit_statement():
 
     fault = extract_soap_fault(response.text)
     if fault:
-        print("🔥 SOAP Fault (submit) :", fault, "| raw:", response.text[:2000])
+        sent = _sent_summary(statement)
+        # flush=True : sans ça gunicorn bufferise stdout et rien n'arrive dans journalctl
+        print("🔥 SOAP Fault (submit) :", fault, "| sent:", sent, "| raw:", response.text[:2000], flush=True)
         return jsonify({
             "status": response.status_code,
             "error": fault.get("faultstring"),
             "detail": fault.get("detail"),
+            "sent": sent,
             "raw": response.text
         }), 502
 
@@ -77,8 +231,8 @@ def submit_statement():
                 scientific_name=statement.get('speciesInfo', {}).get('scientificName'),
                 common_name=statement.get('speciesInfo', {}).get('commonName'),
 
-                volume=statement.get('goodsMeasure', {}).get('volume'),
-                net_weight=statement.get('goodsMeasure', {}).get('netWeight'),
+                volume=_to_float((statement.get('goodsMeasure') or {}).get('volume')),
+                net_weight=_to_float((statement.get('goodsMeasure') or {}).get('netWeight')),
                 supplementary_unit=statement.get('goodsMeasure', {}).get('supplementaryUnit'),
                 supplementary_unit_qualifier=statement.get('goodsMeasure', {}).get('supplementaryUnitQualifier'),
 
@@ -94,11 +248,16 @@ def submit_statement():
             db.session.commit()
         except Exception as e:
             db.session.rollback()
+            # La DDS EST déjà enregistrée côté TRACES : renvoyer une erreur ici poussait
+            # l'utilisateur à resoumettre et créait des doublons. On renvoie l'uuid
+            # avec un avertissement.
+            print("⚠️ DDS soumise mais sauvegarde locale échouée :", dds_identifier, e)
             return jsonify({
-                "status": 500,
-                "error": "Failed to save EUDR statement locally.",
+                "status": response.status_code,
+                "ddsIdentifier": dds_identifier,
+                "warning": "DDS submitted to EUDR but could not be saved locally.",
                 "details": str(e)
-            }), 500
+            }), 200
 
     if not dds_identifier:
         return jsonify({
@@ -114,7 +273,7 @@ def submit_statement():
 
 
 @api_eudr_bp.route('/amend', methods=['POST'])
-@jwt_required()
+@permission_required(DDS_PERMISSION)
 def amend_statement():
     data = request.json
     geojson = data.get("geojson")
@@ -126,6 +285,14 @@ def amend_statement():
     if not statement:
         return jsonify({"status": 400, "error": "Missing 'statement' payload."}), 400
 
+    denied = _forbidden_dds(dds_id)
+    if denied:
+        return denied
+
+    hs_error = _hs_code_error(statement)
+    if hs_error:
+        return jsonify({"status": 400, "error": hs_error}), 400
+
     try:
         response = eudr_client.amend_statement(geojson, dds_id, statement)
     except ValueError as e:
@@ -133,11 +300,14 @@ def amend_statement():
 
     fault = extract_soap_fault(response.text)
     if fault:
-        print("🔥 SOAP Fault (amend) :", fault, "| raw:", response.text[:2000])
+        sent = _sent_summary(statement)
+        # flush=True : sans ça gunicorn bufferise stdout et rien n'arrive dans journalctl
+        print("🔥 SOAP Fault (amend) :", fault, "| sent:", sent, "| raw:", response.text[:2000], flush=True)
         return jsonify({
             "status": response.status_code,
             "error": fault.get("faultstring"),
             "detail": fault.get("detail"),
+            "sent": sent,
             "raw": response.text
         }), 502
 
@@ -172,8 +342,8 @@ def amend_statement():
                 record.scientific_name = statement.get('speciesInfo', {}).get('scientificName', record.scientific_name)
                 record.common_name = statement.get('speciesInfo', {}).get('commonName', record.common_name)
 
-                record.volume = statement.get('goodsMeasure', {}).get('volume', record.volume)
-                record.net_weight = statement.get('goodsMeasure', {}).get('netWeight', record.net_weight)
+                record.volume = _to_float((statement.get('goodsMeasure') or {}).get('volume', record.volume))
+                record.net_weight = _to_float((statement.get('goodsMeasure') or {}).get('netWeight', record.net_weight))
                 record.supplementary_unit = statement.get('goodsMeasure', {}).get('supplementaryUnit', record.supplementary_unit)
                 record.supplementary_unit_qualifier = statement.get('goodsMeasure', {}).get('supplementaryUnitQualifier', record.supplementary_unit_qualifier)
 
@@ -206,8 +376,11 @@ def amend_statement():
     })
 
 @api_eudr_bp.route('/retract/<dds_id>', methods=['DELETE'])
-@jwt_required()
+@permission_required(DDS_PERMISSION)
 def retract_statement(dds_id):
+    denied = _forbidden_dds(dds_id)
+    if denied:
+        return denied
     response = eudr_client.withdraw_statement(dds_id)
 
     if response.status_code == 200:
@@ -228,13 +401,15 @@ def retract_statement(dds_id):
 
 
 @api_eudr_bp.route('/info/by-internal-ref/<reference>', methods=['GET'])
-@jwt_required()
+@permission_required(DDS_PERMISSION)
 def get_by_internal_reference(reference):
     from dateutil import parser
     import traceback
 
-    identity = get_jwt_identity()
-    user_id = identity['id'] if identity else None
+    user = load_current_user()
+    if not user:
+        return jsonify({"msg": "Account not found"}), 401
+    user_id = user.id
 
     response = eudr_client.get_by_internal_reference(reference)
 
@@ -250,6 +425,10 @@ def get_by_internal_reference(reference):
         }), 502
 
     statements = extract_internal_ref_statements(response.text)
+    if statements and not user.is_admin:
+        # Le compte TRACES est partagé : un non-admin ne voit que ses propres DDS
+        owned = {s.dds_identifier for s in _owned_query(user).all()}
+        statements = [s for s in statements if s.get("identifier") in owned]
     if statements and not any(s.get("identifier") for s in statements):
         print("⚠️ Tous les champs sont vides — XML brut pour diagnostic :", response.text[:4000])
 
@@ -280,7 +459,7 @@ def get_by_internal_reference(reference):
                     record.status_date = status_date
                     record.modified_by = user_id
                     record.updated_at = datetime.utcnow()
-                else:
+                elif user.is_admin:
                     new_stmt = EUDRStatement(
                         dds_identifier=identifier,
                         internal_reference_number=stmt_data.get("internalReferenceNumber"),
@@ -320,10 +499,15 @@ def get_by_internal_reference(reference):
 
 
 @api_eudr_bp.route('/info/by-dds-id/<dds_id>', methods=['GET'])
-@jwt_required()
+@permission_required(DDS_PERMISSION)
 def get_by_dds_identifier(dds_id):
-    identity = get_jwt_identity()
-    user_id = identity['id'] if identity else None
+    user = load_current_user()
+    if not user:
+        return jsonify({"msg": "Account not found"}), 401
+    user_id = user.id
+    denied = _forbidden_dds(dds_id)
+    if denied:
+        return denied
 
     response = eudr_client.get_by_dds_identifier(dds_id)
     info = extract_statement_info(response.text)
@@ -361,9 +545,12 @@ def get_by_dds_identifier(dds_id):
             "details": str(e)
         }), 500
 
+    operator = extract_operator_identity(response.text)
     return jsonify({
         "status": response.status_code,
-        **info
+        **info,
+        "operator": operator,
+        "operator_match": _compare_operator(operator),
     })
 
 @api_eudr_bp.route('/info/by-ref-verification', methods=['POST'])
@@ -435,8 +622,12 @@ def get_by_reference_and_verification():
 
 
 @api_eudr_bp.route('/', methods=['GET'])
+@permission_required(DDS_PERMISSION)
 def list_statements():
-    statements = EUDRStatement.query.all()
+    user = load_current_user()
+    if not user:
+        return jsonify({"msg": "Account not found"}), 401
+    statements = _owned_query(user).all()
     results = []
     for s in statements:
         results.append({

@@ -224,7 +224,7 @@ def compute_forest_biomass_from_index(ndvi: float, area_ha: float, index_date: s
         'ndvi_date':     index_date,
         'area_ha':       round(area_ha, 4),
         'agb_per_ha_mg': round(agb_per_ha_mg, 2),
-        'model':         f'AGB(Mg/ha) = {NDVI_AGB_A} * exp({NDVI_AGB_B} * NDVI) — generic estimate, requires local calibration',
+        'model':         f'AGB(Mg/ha) = {NDVI_AGB_A} * exp({NDVI_AGB_B} * NDVI), generic estimate, requires local calibration',
     })
     return result
 

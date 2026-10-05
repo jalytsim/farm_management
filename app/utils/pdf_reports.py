@@ -7,8 +7,9 @@ Aucune dépendance navigateur, aucun HTML à parser.
 Rapports disponibles :
   • build_eudr_farm_pdf(farm_id, farm_info, gfw_data)   → bytes
   • build_eudr_forest_pdf(forest_id, forest_info, gfw_data) → bytes
-  • build_carbon_farm_pdf(farm_id, farm_info, report)   → bytes
-  • build_carbon_forest_pdf(forest_id, forest_info, report) → bytes
+  • build_carbon_farm_pdf(farm_id, farm_info, carbon, coords)     → bytes
+  • build_carbon_forest_pdf(forest_id, forest_info, carbon, coords) → bytes
+    (carbon = carbon_index_utils.compute_carbon_from_indices, Sentinel-2)
 
 Dépendances Python :
   reportlab  matplotlib  shapely  requests
@@ -332,9 +333,10 @@ def _compliance_badge_table(status: str, description: str) -> Table:
     badge_row = _icon_text_row(icon, status, ParagraphStyle(
         'badge', fontName='Helvetica-Bold', fontSize=13, textColor=fc, alignment=TA_LEFT,
     ))
-    desc_para = Paragraph(description or '', _styles()['small'])
-    t = Table([[badge_row], [desc_para]],
-              colWidths=[CONTENT_W])
+    rows = [[badge_row]]
+    if description:
+        rows.append([Paragraph(description, _styles()['small'])])
+    t = Table(rows, colWidths=[CONTENT_W])
     t.setStyle(TableStyle([
         ('BACKGROUND',   (0, 0), (0, -1), bg),
         ('BOX',          (0, 0), (-1, -1), 1, GRAY_BORDER),
@@ -500,44 +502,21 @@ def _calc_area_ha_simple(coordinates: list) -> tuple[float, float]:
 
 def _compliance_status(tree_cover_loss: float, has_forest: bool, is_in_protected_area: bool = False) -> dict:
     """
-    Règles (ordre de priorité strict — corrigé) :
-    1) Forest cover detected (JRC 2020)                 -> Not Compliant, quel que soit le tree cover loss
-    2) No forest cover BUT plot in a protected/          -> Not Compliant (EUDR Article 10 — protected
-       conservation area (WDPA/IUCN cat. 1 ou 2)            area status)
-    3) No forest cover, not protected, no tree cover loss -> 100% Compliant
-    4) No forest cover, not protected, tree cover loss    -> Compliant, plantation d'arbres d'ombrage recommandée
+    Règles (ordre de priorité strict) :
+    1) Forest cover detected (JRC 2020)                    -> Not Compliant
+    2) No forest cover BUT protected area (WDPA/IUCN 1-2)  -> Not Compliant (EUDR Article 10)
+    3) No forest cover, not protected, no tree cover loss  -> 100% Compliant
+    4) No forest cover, not protected, tree cover loss     -> Compliant
+    Le rapport n'affiche que le statut (demande utilisateur) : pas de description.
     """
-    if has_forest:
-        return {
-            'status':      'Not Compliant',
-            'description': 'Forest cover detected on this plot (EUDR Article 2). Not compliant with EUDR regulations, regardless of tree cover loss status.',
-        }
+    if has_forest or is_in_protected_area:
+        status = 'Not Compliant'
+    elif tree_cover_loss == 0:
+        status = '100% Compliant'
+    else:
+        status = 'Compliant'
+    return {'status': status, 'description': ''}
 
-    if is_in_protected_area:
-        return {
-            'status':      'Not Compliant',
-            'description': (
-                'No forest cover detected, but this plot overlaps a gazetted protected/conservation area '
-                '(WDPA/IUCN category). Not compliant with EUDR regulations (Article 10 — Protected Area status), '
-                'regardless of forest cover or tree cover loss status.'
-            ),
-        }
-
-    if tree_cover_loss == 0:
-        return {
-            'status':      '100% Compliant',
-            'description': 'No forest cover, no protected area overlap, and no tree cover loss detected. Fully compliant with EUDR regulations.',
-        }
-
-    return {
-        'status':      'Compliant',
-        'description': (
-            'No forest cover detected, but tree cover loss was recorded since 2020. Before finalizing this '
-            'status, verify whether the loss results from cyclical agroforestry practices (e.g. routine canopy '
-            'pruning, tree stumping, or shade-tree rejuvenation/cutting for pest mitigation) rather than '
-            'deforestation. Planting shade trees is recommended.'
-        ),
-    }
 
 def _get_array_depth(arr):
     depth = 0
@@ -676,7 +655,7 @@ def _extract_eudr_metrics(gfw_data: dict) -> dict:
             label = {'0': 'Not in protected area', '1': 'In WDPA protected area',
                      '2': 'In IUCN vulnerable area'}.get(str(k), f'Category {k}')
             prot_pct[label] = f'{v / total_prot * 100:.1f}%'
-    m['protected_pct'] = prot_pct or {'No data': '–'}
+    m['protected_pct'] = prot_pct or {'Protected area data': 'Not available'}
     # Catégories WDPA/IUCN 1 (in WDPA protected area) et 2 (in IUCN vulnerable
     # area) — cf. label mapping ci-dessus. Utilisé par _compliance_status().
     m['is_in_protected_area'] = any(
@@ -722,7 +701,26 @@ def _extract_eudr_metrics(gfw_data: dict) -> dict:
 # EUDR COMPLIANCE TABLE  (ReportLab)
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _eudr_compliance_table(m: dict) -> Table:
+def _farm_area_text(m: dict, farm_info: dict | None = None) -> str:
+    """
+    Surface de la ferme : polygone GPS en priorité, sinon surface déclarée
+    (FarmData.tilled_land_size, en ha) — même règle que dashboard_utils.get_farm_area_ha.
+    """
+    if m.get('area_ha'):
+        return f"{m['area_ha']:.2f} ha  ({m['area_m2']:.0f} m²)"
+    info = farm_info or {}
+    declared = info.get('farm_size_ha') or info.get('area_ha') or next(
+        (c.get('tilled_land_size') for c in (info.get('crops') or []) if c.get('tilled_land_size')), None)
+    try:
+        declared = float(declared) if declared else None
+    except (TypeError, ValueError):
+        declared = None
+    if declared:
+        return f"{declared:.2f} ha  ({declared * 10_000:.0f} m²), declared farm size"
+    return 'Not available'
+
+
+def _eudr_compliance_table(m: dict, farm_info: dict | None = None) -> Table:
     st = _styles()
 
     def cell(text, bold=False, color=BLACK):
@@ -752,26 +750,26 @@ def _eudr_compliance_table(m: dict) -> Table:
         [cell('Metric', bold=True), cell('Value / Assessment', bold=True)],
         # Data rows
         [cell('Project Area'),
-         cell(f"{m['area_ha']:.2f} ha  ({m['area_m2']:.0f} m²)" if m['area_ha'] else 'Not available')],
+         cell(_farm_area_text(m, farm_info))],
 
         [cell('Country Deforestation Risk'),
          cell('STANDARD')],
 
         [cell('RADD Alert'),
-         cell(f"{m['radd_ha']} ha — {'No alert' if m['radd_ha']==0 else 'Alert detected'}",
+         cell(f"{m['radd_ha']} ha, {'No alert' if m['radd_ha']==0 else 'Alert detected'}",
               color=radd_color)],
 
         [cell('Forest Cover (JRC 2020)'),
          cell(m['forest_cover_text'], color=fc_color)],
 
         [cell('EUDR Compliance'),
-         cell(f"{cs['status']}  —  {cs['description']}", bold=True, color=cs_color)],
+         cell(cs['status'], bold=True, color=cs_color)],
 
         [cell('Protected Area Status'),
          cell(prot_text, color=prot_color)],
 
         [cell('Tree Cover Extent'),
-         cell(f"Coverage: {m['cover_pct']:.1f}%  —  Non-zero pts: {m['cover_count']}<br/>{vc_text}")],
+         cell(f"Coverage: {m['cover_pct']:.1f}%, Non-zero pts: {m['cover_count']}<br/>{vc_text}")],
 
         [cell('Primary Deforestation Driver'),
          cell(m['primary_driver_label'])],
@@ -830,7 +828,7 @@ def build_eudr_farm_pdf(
         buf, pagesize=A4,
         leftMargin=MARGIN, rightMargin=MARGIN,
         topMargin=MARGIN, bottomMargin=22 * mm,
-        title=f'EUDR Compliance Report — {farm_id}',
+        title=f'EUDR Compliance Report {farm_id}',
         author='Agriyields',
     )
     st   = _styles()
@@ -906,8 +904,7 @@ def build_eudr_farm_pdf(
         if farm_info.get('crops'):
             rows.append(('Primary Crop', farm_info['crops'][0].get('crop', 'N/A')))
             rows.append(('Land Type',    farm_info['crops'][0].get('land_type', 'N/A')))
-        if m['area_ha']:
-            rows.append(('Farm Area', f"{m['area_ha']:.2f} ha  ({m['area_m2']:.0f} m²)"))
+        rows.append(('Farm Area', _farm_area_text(m, farm_info)))
         elems.append(_info_table(rows))
         elems.append(Spacer(1, 5 * mm))
 
@@ -955,13 +952,13 @@ def build_eudr_farm_pdf(
 
     # ── Summary compliance table ──────────────────────────────────────────────
     elems += _section_bar('Summary Compliance Table', st)
-    elems.append(_eudr_compliance_table(m))
+    elems.append(_eudr_compliance_table(m, farm_info))
     elems.append(Spacer(1, 5 * mm))
 
     # ── Risk assessment breakdown ─────────────────────────────────────────────
     elems += _section_bar('Risk Assessment Breakdown', st)
     risk_rows = [
-        ('Farm Area',               f"{m['area_ha']:.2f} ha"),
+        ('Farm Area',               _farm_area_text(m, farm_info)),
         ('Average Tree Cover',      f"{m['avg_cover']:.1f}%"),
         ('RADD Alerts',             f"{m['radd_ha']} ha"),
         ('Primary Driver',          m['primary_driver_label']),
@@ -974,7 +971,7 @@ def build_eudr_farm_pdf(
     if m['coordinates']:
         map_img = _mapbox_image(m['coordinates'])
         if map_img:
-            elems += _section_bar('Plot Map — Satellite View', st)
+            elems += _section_bar('Plot Map: Satellite View', st)
             elems.append(map_img)
             elems.append(Spacer(1, 5 * mm))
 
@@ -991,7 +988,7 @@ def build_eudr_farm_pdf(
             forest_img = Image(buf_img, width=CONTENT_W, height=110 * mm)
             forest_img.hAlign = 'CENTER'
             
-            elems += _section_bar('Tree Cover Spatial Analysis — Heatmap View', st)
+            elems += _section_bar('Tree Cover Spatial Analysis: Heatmap View', st)
             elems.append(forest_img)
             elems.append(Spacer(1, 3 * mm))
         except Exception as e:
@@ -1015,7 +1012,7 @@ def build_eudr_forest_pdf(
         buf, pagesize=A4,
         leftMargin=MARGIN, rightMargin=MARGIN,
         topMargin=MARGIN, bottomMargin=22 * mm,
-        title=f'EUDR Compliance Report — Forest {forest_id}',
+        title=f'EUDR Compliance Report Forest {forest_id}',
         author='Agriyields',
     )
     st    = _styles()
@@ -1025,7 +1022,7 @@ def build_eudr_forest_pdf(
 
     elems.append(_header_table(
         logo_parrot, logo_agri,
-        'EUDR COMPLIANCE REPORT — FOREST',
+        'EUDR COMPLIANCE REPORT FOREST',
         f'Generated on {today}  •  Regulation (EU) 2023/1115',
     ))
     elems.append(Spacer(1, 6 * mm))
@@ -1054,7 +1051,7 @@ def build_eudr_forest_pdf(
     if m['coordinates']:
         map_img = _mapbox_image(m['coordinates'])
         if map_img:
-            elems += _section_bar('Plot Map — Satellite View', st)
+            elems += _section_bar('Plot Map: Satellite View', st)
             elems.append(map_img)
 
     doc.build(elems, onFirstPage=_footer_canvas, onLaterPages=_footer_canvas, canvasmaker=_NumberedCanvas)
@@ -1092,10 +1089,10 @@ def _carbon_table(vals: dict) -> Table:
         [Paragraph('Carbon Net Emissions',               _styles()['body']),
          badge_cell(vals['net'],
                     BADGE_COLORS['net_pos'] if vals['net'] >= 0 else BADGE_COLORS['net_neg'])],
-        [Paragraph('Sequestration Potential (Belowground)', _styles()['body']),
-         Paragraph(f"{vals['seq_below']:.4f} Mg C", _styles()['body'])],
-        [Paragraph('Sequestration Potential (Aboveground)', _styles()['body']),
-         Paragraph(f"{vals['seq_above']:.4f} Mg C", _styles()['body'])],
+        [Paragraph('Carbon Stock (Aboveground)', _styles()['body']),
+         Paragraph(f"{vals['stock_above_c']:.4f} Mg C", _styles()['body'])],
+        [Paragraph('Carbon Stock (Belowground)', _styles()['body']),
+         Paragraph(f"{vals['stock_below_c']:.4f} Mg C", _styles()['body'])],
     ]
 
     t = Table(rows, colWidths=[CONTENT_W * 0.65, CONTENT_W * 0.35])
@@ -1135,105 +1132,76 @@ def _carbon_status_badge(net_positive: bool) -> Table:
     return t
 
 
-def build_carbon_farm_pdf(
-    farm_id    : str,
-    farm_info  : dict,
-    report     : list,
-    logo_parrot: str | None = None,
-    logo_agri  : str | None = None,
-) -> bytes:
-    """Génère le rapport Carbon pour une ferme."""
-    buf = io.BytesIO()
-    doc = SimpleDocTemplate(
-        buf, pagesize=A4,
-        leftMargin=MARGIN, rightMargin=MARGIN,
-        topMargin=MARGIN, bottomMargin=22 * mm,
-        title=f'Carbon Emissions Assessment — {farm_id}',
-        author='Agriyields',
-    )
-    st    = _styles()
-    today = datetime.now().strftime('%d %B %Y')
+def _carbon_indices_table(carbon: dict) -> Table:
+    """Indices Sentinel-2 (dernière lecture) + formule de chaque indice."""
+    labels = {'ndvi': 'NDVI', 'evi': 'EVI', 'savi': 'SAVI', 'ndre': 'NDRE'}
+    rows = [[Paragraph('<b>Index</b>',   _styles()['body_bold']),
+             Paragraph('<b>Formula</b>', _styles()['body_bold']),
+             Paragraph(f"<b>Value ({carbon.get('end_date') or 'N/A'})</b>", _styles()['body_bold'])]]
+    for key, label in labels.items():
+        val = (carbon.get('indices') or {}).get(key)
+        rows.append([
+            Paragraph(label, _styles()['body']),
+            Paragraph((carbon.get('index_formulas') or {}).get(key, ''), _styles()['body']),
+            Paragraph('N/A' if val is None else f'{float(val):.4f}', _styles()['body']),
+        ])
+    t = Table(rows, colWidths=[25 * mm, CONTENT_W - 60 * mm, 35 * mm])
+    t.setStyle(TableStyle([
+        ('BACKGROUND',   (0, 0), (-1, 0),  GREEN),
+        ('TEXTCOLOR',    (0, 0), (-1, 0),  WHITE),
+        ('GRID',         (0, 0), (-1, -1), 0.5, GRAY_BORDER),
+        ('VALIGN',       (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING',   (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING',(0, 0), (-1, -1), 5),
+        ('LEFTPADDING',  (0, 0), (-1, -1), 6),
+    ]))
+    return t
+
+
+def _carbon_assessment_elems(carbon: dict, st: dict) -> list:
+    """Résumé carbone + indices + méthode — commun aux rapports ferme et forêt."""
+    emissions, removals, net = carbon['emissions'], carbon['removals'], carbon['net']
+    net_positive = net >= 0
     elems = []
 
-    # Extraire les valeurs
-    emissions  = (report[0].get('data_fields', {}).get('gfw_forest_carbon_gross_emissions__Mg_CO2e', 0) or 0) if len(report) > 0 else 0
-    removals   = (report[1].get('data_fields', {}).get('gfw_forest_carbon_gross_removals__Mg_CO2e',  0) or 0) if len(report) > 1 else 0
-    net        = (report[2].get('data_fields', {}).get('gfw_forest_carbon_net_flux__Mg_CO2e',        0) or 0) if len(report) > 2 else 0
-    seq_below  = (report[3].get('data_fields', {}).get('gfw_reforestable_extent_belowground_carbon_potential_sequestration__Mg_C', 0) or 0) if len(report) > 3 else 0
-    seq_above  = (report[4].get('data_fields', {}).get('gfw_reforestable_extent_aboveground_carbon_potential_sequestration__Mg_C', 0) or 0) if len(report) > 4 else 0
-    coords     = report[0].get('coordinates', [[]])[0] if report else []
-
-    area_m2, area_ha = _calc_area_ha_simple(coords) if coords else (0, 0)
-    net_positive     = net >= 0
-
-    vals = {'emissions': emissions, 'removals': removals,
-            'net': net, 'seq_below': seq_below, 'seq_above': seq_above}
-
-    # ── En-tête ──────────────────────────────────────────────────────────────
-    elems.append(_header_table(
-        logo_parrot, logo_agri,
-        'CARBON EMISSIONS ASSESSMENT',
-        f'Generated on {today}  •  Regulation (EU) 2023/1115',
-    ))
-    elems.append(Spacer(1, 5 * mm))
-
-    # ── Net status badge ──────────────────────────────────────────────────────
-    elems.append(_carbon_status_badge(net_positive))
-    elems.append(Spacer(1, 5 * mm))
-
-    # ── Farm info ─────────────────────────────────────────────────────────────
-    elems += _section_bar('Farm Information', st)
-    rows = [
-        ('Farm ID',      farm_info.get('farm_id', farm_id)),
-        ('Owner',        farm_info.get('name')),
-        ('Geolocation',  farm_info.get('geolocation')),
-    ]
-    if farm_info.get('crops'):
-        rows.append(('Primary Crop', farm_info['crops'][0].get('crop', 'N/A')))
-        rows.append(('Land Type',    farm_info['crops'][0].get('land_type', 'N/A')))
-    if area_ha:
-        rows.append(('Project Area', f"{area_m2:.2f} m²  ({area_ha:.2f} ha)"))
-    elems.append(_info_table(rows))
-    elems.append(Spacer(1, 5 * mm))
-
-    # ── Carbon table + pie chart côte à côte ─────────────────────────────────
     elems += _section_bar('Carbon Assessment Summary', st)
-
     pie = _pie_chart_image({
         'Gross Emissions': abs(emissions),
         'Gross Removals':  abs(removals),
         'Net Flux':        abs(net),
-        'Sequestration':   abs(seq_below),
+        'Carbon Stock':    abs(carbon['stock_above_c'] + carbon['stock_below_c']),
     }, size=60 * mm)
-
-    side_t = Table(
-        [[_carbon_table(vals), pie]],
-        colWidths=[CONTENT_W - 68 * mm, 68 * mm],
-    )
+    side_t = Table([[_carbon_table(carbon), pie]], colWidths=[CONTENT_W - 68 * mm, 68 * mm])
     side_t.setStyle(TableStyle([
-        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('VALIGN',       (0, 0), (-1, -1), 'TOP'),
         ('LEFTPADDING',  (0, 0), (-1, -1), 0),
         ('RIGHTPADDING', (0, 0), (-1, -1), 0),
     ]))
     elems.append(side_t)
     elems.append(Spacer(1, 5 * mm))
 
-    # ── Interpretation box ────────────────────────────────────────────────────
-    elems += _section_bar('Carbon Balance Interpretation', st)
+    elems += _section_bar('Vegetation Indices (Sentinel-2)', st)
+    elems.append(_carbon_indices_table(carbon))
+    elems.append(Spacer(1, 5 * mm))
+
+    elems += _section_bar('Methodology & Interpretation', st)
+    period = f"{carbon.get('start_date') or 'N/A'} → {carbon.get('end_date') or 'N/A'}"
     interp = [
-        ('<b>Gross Emissions</b>', 'Carbon released through land-use change and disturbances.'),
-        ('<b>Gross Removals</b>',  'Carbon absorbed by forest growth and regeneration.'),
-        ('<b>Net Flux</b>',        f'Balance: {"positive (net source)" if net_positive else "negative (net sink)"}. Current value: {net:.4f} Mg CO<sub>2</sub>e.'),
-        ('<b>Sequestration</b>',   f'Reforestation potential — Belowground: {seq_below:.4f} Mg C, Aboveground: {seq_above:.4f} Mg C.'),
+        ('<b>Biomass (AGB)</b>',  f"{carbon['agb_formula']}, computed for each monthly Sentinel-2 reading."),
+        ('<b>Carbon Stock</b>',   'AGB × area, + BGB (20 % of AGB) × 72.5 % dry matter × 50 % carbon × 3.67 (CO<sub>2</sub>/C). '
+                                  f"Start: {carbon['stock_start_co2e_mg']:.4f}, end: {carbon['stock_end_co2e_mg']:.4f} Mg CO<sub>2</sub>e."),
+        ('<b>Gross Emissions</b>', f'Loss of carbon stock over {period} (max(−ΔStock, 0)).'),
+        ('<b>Gross Removals</b>',  f'Gain of carbon stock over {period} (max(ΔStock, 0)).'),
+        ('<b>Net Flux</b>',        f'Emissions − Removals: {"positive (net source)" if net_positive else "negative (net sink)"}. '
+                                   f'Current value: {net:.4f} Mg CO<sub>2</sub>e.'),
     ]
-    interp_data = [
-        [Paragraph(t, ParagraphStyle('ik', fontName='Helvetica-Bold', fontSize=8,
-                                     textColor=GREEN)),
-         Paragraph(d, ParagraphStyle('id', fontName='Helvetica', fontSize=8,
-                                     textColor=BLACK, leading=11))]
+    for w in carbon.get('warnings') or []:
+        interp.append(('<b>Note</b>', w))
+    interp_t = Table([
+        [Paragraph(t, ParagraphStyle('ik', fontName='Helvetica-Bold', fontSize=8, textColor=GREEN)),
+         Paragraph(d, ParagraphStyle('id', fontName='Helvetica', fontSize=8, textColor=BLACK, leading=11))]
         for t, d in interp
-    ]
-    interp_t = Table(interp_data, colWidths=[42 * mm, CONTENT_W - 42 * mm])
+    ], colWidths=[42 * mm, CONTENT_W - 42 * mm])
     interp_t.setStyle(TableStyle([
         ('BACKGROUND',   (0, 0), (-1, -1), GRAY_BG),
         ('GRID',         (0, 0), (-1, -1), 0.5, GRAY_BORDER),
@@ -1244,12 +1212,66 @@ def build_carbon_farm_pdf(
     ]))
     elems.append(interp_t)
     elems.append(Spacer(1, 5 * mm))
+    return elems
+
+
+def build_carbon_farm_pdf(
+    farm_id    : str,
+    farm_info  : dict,
+    carbon     : dict,
+    coords     : list | None = None,
+    logo_parrot: str | None = None,
+    logo_agri  : str | None = None,
+) -> bytes:
+    """Génère le rapport Carbon pour une ferme (indices Sentinel-2)."""
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=MARGIN, rightMargin=MARGIN,
+        topMargin=MARGIN, bottomMargin=22 * mm,
+        title=f'Carbon Emissions Assessment {farm_id}',
+        author='Agriyields',
+    )
+    st    = _styles()
+    today = datetime.now().strftime('%d %B %Y')
+    elems = []
+    area_ha = carbon.get('area_ha') or 0
+
+    # ── En-tête ──────────────────────────────────────────────────────────────
+    elems.append(_header_table(
+        logo_parrot, logo_agri,
+        'CARBON EMISSIONS ASSESSMENT',
+        f'Generated on {today}  •  Regulation (EU) 2023/1115',
+    ))
+    elems.append(Spacer(1, 5 * mm))
+
+    # ── Net status badge ──────────────────────────────────────────────────────
+    elems.append(_carbon_status_badge(carbon['net'] >= 0))
+    elems.append(Spacer(1, 5 * mm))
+
+    # ── Farm info ─────────────────────────────────────────────────────────────
+    elems += _section_bar('Farm Information', st)
+    rows = [
+        ('Farm ID',      farm_info.get('farm_id', farm_id)),
+        ('Owner',        farm_info.get('name')),
+        ('Geolocation',  farm_info.get('geolocation')),
+    ]
+    if carbon.get('crop'):
+        rows.append(('Crop', carbon['crop']))
+    if farm_info.get('crops'):
+        rows.append(('Land Type', farm_info['crops'][-1].get('land_type', 'N/A')))
+    if area_ha:
+        rows.append(('Project Area', f"{area_ha * 10_000:.2f} m²  ({area_ha:.2f} ha)"))
+    elems.append(_info_table(rows))
+    elems.append(Spacer(1, 5 * mm))
+
+    elems += _carbon_assessment_elems(carbon, st)
 
     # ── Satellite map ─────────────────────────────────────────────────────────
     if coords:
         map_img = _mapbox_image(coords)
         if map_img:
-            elems += _section_bar('Plot Map — Satellite View', st)
+            elems += _section_bar('Plot Map: Satellite View', st)
             elems.append(map_img)
 
     doc.build(elems, onFirstPage=_footer_canvas, onLaterPages=_footer_canvas, canvasmaker=_NumberedCanvas)
@@ -1263,7 +1285,8 @@ def build_carbon_farm_pdf(
 def build_carbon_forest_pdf(
     forest_id  : int | str,
     forest_info: dict,
-    report     : list,
+    carbon     : dict,
+    coords     : list | None = None,
     logo_parrot: str | None = None,
     logo_agri  : str | None = None,
 ) -> bytes:
@@ -1273,33 +1296,22 @@ def build_carbon_forest_pdf(
         buf, pagesize=A4,
         leftMargin=MARGIN, rightMargin=MARGIN,
         topMargin=MARGIN, bottomMargin=22 * mm,
-        title=f'Carbon Emissions Assessment — Forest {forest_id}',
+        title=f'Carbon Emissions Assessment Forest {forest_id}',
         author='Agriyields',
     )
     st    = _styles()
     today = datetime.now().strftime('%d %B %Y')
     elems = []
-
-    emissions = (report[0].get('data_fields', {}).get('gfw_forest_carbon_gross_emissions__Mg_CO2e', 0) or 0) if len(report) > 0 else 0
-    removals  = (report[1].get('data_fields', {}).get('gfw_forest_carbon_gross_removals__Mg_CO2e',  0) or 0) if len(report) > 1 else 0
-    net       = (report[2].get('data_fields', {}).get('gfw_forest_carbon_net_flux__Mg_CO2e',        0) or 0) if len(report) > 2 else 0
-    seq_below = (report[3].get('data_fields', {}).get('gfw_reforestable_extent_belowground_carbon_potential_sequestration__Mg_C', 0) or 0) if len(report) > 3 else 0
-    seq_above = (report[4].get('data_fields', {}).get('gfw_reforestable_extent_aboveground_carbon_potential_sequestration__Mg_C', 0) or 0) if len(report) > 4 else 0
-    coords    = report[0].get('coordinates', [[]])[0] if report else []
-
-    area_m2, area_ha = _calc_area_ha_simple(coords) if coords else (0, 0)
-    net_positive     = net >= 0
-    vals = {'emissions': emissions, 'removals': removals,
-            'net': net, 'seq_below': seq_below, 'seq_above': seq_above}
+    area_ha = carbon.get('area_ha') or 0
 
     elems.append(_header_table(
         logo_parrot, logo_agri,
-        'CARBON EMISSIONS ASSESSMENT — FOREST',
+        'CARBON EMISSIONS ASSESSMENT FOREST',
         f'Generated on {today}  •  Regulation (EU) 2023/1115',
     ))
     elems.append(Spacer(1, 5 * mm))
 
-    elems.append(_carbon_status_badge(net_positive))
+    elems.append(_carbon_status_badge(carbon['net'] >= 0))
     elems.append(Spacer(1, 5 * mm))
 
     elems += _section_bar('Forest Information', st)
@@ -1310,33 +1322,16 @@ def build_carbon_forest_pdf(
         ('Last Updated', forest_info.get('date_updated', 'N/A')),
     ]
     if area_ha:
-        rows.append(('Project Area', f"{area_m2:.2f} m²  ({area_ha:.2f} ha)"))
+        rows.append(('Project Area', f"{area_ha * 10_000:.2f} m²  ({area_ha:.2f} ha)"))
     elems.append(_info_table(rows))
     elems.append(Spacer(1, 5 * mm))
 
-    elems += _section_bar('Carbon Assessment Summary', st)
-    pie = _pie_chart_image({
-        'Gross Emissions': abs(emissions),
-        'Gross Removals':  abs(removals),
-        'Net Flux':        abs(net),
-        'Sequestration':   abs(seq_below),
-    }, size=60 * mm)
-    side_t = Table(
-        [[_carbon_table(vals), pie]],
-        colWidths=[CONTENT_W - 68 * mm, 68 * mm],
-    )
-    side_t.setStyle(TableStyle([
-        ('VALIGN',       (0, 0), (-1, -1), 'TOP'),
-        ('LEFTPADDING',  (0, 0), (-1, -1), 0),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
-    ]))
-    elems.append(side_t)
-    elems.append(Spacer(1, 5 * mm))
+    elems += _carbon_assessment_elems(carbon, st)
 
     if coords:
         map_img = _mapbox_image(coords)
         if map_img:
-            elems += _section_bar('Plot Map — Satellite View', st)
+            elems += _section_bar('Plot Map: Satellite View', st)
             elems.append(map_img)
 
     doc.build(elems, onFirstPage=_footer_canvas, onLaterPages=_footer_canvas, canvasmaker=_NumberedCanvas)
@@ -1391,7 +1386,7 @@ def build_tree_co2_pdf(
         buf, pagesize=A4,
         leftMargin=MARGIN, rightMargin=MARGIN,
         topMargin=MARGIN, bottomMargin=22 * mm,
-        title=f'Tree CO2 Sequestration Report — Forest {forest_id}',
+        title=f'Tree CO2 Sequestration Report Forest {forest_id}',
         author='Agriyields',
     )
     st    = _styles()
@@ -1468,7 +1463,7 @@ def build_forest_biomass_index_pdf(
         buf, pagesize=A4,
         leftMargin=MARGIN, rightMargin=MARGIN,
         topMargin=MARGIN, bottomMargin=22 * mm,
-        title=f'Forest Biomass (Satellite Index) Report — Forest {forest_id}',
+        title=f'Forest Biomass (Satellite Index) Report Forest {forest_id}',
         author='Agriyields',
     )
     st    = _styles()
@@ -1477,7 +1472,7 @@ def build_forest_biomass_index_pdf(
 
     elems.append(_header_table(
         logo_parrot, logo_agri,
-        'FOREST CARBON ASSESSMENT — SATELLITE INDEX MODEL',
+        'FOREST CARBON ASSESSMENT: SATELLITE INDEX MODEL',
         f'Generated on {today}  •  AGB/BGB estimated from Sentinel-2 NDVI',
     ))
     elems.append(Spacer(1, 5 * mm))
@@ -1507,7 +1502,7 @@ def build_forest_biomass_index_pdf(
         f"{biomass.get('model', '')}. Total biomass = 1.2 x AGB (20% belowground). "
         'Dry weight = 72.5% of biomass, carbon = 50% of dry weight, CO2 = carbon x 3.67 '
         '(same conversion chain as the per-tree measured report). This satellite-index '
-        'estimate is a generic approximation for forests without a full tree inventory — '
+        'estimate is a generic approximation for forests without a full tree inventory: '
         'it is NOT calibrated on local field plots and should not replace ground '
         'measurements or GFW data for regulatory submissions without local validation.'
     )

@@ -1,9 +1,6 @@
 from flask import Blueprint, json, jsonify, request, send_file, Response
-from app.models import Crop, District, Farm, FarmData, Forest, GFWLog, PaidFeatureAccess, User
-from app.routes.map import (
-    gfw_async, gfw_async_from_geojson,
-    gfw_async_carbon, gfw_async_carbon_from_geojson,
-)
+from app.models import Crop, District, Farm, FarmData, Forest, GFWLog, PaidFeatureAccess, Point, User
+from app.routes.map import gfw_async, gfw_async_from_geojson
 import os, hashlib, asyncio, tempfile, requests, csv, io
 from datetime import datetime, timedelta
 from werkzeug.utils import secure_filename
@@ -18,6 +15,9 @@ from app.utils.pdf_reports import (
     build_eudr_forest_pdf,
     build_carbon_farm_pdf,
     build_carbon_forest_pdf,
+)
+from app.utils.carbon_index_utils import (
+    compute_carbon_from_indices, fetch_index_rows, polygon_geometry, ring_from_report_coordinates,
 )
 
 UPLOAD_FOLDER      = 'uploads/geojsons'
@@ -130,39 +130,106 @@ def _build_farm_info(farm):
         'date_updated':    farm.date_updated.strftime('%Y-%m-%d') if farm.date_updated else 'N/A',
         'crops':           [],
     }
-    for fd in FarmData.query.filter_by(farm_id=farm.farm_id).all():
+    farm_data = FarmData.query.filter_by(farm_id=farm.farm_id).order_by(FarmData.id).all()
+    for fd in farm_data:
         crop_name = Crop.query.get(fd.crop_id).name if fd.crop_id else 'N/A'
-        info['crops'].append({'crop': crop_name, 'land_type': fd.land_type})
+        info['crops'].append({'crop': crop_name, 'land_type': fd.land_type,
+                              'tilled_land_size': fd.tilled_land_size})
+    # Surface déclarée de la dernière saison (ha) — utilisée par le PDF EUDR
+    # quand le polygone GPS ne permet pas de calculer la surface.
+    info['farm_size_ha'] = next((fd.tilled_land_size for fd in reversed(farm_data) if fd.tilled_land_size), None)
     return info
 
 
-# ✅ NOUVEAU — adaptateur pour la génération PDF invité côté Carbon.
+# Rapport carbone : calculé depuis les indices Sentinel-2 (NDVI, EVI, SAVI,
+# NDRE → AGB → stock CO2e, méthode des stocks sur 12 mois) au lieu des
+# datasets GFW — cf. app/utils/carbon_index_utils.py.
 #
-# build_carbon_farm_pdf() attend `report` comme une LISTE ORDONNÉE
-# (report[0]=emissions, report[1]=removals, report[2]=net_flux,
-#  report[3]=séquestration belowground, report[4]=séquestration aboveground),
-# exactement l'ordre dans lequel DATASET_CONFIG['carbon'] déclare ses
-# datasets/pixels dans map.py.
-#
-# Mais le rapport stocké côté invité (Geojson/CarbonReportFromFile) est au
-# format GROUPÉ PAR DATASET (_group_by_dataset), le même format que celui
-# affiché à l'écran par CarbonReportSection.jsx. Ce helper reconstruit la
-# liste ordonnée à partir du dict groupé, sans dupliquer la logique de
-# calcul GFW.
-_CARBON_ORDER = [
-    ('forest carbon gross emissions', 0),
-    ('forest carbon gross removals', 0),
-    ('forest carbon net flux', 0),
-    ('full extent aboveground carbon potential sequestration', 0),  # belowground (1er pixel du dataset)
-    ('full extent aboveground carbon potential sequestration', 1),  # aboveground (2e pixel du dataset)
+# Les écrans existants (CarbonReportSection.jsx, CarbonReportForest.jsx)
+# lisent encore `report` au format GFW (dataset / data_fields). On le
+# reconstruit avec les valeurs calculées pour ne pas casser l'affichage ;
+# le détail complet (indices, formules, historique) est dans `carbon`.
+# ⚠️ Les deux champs "sequestration potential" contiennent désormais le
+# STOCK de carbone actuel (aérien / souterrain, Mg C).
+_CARBON_LEGACY_FIELDS = [
+    ('forest carbon gross emissions', 'SUM(gfw_forest_carbon_gross_emissions__Mg_CO2e)',
+     'gfw_forest_carbon_gross_emissions__Mg_CO2e', 'emissions'),
+    ('forest carbon gross removals', 'SUM(gfw_forest_carbon_gross_removals__Mg_CO2e)',
+     'gfw_forest_carbon_gross_removals__Mg_CO2e', 'removals'),
+    ('forest carbon net flux', 'SUM(gfw_forest_carbon_net_flux__Mg_CO2e)',
+     'gfw_forest_carbon_net_flux__Mg_CO2e', 'net'),
+    ('full extent aboveground carbon potential sequestration',
+     'SUM(gfw_reforestable_extent_belowground_carbon_potential_sequestration__Mg_C)',
+     'gfw_reforestable_extent_belowground_carbon_potential_sequestration__Mg_C', 'stock_below_c'),
+    ('full extent aboveground carbon potential sequestration',
+     'SUM(gfw_reforestable_extent_aboveground_carbon_potential_sequestration__Mg_C)',
+     'gfw_reforestable_extent_aboveground_carbon_potential_sequestration__Mg_C', 'stock_above_c'),
 ]
 
-def _carbon_grouped_to_list(gfw_data: dict) -> list:
-    result = []
-    for key, idx in _CARBON_ORDER:
-        items = gfw_data.get(key, []) if isinstance(gfw_data, dict) else []
-        result.append(items[idx] if idx < len(items) else {})
-    return result
+
+def _carbon_legacy_report(carbon: dict, ring: list) -> list:
+    """Liste au format `dataset_results` GFW, remplie avec les valeurs indices."""
+    return [{
+        'dataset':     dataset,
+        'pixel':       pixel,
+        'data_fields': {field: carbon[key]},
+        'coordinates': [ring],
+        'source':      carbon['source'],
+    } for dataset, pixel, field, key in _CARBON_LEGACY_FIELDS]
+
+
+def _owner_ring(owner_type: str, owner_id, geolocation=None):
+    """Anneau [[lon, lat], ...] (floats) des points GPS de la ferme / forêt."""
+    from app.utils.sentinel_utils import _build_geometry
+    points = Point.query.filter_by(owner_type=owner_type, owner_id=str(owner_id)).order_by(Point.id).all()
+    geometry = _build_geometry(points, geolocation)
+    if not geometry:
+        return None
+    return [[float(lon), float(lat)] for lon, lat in geometry['coordinates'][0]]
+
+
+def _carbon_for_ring(ring, crop_name=None, property_type='farm', fallback_area_ha=None):
+    """(carbon, error) — indices Sentinel-2 du polygone → bilan carbone."""
+    from app.utils.sentinel_utils import _compute_area_ha_from_coords
+    if not ring:
+        return None, 'No geometry available — add polygon points first'
+    area_ha, _ = _compute_area_ha_from_coords(ring)
+    area_ha = area_ha or fallback_area_ha
+    try:
+        rows = fetch_index_rows(polygon_geometry(ring))
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return None, f'Sentinel query failed: {e}'
+    return compute_carbon_from_indices(rows, area_ha, crop_name, property_type)
+
+
+def _farm_carbon(farm, farm_info):
+    """(carbon, ring, error) pour une ferme : culture = dernière saison FarmData."""
+    ring = _owner_ring('farmer', farm.farm_id, farm.geolocation)
+    crops = [c.get('crop') for c in farm_info.get('crops', []) if c.get('crop') not in (None, 'N/A')]
+    carbon, error = _carbon_for_ring(ring, crops[-1] if crops else None, 'farm',
+                                     farm_info.get('farm_size_ha'))
+    return carbon, ring, error
+
+
+def _forest_carbon(forest_id):
+    ring = _owner_ring('forest', forest_id)
+    carbon, error = _carbon_for_ring(ring, property_type='forest')
+    return carbon, ring, error
+
+
+def _carbon_from_geojson(geojson_data, crop_name=None, property_type='farm'):
+    """Polygon / MultiPolygon (1er polygone), Feature ou FeatureCollection."""
+    geom = geojson_data or {}
+    if geom.get('type') == 'FeatureCollection':
+        geom = ((geom.get('features') or [{}])[0] or {}).get('geometry') or {}
+    if geom.get('type') == 'Feature':
+        geom = geom.get('geometry') or {}
+    ring = None
+    if geom.get('type') in ('Polygon', 'MultiPolygon'):
+        ring = ring_from_report_coordinates(geom.get('coordinates'))
+    carbon, error = _carbon_for_ring(ring, crop_name, property_type)
+    return carbon, ring, error
 
 
 # ============================================
@@ -213,11 +280,13 @@ async def CarbonReport(farm_id):
     farm = Farm.query.filter_by(farm_id=farm_id).first()
     if not farm:
         return jsonify({"error": "Farm not found"}), 404
-    data, status_code = await gfw_async_carbon(owner_type='farmer', owner_id=farm_id)
-    if status_code != 200:
-        return jsonify(data), status_code
-    return jsonify({"farm_info": _build_farm_info(farm),
-                    "report": data['dataset_results']}), 200
+    farm_info = _build_farm_info(farm)
+    carbon, ring, error = _farm_carbon(farm, farm_info)
+    if error:
+        return jsonify({"error": error}), 400
+    return jsonify({"farm_info": farm_info,
+                    "carbon":    carbon,
+                    "report":    _carbon_legacy_report(carbon, ring)}), 200
 
 
 @bp.route('/forest/<string:forest_id>/CarbonReport', methods=['GET'])
@@ -231,11 +300,12 @@ async def CarbonReportforest(forest_id):
         'date_created': forest.date_created.strftime('%Y-%m-%d %H:%M:%S'),
         'date_updated': forest.date_updated.strftime('%Y-%m-%d %H:%M:%S'),
     }
-    data, status_code = await gfw_async_carbon(owner_type='forest', owner_id=forest_id)
-    if status_code != 200:
-        return jsonify(data), status_code
+    carbon, ring, error = _forest_carbon(forest_id)
+    if error:
+        return jsonify({"error": error}), 400
     return jsonify({"forest_info": forest_info,
-                    "report": data['dataset_results']}), 200
+                    "carbon":      carbon,
+                    "report":      _carbon_legacy_report(carbon, ring)}), 200
 
 
 # ============================================
@@ -341,15 +411,17 @@ async def carbon_farm_pdf(farm_id):
     if not farm:
         return jsonify({"error": "Farm not found"}), 404
 
-    data, status_code = await gfw_async_carbon(owner_type='farmer', owner_id=farm_id)
-    if status_code != 200:
-        return jsonify(data), status_code
+    farm_info = _build_farm_info(farm)
+    carbon, ring, error = _farm_carbon(farm, farm_info)
+    if error:
+        return jsonify({"error": error}), 400
 
     try:
         pdf_bytes = build_carbon_farm_pdf(
             farm_id     = farm_id,
-            farm_info   = _build_farm_info(farm),
-            report      = data['dataset_results'],
+            farm_info   = farm_info,
+            carbon      = carbon,
+            coords      = ring,
             logo_parrot = LOGO_PARROT,
             logo_agri   = LOGO_AGRI,
         )
@@ -377,15 +449,16 @@ async def carbon_forest_pdf(forest_id):
         'date_updated': forest.date_updated.strftime('%Y-%m-%d'),
     }
 
-    data, status_code = await gfw_async_carbon(owner_type='forest', owner_id=forest_id)
-    if status_code != 200:
-        return jsonify(data), status_code
+    carbon, ring, error = _forest_carbon(forest_id)
+    if error:
+        return jsonify({"error": error}), 400
 
     try:
         pdf_bytes = build_carbon_forest_pdf(
             forest_id   = forest_id,
             forest_info = forest_info,
-            report      = data['dataset_results'],
+            carbon      = carbon,
+            coords      = ring,
             logo_parrot = LOGO_PARROT,
             logo_agri   = LOGO_AGRI,
         )
@@ -455,29 +528,42 @@ def guest_carbon_pdf():
     POST /api/gfw/guest/carbon-pdf
     Body JSON attendu :
       {
-        "report": {...},     # dict groupé par dataset (format CarbonReportFromFile)
+        "geojson": {...},    # polygone (prioritaire)
+        "report": {...},     # sinon : dict groupé (format CarbonReportFromFile),
+                             # seules ses coordonnées sont utilisées
+        "crop": "...",       # optionnel : culture (modèle AGB par culture)
         "farm_info": {...},  # optionnel
         "guest_id": "..."    # optionnel
       }
+    Les valeurs carbone sont TOUJOURS recalculées depuis les indices
+    Sentinel-2 du polygone, jamais reprises du report envoyé.
     """
     req_data = request.json or {}
     gfw_data = req_data.get('report')
 
-    if not gfw_data or not isinstance(gfw_data, dict):
-        return jsonify({"error": "Missing or invalid 'report' data"}), 400
-
     farm_info  = req_data.get('farm_info') or {}
     guest_id   = req_data.get('guest_id') or farm_info.get('farm_id') or 'GUEST'
     agent_id   = req_data.get('agent_id')
+    crop_name  = req_data.get('crop') or next(
+        (c.get('crop') for c in reversed(farm_info.get('crops') or []) if c.get('crop')), None)
 
-    # Adaptation dict groupé -> liste ordonnée attendue par build_carbon_farm_pdf
-    report_list = _carbon_grouped_to_list(gfw_data)
+    if req_data.get('geojson'):
+        carbon, ring, error = _carbon_from_geojson(req_data['geojson'], crop_name)
+    elif isinstance(gfw_data, dict) and gfw_data:
+        first = next((items[0] for items in gfw_data.values() if isinstance(items, list) and items), {})
+        ring = ring_from_report_coordinates(first.get('coordinates'))
+        carbon, error = _carbon_for_ring(ring, crop_name)
+    else:
+        return jsonify({"error": "Missing 'geojson' or 'report' data"}), 400
+    if error:
+        return jsonify({"error": error}), 400
 
     try:
         pdf_bytes = build_carbon_farm_pdf(
             farm_id     = str(guest_id),
             farm_info   = farm_info,
-            report      = report_list,
+            carbon      = carbon,
+            coords      = ring,
             logo_parrot = LOGO_PARROT,
             logo_agri   = LOGO_AGRI,
         )
@@ -750,24 +836,24 @@ async def carbon_report_from_file():
     filename   = secure_filename(file.filename)
     saved_path = os.path.join(UPLOAD_FOLDER, f"{filehash}.geojson")
 
-    if os.path.exists(saved_path):
-        with open(saved_path, 'r', encoding='utf-8') as f:
-            geojson_data = json.load(f)
-        data, status_code = await gfw_async_carbon_from_geojson(geojson_data)
-        if status_code != 200:
-            return jsonify(data), status_code
-        return jsonify({"message": "Duplicate file, using cached content",
-                        "report": _group_by_dataset(data['dataset_results']),
-                        "hash": filehash}), 200
+    crop_name  = request.form.get('crop')
 
-    file.save(saved_path)
-    log_upload(ip, user_agent, filename, filehash, guest_id)
-    geojson_data = json.load(open(saved_path))
-    data, status_code = await gfw_async_carbon_from_geojson(geojson_data)
-    if status_code != 200:
-        return jsonify(data), status_code
-    return jsonify({"message": "file OK",
-                    "report": _group_by_dataset(data['dataset_results'])}), 200
+    duplicate = os.path.exists(saved_path)
+    if not duplicate:
+        file.save(saved_path)
+        log_upload(ip, user_agent, filename, filehash, guest_id)
+    with open(saved_path, 'r', encoding='utf-8') as f:
+        geojson_data = json.load(f)
+
+    carbon, ring, error = _carbon_from_geojson(geojson_data, crop_name)
+    if error:
+        return jsonify({'error': error}), 400
+    body = {"message": "Duplicate file, using cached content" if duplicate else "file OK",
+            "carbon":  carbon,
+            "report":  _group_by_dataset(_carbon_legacy_report(carbon, ring))}
+    if duplicate:
+        body["hash"] = filehash
+    return jsonify(body), 200
 
 
 # ============================================
