@@ -1767,3 +1767,37 @@ class SpeciesGrowthParams(db.Model):
             't_half': self.t_half,
             'mmax': self.mmax,
         }
+class CropVariety(db.Model):
+    """Variety of a commodity: Coffee -> Arabica, Robusta; Sorghum -> Red, White."""
+    __tablename__ = 'cropvariety'
+    id           = db.Column(db.Integer, primary_key=True)
+    crop_id      = db.Column(db.Integer, db.ForeignKey('crop.id'), nullable=False, index=True)
+    name         = db.Column(db.String(100), nullable=False)
+    description  = db.Column(db.Text, nullable=True)
+    # A variety already used on receipts is deactivated, never deleted.
+    is_active    = db.Column(db.Boolean, nullable=False, default=True)
+    date_created = db.Column(db.DateTime, default=datetime.utcnow)
+    date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    modified_by  = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    created_by   = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+
+    crop = db.relationship('Crop', backref=db.backref('varieties', lazy=True))
+
+    __table_args__ = (
+        db.UniqueConstraint('crop_id', 'name', name='uq_crop_variety_name'),
+    )
+
+    def __repr__(self):
+        return f"<CropVariety(crop_id={self.crop_id}, name={self.name})>"
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'crop_id': self.crop_id,
+            'crop_name': self.crop.name if self.crop else None,
+            'name': self.name,
+            'description': self.description,
+            'is_active': self.is_active,
+            'date_created': self.date_created.isoformat() if self.date_created else None,
+            'date_updated': self.date_updated.isoformat() if self.date_updated else None,
+        }

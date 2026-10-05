@@ -586,9 +586,9 @@ def initiate_checkout():
 
         order = EcoOrder(
             user_id=user_id,
-            guest_email=None if user_id else email,
-            guest_name=None if user_id else guest_name,
-            guest_phone=None if user_id else phone,
+            guest_email=email or None,
+            guest_name=guest_name or None,
+            guest_phone=phone or None,
             shipping_address=shipping_address,
             total_amount=total, currency=currency,
             status='pending', payment_method='dpo',
