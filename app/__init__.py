@@ -98,7 +98,8 @@ def register_blueprints(app):
         api_sentinel,
         api_blog, api_hscode,
         ecommerce, ecommerce_customers,
-        auction, api_tree_co2,ecommerce_stats,api_crop_variety, 
+        auction, api_tree_co2,ecommerce_stats,api_crop_variety,api_quality,api_receipt,
+        api_warehouse,
     )
 
     blueprints = [
@@ -118,7 +119,8 @@ def register_blueprints(app):
         api_sentinel.sentinel_bp,
         api_blog.bp, api_hscode.bp,
         ecommerce.bp, ecommerce_customers.bp,
-        auction.bp, api_tree_co2.bp,ecommerce_stats.bp,api_crop_variety.bp, 
+        auction.bp, api_tree_co2.bp,ecommerce_stats.bp,api_crop_variety.bp, api_quality.bp,api_receipt.bp,
+        api_warehouse.bp,
     ]
 
     for blueprint in blueprints:

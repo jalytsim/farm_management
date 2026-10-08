@@ -13,6 +13,11 @@ from datetime import timedelta
 def _f(value):
     """Numeric -> float pour la sérialisation JSON."""
     return float(value) if value is not None else None
+# Warehouse receipts
+RECEIPT_STATUSES = ('issued', 'pledged', 'partially_released', 'released', 'sold', 'cancelled')
+# Statuses where the goods are still physically in the warehouse.
+OPEN_RECEIPT_STATUSES = ('issued', 'pledged', 'partially_released')
+DEPOSITOR_TYPES = ('farmer', 'cooperative', 'sacco', 'aggregator', 'trader', 'other')
 
 
 ZERO = Decimal('0')
@@ -420,22 +425,154 @@ class Crop(db.Model):
     def __repr__(self):
         return f"<Crop(id={self.id}, name={self.name})>"
 
+class CropVariety(db.Model):
+    """Variety of a commodity: Coffee -> Arabica, Robusta; Sorghum -> Red, White."""
+    __tablename__ = 'cropvariety'
+    id           = db.Column(db.Integer, primary_key=True)
+    crop_id      = db.Column(db.Integer, db.ForeignKey('crop.id'), nullable=False, index=True)
+    name         = db.Column(db.String(100), nullable=False)
+    description  = db.Column(db.Text, nullable=True)
+    # A variety already used on receipts is deactivated, never deleted.
+    is_active    = db.Column(db.Boolean, nullable=False, default=True)
+    date_created = db.Column(db.DateTime, default=datetime.utcnow)
+    date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    modified_by  = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    created_by   = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+
+    crop = db.relationship('Crop', backref=db.backref('varieties', lazy=True))
+
+    __table_args__ = (
+        db.UniqueConstraint('crop_id', 'name', name='uq_crop_variety_name'),
+    )
+
+    def __repr__(self):
+        return f"<CropVariety(crop_id={self.crop_id}, name={self.name})>"
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'crop_id': self.crop_id,
+            'crop_name': self.crop.name if self.crop else None,
+            'name': self.name,
+            'description': self.description,
+            'is_active': self.is_active,
+            'date_created': self.date_created.isoformat() if self.date_created else None,
+            'date_updated': self.date_updated.isoformat() if self.date_updated else None,
+        }
 
 class Grade(db.Model):
     __tablename__ = 'grade'
     id = db.Column(db.Integer, primary_key=True)
     crop_id = db.Column(db.Integer, db.ForeignKey('crop.id'), nullable=False)
+    # NULL means the grade applies to every variety of the commodity.
+    variety_id = db.Column(db.Integer, db.ForeignKey('cropvariety.id'), nullable=True, index=True)
     grade_value = db.Column(db.String(50), nullable=False)
     description = db.Column(db.Text, nullable=True)
+    # Lower is better: grades are checked from best to worst when grading a delivery.
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
     date_created = db.Column(db.DateTime, default=datetime.utcnow)
     date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     modified_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
 
+    variety = db.relationship('CropVariety', backref=db.backref('grades', lazy=True))
+
     def __repr__(self):
         return f"<Grade(crop_id={self.crop_id}, grade_value={self.grade_value})>"
 
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'crop_id': self.crop_id,
+            'crop_name': self.crop.name if self.crop else None,
+            'variety_id': self.variety_id,
+            'variety_name': self.variety.name if self.variety else None,
+            'grade_value': self.grade_value,
+            'description': self.description,
+            'sort_order': self.sort_order,
+        }
 
+
+class QualityParameter(db.Model):
+    """What a warehouse measures on delivery, per commodity or per variety."""
+    __tablename__ = 'qualityparameter'
+    id           = db.Column(db.Integer, primary_key=True)
+    crop_id      = db.Column(db.Integer, db.ForeignKey('crop.id'), nullable=False, index=True)
+    # NULL means the parameter is measured for every variety of the commodity.
+    variety_id   = db.Column(db.Integer, db.ForeignKey('cropvariety.id'), nullable=True, index=True)
+    name         = db.Column(db.String(100), nullable=False)
+    unit         = db.Column(db.String(20), nullable=True)            # %, kg, count…
+    value_type   = db.Column(db.String(10), nullable=False, default='number')  # number|choice|boolean
+    options      = db.Column(db.JSON, default=list)                   # for value_type 'choice'
+    # Acceptance range: outside it, the delivery is rejected at reception.
+    min_value    = db.Column(db.Numeric(12, 3), nullable=True)
+    max_value    = db.Column(db.Numeric(12, 3), nullable=True)
+    is_required  = db.Column(db.Boolean, nullable=False, default=True)
+    is_active    = db.Column(db.Boolean, nullable=False, default=True)
+    position     = db.Column(db.Integer, nullable=False, default=0)
+    date_created = db.Column(db.DateTime, default=datetime.utcnow)
+    date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by   = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    modified_by  = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+
+    crop    = db.relationship('Crop', backref=db.backref('quality_parameters', lazy=True))
+    variety = db.relationship('CropVariety', backref=db.backref('quality_parameters', lazy=True))
+
+    __table_args__ = (
+        db.UniqueConstraint('crop_id', 'variety_id', 'name', name='uq_quality_parameter_name'),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'crop_id': self.crop_id,
+            'variety_id': self.variety_id,
+            'variety_name': self.variety.name if self.variety else None,
+            'name': self.name,
+            'unit': self.unit,
+            'value_type': self.value_type,
+            'options': self.options or [],
+            'min_value': _f(self.min_value),
+            'max_value': _f(self.max_value),
+            'is_required': self.is_required,
+            'is_active': self.is_active,
+            'position': self.position,
+        }
+
+
+class GradeRule(db.Model):
+    """One condition a measurement must satisfy for a grade to be assigned."""
+    __tablename__ = 'graderule'
+    id             = db.Column(db.Integer, primary_key=True)
+    grade_id       = db.Column(db.Integer, db.ForeignKey('grade.id'), nullable=False, index=True)
+    parameter_id   = db.Column(db.Integer, db.ForeignKey('qualityparameter.id'), nullable=False, index=True)
+    operator       = db.Column(db.String(10), nullable=False)    # lte | gte | between | eq
+    min_value      = db.Column(db.Numeric(12, 3), nullable=True)
+    max_value      = db.Column(db.Numeric(12, 3), nullable=True)
+    expected_value = db.Column(db.String(100), nullable=True)    # choice / boolean
+    date_created   = db.Column(db.DateTime, default=datetime.utcnow)
+    created_by     = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+
+    grade     = db.relationship('Grade', backref=db.backref('rules', lazy=True, cascade='all, delete-orphan'))
+    parameter = db.relationship('QualityParameter', backref=db.backref('rules', lazy=True))
+
+    __table_args__ = (
+        db.UniqueConstraint('grade_id', 'parameter_id', name='uq_grade_rule_parameter'),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'grade_id': self.grade_id,
+            'parameter_id': self.parameter_id,
+            'parameter_name': self.parameter.name if self.parameter else None,
+            'unit': self.parameter.unit if self.parameter else None,
+            'operator': self.operator,
+            'min_value': _f(self.min_value),
+            'max_value': _f(self.max_value),
+            'expected_value': self.expected_value,
+        }
+    
 class CropCoefficient(db.Model):
     __tablename__ = 'cropcoefficient'
     id = db.Column(db.Integer, primary_key=True)
@@ -1798,37 +1935,172 @@ class SpeciesGrowthParams(db.Model):
             't_half': self.t_half,
             'mmax': self.mmax,
         }
-class CropVariety(db.Model):
-    """Variety of a commodity: Coffee -> Arabica, Robusta; Sorghum -> Red, White."""
-    __tablename__ = 'cropvariety'
+class WarehouseReceipt(db.Model):
+    """The Produce Stamp, made structured and verifiable.
+
+    It states that a given weight of a given commodity, of a known grade, is
+    held in a certified warehouse on behalf of a depositor. It is the document
+    a bank can lend against.
+    """
+    __tablename__ = 'warehousereceipt'
+    id            = db.Column(db.Integer, primary_key=True)
+    serial        = db.Column(db.String(20), unique=True, index=True, nullable=True)  # WR-00001
+
+    store_id      = db.Column(db.Integer, db.ForeignKey('store.id'), nullable=False, index=True)
+
+    # Who deposited: a farmer, but just as often a cooperative or a SACCO.
+    depositor_type    = db.Column(db.String(20), nullable=False)
+    depositor_name    = db.Column(db.String(255), nullable=False)
+    depositor_code    = db.Column(db.String(50), nullable=True)   # their own id, if any
+    depositor_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True, index=True)
+
+    crop_id       = db.Column(db.Integer, db.ForeignKey('crop.id'), nullable=False, index=True)
+    variety_id    = db.Column(db.Integer, db.ForeignKey('cropvariety.id'), nullable=True)
+    grade_id      = db.Column(db.Integer, db.ForeignKey('grade.id'), nullable=True)
+
+    gross_weight_kg    = db.Column(db.Numeric(12, 3), nullable=False)
+    net_weight_kg      = db.Column(db.Numeric(12, 3), nullable=False)
+    released_weight_kg = db.Column(db.Numeric(12, 3), nullable=False, default=0)
+
+    price_per_kg  = db.Column(db.Numeric(12, 2), nullable=True)
+    currency      = db.Column(db.String(10), default='UGX')
+
+    status        = db.Column(db.String(20), nullable=False, default='issued', index=True)
+    quality_note  = db.Column(db.Text, nullable=True)
+    qr_hash       = db.Column(db.String(32), nullable=True)       # links to QRCode.hash_md5
+
+    received_at   = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    date_created  = db.Column(db.DateTime, default=datetime.utcnow)
+    date_updated  = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by    = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+
+    store   = db.relationship('Store', backref=db.backref('receipts', lazy=True))
+    crop    = db.relationship('Crop')
+    variety = db.relationship('CropVariety')
+    grade   = db.relationship('Grade')
+    farms   = db.relationship('WarehouseReceiptFarm', backref='receipt', lazy=True,
+                              cascade='all, delete-orphan')
+    measurements = db.relationship('WarehouseReceiptMeasurement', backref='receipt', lazy=True,
+                                   cascade='all, delete-orphan')
+
+    @property
+    def remaining_weight_kg(self):
+        return (self.net_weight_kg or ZERO) - (self.released_weight_kg or ZERO)
+
+    @property
+    def total_value(self):
+        if self.price_per_kg is None:
+            return None
+        return self.price_per_kg * (self.net_weight_kg or ZERO)
+
+    def to_dict(self, with_detail=False):
+        data = {
+            'id': self.id,
+            'serial': self.serial,
+            'status': self.status,
+            'store_id': self.store_id,
+            'warehouse_name': self.store.name if self.store else None,
+            'warehouse_code': self.store.code if self.store else None,
+            'country': self.store.country if self.store else None,
+            'depositor_type': self.depositor_type,
+            'depositor_name': self.depositor_name,
+            'depositor_code': self.depositor_code,
+            'commodity': self.crop.name if self.crop else None,
+            'crop_id': self.crop_id,
+            'variety': self.variety.name if self.variety else None,
+            'variety_id': self.variety_id,
+            'grade': self.grade.grade_value if self.grade else None,
+            'grade_id': self.grade_id,
+            'gross_weight_kg': _f(self.gross_weight_kg),
+            'net_weight_kg': _f(self.net_weight_kg),
+            'released_weight_kg': _f(self.released_weight_kg),
+            'remaining_weight_kg': _f(self.remaining_weight_kg),
+            'price_per_kg': _f(self.price_per_kg),
+            'total_value': _f(self.total_value),
+            'currency': self.currency,
+            'qr_hash': self.qr_hash,
+            'received_at': self.received_at.isoformat() if self.received_at else None,
+        }
+        if with_detail:
+            data['farms'] = [f.to_dict() for f in self.farms]
+            data['measurements'] = [m.to_dict() for m in self.measurements]
+            data['note'] = self.quality_note
+        return data
+
+
+class WarehouseReceiptFarm(db.Model):
+    """Which farms contributed to this delivery, and how much each brought.
+
+    This is what keeps the EUDR traceability of Nkusu alive once a cooperative
+    aggregates several plots into one receipt.
+    """
+    __tablename__ = 'warehousereceiptfarm'
+    id         = db.Column(db.Integer, primary_key=True)
+    receipt_id = db.Column(db.Integer, db.ForeignKey('warehousereceipt.id'), nullable=False, index=True)
+    farm_id    = db.Column(db.String(50), db.ForeignKey('farm.farm_id'), nullable=True)
+    farm_name  = db.Column(db.String(255), nullable=True)
+    weight_kg  = db.Column(db.Numeric(12, 3), nullable=False, default=0)
+
+    def to_dict(self):
+        return {'id': self.id, 'farm_id': self.farm_id,
+                'farm_name': self.farm_name, 'weight_kg': _f(self.weight_kg)}
+
+
+class WarehouseReceiptMeasurement(db.Model):
+    """One quality value, as measured at reception. Append-only in practice:
+    this is the evidence behind the grade."""
+    __tablename__ = 'warehousereceiptmeasurement'
     id           = db.Column(db.Integer, primary_key=True)
-    crop_id      = db.Column(db.Integer, db.ForeignKey('crop.id'), nullable=False, index=True)
-    name         = db.Column(db.String(100), nullable=False)
-    description  = db.Column(db.Text, nullable=True)
-    # A variety already used on receipts is deactivated, never deleted.
-    is_active    = db.Column(db.Boolean, nullable=False, default=True)
-    date_created = db.Column(db.DateTime, default=datetime.utcnow)
-    date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    modified_by  = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
-    created_by   = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    receipt_id   = db.Column(db.Integer, db.ForeignKey('warehousereceipt.id'), nullable=False, index=True)
+    parameter_id = db.Column(db.Integer, db.ForeignKey('qualityparameter.id'), nullable=False)
+    value_number = db.Column(db.Numeric(12, 3), nullable=True)
+    value_text   = db.Column(db.String(100), nullable=True)
 
-    crop = db.relationship('Crop', backref=db.backref('varieties', lazy=True))
-
-    __table_args__ = (
-        db.UniqueConstraint('crop_id', 'name', name='uq_crop_variety_name'),
-    )
-
-    def __repr__(self):
-        return f"<CropVariety(crop_id={self.crop_id}, name={self.name})>"
+    parameter = db.relationship('QualityParameter')
 
     def to_dict(self):
         return {
             'id': self.id,
-            'crop_id': self.crop_id,
-            'crop_name': self.crop.name if self.crop else None,
-            'name': self.name,
-            'description': self.description,
-            'is_active': self.is_active,
+            'parameter_id': self.parameter_id,
+            'name': self.parameter.name if self.parameter else None,
+            'unit': self.parameter.unit if self.parameter else None,
+            'value': _f(self.value_number) if self.value_number is not None else self.value_text,
+        }
+class WarehouseMovement(db.Model):
+    """One line of history per kilogram in or out.
+
+    The receipt holds the current state; this table holds what happened and
+    when — which is what a daily dashboard and an auditor both need.
+    """
+    __tablename__ = 'warehousemovement'
+    id           = db.Column(db.Integer, primary_key=True)
+    store_id     = db.Column(db.Integer, db.ForeignKey('store.id'), nullable=False, index=True)
+    receipt_id   = db.Column(db.Integer, db.ForeignKey('warehousereceipt.id'), nullable=True, index=True)
+    direction    = db.Column(db.String(4), nullable=False)       # 'in' | 'out'
+    weight_kg    = db.Column(db.Numeric(12, 3), nullable=False)
+    reason       = db.Column(db.String(20), nullable=False)      # reception | release | cancellation…
+    crop_id      = db.Column(db.Integer, db.ForeignKey('crop.id'), nullable=True)
+    variety_id   = db.Column(db.Integer, db.ForeignKey('cropvariety.id'), nullable=True)
+    grade_id     = db.Column(db.Integer, db.ForeignKey('grade.id'), nullable=True)
+    note         = db.Column(db.String(255), nullable=True)
+    created_by   = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    date_created = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+    store   = db.relationship('Store')
+    receipt = db.relationship('WarehouseReceipt', backref=db.backref('movements', lazy=True))
+    crop    = db.relationship('Crop')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'store_id': self.store_id,
+            'warehouse': self.store.name if self.store else None,
+            'receipt_id': self.receipt_id,
+            'serial': self.receipt.serial if self.receipt else None,
+            'direction': self.direction,
+            'weight_kg': _f(self.weight_kg),
+            'reason': self.reason,
+            'commodity': self.crop.name if self.crop else None,
+            'note': self.note,
             'date_created': self.date_created.isoformat() if self.date_created else None,
-            'date_updated': self.date_updated.isoformat() if self.date_updated else None,
         }
