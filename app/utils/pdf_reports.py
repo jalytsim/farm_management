@@ -1172,12 +1172,10 @@ def _carbon_indices_table(carbon: dict) -> Table:
     return t
 
 
-def _carbon_assessment_elems(carbon: dict, st: dict) -> list:
-    """Résumé carbone + indices + méthode — commun aux rapports ferme et forêt."""
+def _carbon_summary_elems(carbon: dict, st: dict) -> list:
+    """Tableau émissions / absorptions / stock + camembert."""
     emissions, removals, net = carbon['emissions'], carbon['removals'], carbon['net']
-    net_positive = net >= 0
     elems = []
-
     elems += _section_bar('Carbon Assessment Summary', st)
     pie = _pie_chart_image({
         'Gross Emissions': abs(emissions),
@@ -1193,6 +1191,17 @@ def _carbon_assessment_elems(carbon: dict, st: dict) -> list:
     ]))
     elems.append(side_t)
     elems.append(Spacer(1, 5 * mm))
+    return elems
+
+
+def _carbon_assessment_elems(carbon: dict, st: dict, summary: bool = True) -> list:
+    """Indices + méthode, précédés du résumé carbone (forêt uniquement : summary=True)."""
+    net = carbon['net']
+    net_positive = net >= 0
+    elems = []
+
+    if summary:
+        elems += _carbon_summary_elems(carbon, st)
 
     elems += _section_bar('Vegetation Indices (Sentinel-2)', st)
     elems.append(_carbon_indices_table(carbon))
@@ -1279,7 +1288,7 @@ def build_carbon_farm_pdf(
     elems.append(_info_table(rows))
     elems.append(Spacer(1, 5 * mm))
 
-    elems += _carbon_assessment_elems(carbon, st)
+    elems += _carbon_assessment_elems(carbon, st, summary=False)
 
     # ── Satellite map ─────────────────────────────────────────────────────────
     if coords:

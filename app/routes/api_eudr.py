@@ -2,6 +2,10 @@
 import base64
 import json
 from flask import Blueprint, request, jsonify
+from app.utils.eudr_utils import (
+    geojson_errors, EU_COUNTRIES, CATTLE_HS_PREFIXES, TIMBER_HS_CHAPTERS, GEOJSON_GEOMETRY_TYPES,
+    OPERATOR_COUNTRY, OPERATOR_IS_EU, ALLOWED_ACTIVITY_TYPES, ALLOWED_OPERATOR_ROLES,
+)
 from app.utils.eudr_utils import EUDRClient, extract_amend_status, extract_dds_identifier, extract_internal_ref_statements, extract_statement_info, extract_verification_info, extract_soap_fault, extract_operator_identity  # Ton fichier contenant la classe EUDRClient
 import xml.etree.ElementTree as ET
 from app.models import db, EUDRStatement
@@ -99,6 +103,10 @@ eudr_client = EUDRClient(
     username=os.environ.get("EUDR_USERNAME", "n00hsq5u"),
     auth_key=os.environ.get("EUDR_AUTH_KEY", "axtAeJM0216XSNGfI7RCztDKOSh99NkuAjLmXAHR"),
     client_id=os.environ.get("EUDR_CLIENT_ID", "eudr-repository"),
+    # En-tête BodyIdentity désactivé par défaut : avec "UGhPT7Jq", TRACES répond
+    # UnauthenticatedException (testé en prod le 2026-10-06). Variable dédiée,
+    # distincte de EUDR_OPERATOR_WS_IDENTIFIER (simple valeur de comparaison).
+    operator_access_identifier=os.environ.get("EUDR_OPERATOR_ACCESS_IDENTIFIER"),
 )
 print(f"[EUDR] WS login={eudr_client.username} (from {'env' if EUDR_USERNAME_FROM_ENV else 'code fallback'}) "
       f"client_id={eudr_client.client_id} endpoint={eudr_client.service_url.split('?')[0]}", flush=True)
@@ -150,6 +158,7 @@ def identity_check():
             'ws_username_source': 'env (EUDR_USERNAME)' if EUDR_USERNAME_FROM_ENV else 'code fallback',
             'auth_key_source': 'env (EUDR_AUTH_KEY)' if os.environ.get("EUDR_AUTH_KEY") else 'code fallback',
             'web_service_client_id': eudr_client.client_id,
+            'operator_access_identifier': eudr_client.operator_access_identifier,
             'endpoint': eudr_client.service_url.split('?')[0],
             'company_identifiers_sent': 'none when operatorRole=OPERATOR; EORI/VAT of the represented '
                                         'operator only when operatorRole=REPRESENTATIVE_OPERATOR',
@@ -167,6 +176,48 @@ def identity_check():
             result['operator_in_traces'] = found
             result['match'] = _compare_operator(found)
     return jsonify(result), 200
+
+@api_eudr_bp.route('/config', methods=['GET'])
+@permission_required(DDS_PERMISSION)
+def submission_config():
+    """Contraintes TRACES du compte, pour que le formulaire ne propose que des valeurs acceptées."""
+    return jsonify({
+        "operatorCountry": OPERATOR_COUNTRY,
+        "operatorIsEU": OPERATOR_IS_EU,
+        "operatorRoles": list(ALLOWED_OPERATOR_ROLES),
+        "activityTypes": list(ALLOWED_ACTIVITY_TYPES),
+        "countriesOfActivity": list(EU_COUNTRIES),
+        "geometryTypes": list(GEOJSON_GEOMETRY_TYPES),
+        "pointMaxAreaHa": 4,
+        "pointMinAreaHa": 0.0001,
+        "cattleHsPrefixes": list(CATTLE_HS_PREFIXES),
+        "timberHsChapters": list(TIMBER_HS_CHAPTERS),
+        "internalReferenceMaxLength": 50,
+    })
+
+
+@api_eudr_bp.route('/validate', methods=['POST'])
+@permission_required(DDS_PERMISSION)
+def validate_statement():
+    """
+    Vérifie un formulaire avec les mêmes règles que /submit, sans rien envoyer
+    à TRACES. Body : {"geojson": {...}, "statement": {...}}.
+    """
+    data = request.get_json(silent=True) or {}
+    statement = data.get("statement") or {}
+    errors = []
+    hs_error = _hs_code_error(dict(statement))
+    if hs_error:
+        errors.append(hs_error)
+    try:
+        hs_digits = ''.join(ch for ch in str(statement.get('hsHeading') or '') if ch.isdigit())
+        errors += geojson_errors(data.get("geojson"), hs_digits)
+        producer_xml = eudr_client._build_producer_xml(statement.get('producers', []), '', require_non_empty=True)
+        eudr_client._build_statement_xml(statement, producer_xml)
+    except ValueError as e:
+        errors.append(str(e))
+    return jsonify({"valid": not errors, "errors": errors}), 200
+
 
 @api_eudr_bp.route('/submit', methods=['POST'])
 @permission_required(DDS_PERMISSION)
@@ -198,6 +249,7 @@ def submit_statement():
             "status": response.status_code,
             "error": fault.get("faultstring"),
             "detail": fault.get("detail"),
+            "hint": fault.get("hint"),
             "sent": sent,
             "raw": response.text
         }), 502
@@ -307,6 +359,7 @@ def amend_statement():
             "status": response.status_code,
             "error": fault.get("faultstring"),
             "detail": fault.get("detail"),
+            "hint": fault.get("hint"),
             "sent": sent,
             "raw": response.text
         }), 502
@@ -382,6 +435,16 @@ def retract_statement(dds_id):
     if denied:
         return denied
     response = eudr_client.withdraw_statement(dds_id)
+    fault = extract_soap_fault(response.text)
+    if fault:
+        # Ex. délai de retrait expiré ou DDS référencée : la DDS reste en base
+        print("🔥 SOAP Fault (withdraw) :", fault, flush=True)
+        return jsonify({
+            "status": response.status_code,
+            "error": fault.get("faultstring"),
+            "detail": fault.get("detail"),
+            "hint": fault.get("hint"),
+        }), 502
 
     if response.status_code == 200:
         try:
@@ -397,7 +460,11 @@ def retract_statement(dds_id):
                 "details": str(e)
             }), 500
 
-    return jsonify({"status": response.status_code, "response": response.text})
+    return jsonify({
+        "status": response.status_code,
+        "ddsStatus": extract_amend_status(response.text),
+        "response": response.text,
+    })
 
 
 @api_eudr_bp.route('/info/by-internal-ref/<reference>', methods=['GET'])
@@ -421,6 +488,7 @@ def get_by_internal_reference(reference):
             "statements": [],
             "error": fault.get("faultstring"),
             "detail": fault.get("detail"),
+            "hint": fault.get("hint"),
             "raw": response.text
         }), 502
 
@@ -510,26 +578,35 @@ def get_by_dds_identifier(dds_id):
         return denied
 
     response = eudr_client.get_by_dds_identifier(dds_id)
+    fault = extract_soap_fault(response.text)
+    if fault:
+        return jsonify({
+            "status": response.status_code,
+            "error": fault.get("faultstring"),
+            "detail": fault.get("detail"),
+            "hint": fault.get("hint"),
+        }), 502
     info = extract_statement_info(response.text)
 
     if not info:
         return jsonify({
             "status": response.status_code,
-            "error": "Unable to parse XML",
+            "error": "DDS not found in TRACES.",
             "raw": response.text
-        }), 500
+        }), 404
 
     try:
         stmt = EUDRStatement.query.filter_by(dds_identifier=dds_id).first()
         if stmt:
-            stmt.reference_number = info.get('referenceNumber', stmt.reference_number)
-            stmt.verification_code = info.get('verificationCode', stmt.verification_code)
-            stmt.status = info.get('status', stmt.status)
+            # `or` : une valeur vide renvoyée par TRACES n'efface pas la base
+            stmt.reference_number = info.get('referenceNumber') or stmt.reference_number
+            stmt.verification_code = info.get('verificationCode') or stmt.verification_code
+            stmt.status = info.get('status') or stmt.status
 
             date_str = info.get('date')
             if date_str:
                 try:
-                    stmt.status_date = datetime.fromisoformat(date_str)
+                    stmt.status_date = parser.isoparse(date_str).replace(tzinfo=None)
                 except ValueError:
                     pass
 
@@ -555,13 +632,16 @@ def get_by_dds_identifier(dds_id):
 
 @api_eudr_bp.route('/info/by-ref-verification', methods=['POST'])
 def get_by_reference_and_verification():
-    data = request.json
+    data = request.get_json(silent=True) or {}
     reference = data.get("reference")
     verification = data.get("verification")
 
     # Requête distante (SOAP)
+    if not reference or not verification:
+        return jsonify({"status": 400, "error": "'reference' and 'verification' are required."}), 400
     response = eudr_client.get_by_reference_and_verification(reference, verification)
-    info = extract_verification_info(response.text)
+    fault = extract_soap_fault(response.text)
+    info = None if fault else extract_verification_info(response.text)
 
     # Requête locale (base de données)
     local_record = EUDRStatement.query.filter_by(
@@ -614,7 +694,9 @@ def get_by_reference_and_verification():
     else:
         return jsonify({
             "status": response.status_code,
-            "error": "Unable to parse XML",
+            "error": fault.get("faultstring") if fault else "Unable to parse XML",
+            "detail": fault.get("detail") if fault else None,
+            "hint": fault.get("hint") if fault else None,
             "raw": response.text,
             "local_data": local_data
         })

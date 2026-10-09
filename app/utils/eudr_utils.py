@@ -114,11 +114,115 @@ def _supplementary_unit(hs_digits, unit, qualifier):
     return unit, qualifier
 
 
+# ── Règles métier TRACES vérifiées avant l'envoi ─────────────────────────────
+# Toutes testées en prod le 2026-10-08 (soumissions vouées à l'échec, aucune DDS
+# créée). Les vérifier ici donne un message clair au lieu d'un Fault TRACES.
+
+# EuropeanCountryType (XSD) : countryOfActivity / borderCrossCountry hors de
+# cette liste → SAXParseException "cvc-enumeration-valid" (ex. 'UG').
+EU_COUNTRIES = ('AT', 'BE', 'BG', 'CY', 'CZ', 'DE', 'DK', 'EE', 'ES', 'FI', 'FR', 'GR', 'HR', 'HU',
+                'IE', 'IT', 'LT', 'LU', 'LV', 'MT', 'NL', 'PL', 'PT', 'RO', 'SE', 'SI', 'SK', 'XI')
+
+# Bovins (Annexe I) : seuls produits autorisés au-delà de 4 ha pour un Point.
+CATTLE_HS_PREFIXES = ('0102', '0201', '0202', '0206', '1602', '4101', '4104', '4107')
+
+# Bois : TRACES exige nom scientifique + nom commun (EUDR-COMMODITIES-SPECIES-INFORMATION-EMPTY).
+TIMBER_HS_CHAPTERS = ('44', '47', '48', '49')
+
+# Opérateur du compte WS : hors UE → seule l'activité IMPORT est admise (doc
+# "Validation rules"). REPRESENTATIVE_OPERATOR est refusé pour ce compte
+# (EUDR-WEBSERVICE-USER-ACTIVITY-NOT-ALLOWED).
+OPERATOR_COUNTRY = (os.environ.get('EUDR_OPERATOR_COUNTRY') or 'UG').strip().upper()
+OPERATOR_IS_EU = OPERATOR_COUNTRY in EU_COUNTRIES
+ALLOWED_ACTIVITY_TYPES = ('DOMESTIC', 'IMPORT', 'EXPORT') if OPERATOR_IS_EU else ('IMPORT',)
+ALLOW_REPRESENTATIVE = str(os.environ.get('EUDR_ALLOW_REPRESENTATIVE') or '').strip().lower() in ('1', 'true', 'yes')
+ALLOWED_OPERATOR_ROLES = ('OPERATOR', 'REPRESENTATIVE_OPERATOR') if ALLOW_REPRESENTATIVE else ('OPERATOR',)
+
+GEOJSON_GEOMETRY_TYPES = ('Point', 'MultiPoint', 'Polygon', 'MultiPolygon')
+
+
+def _check_position(pos, where, errors):
+    if not (isinstance(pos, (list, tuple)) and len(pos) >= 2
+            and all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in pos[:2])):
+        errors.append(f"{where}: each coordinate must be [longitude, latitude] in decimal degrees.")
+        return
+    lon, lat = pos[0], pos[1]
+    if not -180 <= lon <= 180:
+        errors.append(f"{where}: longitude {lon} must be between -180 and 180.")
+    if not -90 <= lat <= 90:
+        errors.append(f"{where}: latitude {lat} must be between -90 and 90 (coordinates are [longitude, latitude]).")
+
+
+def _check_polygon(rings, where, errors):
+    if not isinstance(rings, list) or not rings:
+        errors.append(f"{where}: a Polygon needs at least one ring of coordinates.")
+        return
+    for ring in rings:
+        if not isinstance(ring, list) or len(ring) < 4:
+            errors.append(f"{where}: a Polygon ring needs at least 4 positions (first = last).")
+            continue
+        for pos in ring:
+            _check_position(pos, where, errors)
+        if list(ring[0][:2]) != list(ring[-1][:2]):
+            errors.append(f"{where}: the Polygon is not closed (the first and last positions must be identical).")
+
+
+def geojson_errors(gj, hs_digits=''):
+    """
+    Erreurs bloquantes d'un GeoJSON au regard des règles TRACES (doc "GeoJSON
+    description" + validation rules). Liste vide = rien à signaler.
+    """
+    if not isinstance(gj, dict) or gj.get('type') != 'FeatureCollection':
+        return ["The geolocation must be a GeoJSON FeatureCollection."]
+    features = gj.get('features')
+    if not isinstance(features, list) or not features:
+        return ["The geolocation must contain at least one plot (Feature)."]
+    errors = []
+    is_cattle = str(hs_digits).startswith(CATTLE_HS_PREFIXES)
+    for i, f in enumerate(features, start=1):
+        where = f"Plot {i}"
+        geom = (f or {}).get('geometry') if isinstance(f, dict) else None
+        if not isinstance(geom, dict) or 'coordinates' not in geom:
+            errors.append(f"{where}: missing geometry.")
+            continue
+        gtype, coords = geom.get('type'), geom.get('coordinates')
+        if gtype not in GEOJSON_GEOMETRY_TYPES:
+            errors.append(f"{where}: geometry type '{gtype}' is not accepted (use Point, MultiPoint, Polygon or MultiPolygon).")
+            continue
+        if gtype == 'Point':
+            _check_position(coords, where, errors)
+        elif gtype == 'MultiPoint':
+            for pos in coords or []:
+                _check_position(pos, where, errors)
+        elif gtype == 'Polygon':
+            _check_polygon(coords, where, errors)
+        else:
+            for poly in coords or []:
+                _check_polygon(poly, where, errors)
+        if gtype in ('Point', 'MultiPoint'):
+            area = ((f.get('properties') or {}).get('Area'))
+            if area not in (None, ''):
+                try:
+                    area = float(area)
+                except (TypeError, ValueError):
+                    errors.append(f"{where}: Area must be a number of hectares.")
+                    continue
+                if area < 0.0001:
+                    errors.append(f"{where}: Area must be at least 0.0001 ha.")
+                elif area > 4 and not is_cattle:
+                    errors.append(f"{where}: a Point cannot exceed 4 ha (Area={area}). Draw the plot as a Polygon instead.")
+    return errors
+
+
 class EUDRClient:
-    def __init__(self, username, auth_key, client_id='eudr-repository'):
+    def __init__(self, username, auth_key, client_id='eudr-repository', operator_access_identifier=None):
         self.username = username
         self.auth_key = auth_key
         self.client_id = client_id
+        # Web Service Access Identifier (Directory → Operators → [opérateur] →
+        # Operator Identifiers). Obligatoire si le login est lié à plusieurs
+        # opérateurs, optionnel mais pris en compte sinon (doc Operator API).
+        self.operator_access_identifier = (operator_access_identifier or '').strip() or None
         # V3 unifie submission + retrieval en un seul service
         self.service_url = 'https://eudr.webcloud.ec.europa.eu/tracesnt/ws/EUDRDueDiligenceStatementServiceV3?wsdl'
         # self.service_url = 'https://acceptance.eudr.webcloud.ec.europa.eu/tracesnt/ws/EUDRDueDiligenceStatementServiceV3?wsdl'
@@ -149,6 +253,12 @@ class EUDRClient:
             </wsse:UsernameToken>
         </wsse:Security>
         <v4:WebServiceClientId>{self.client_id}</v4:WebServiceClientId>"""
+        if self.operator_access_identifier:
+            # OperatorAccessIdentifier doit être non qualifié (sans namespace)
+            header += f"""
+        <body:BodyIdentity xmlns:body="http://ec.europa.eu/tracesnt/body/v3">
+            <OperatorAccessIdentifier xmlns="">{_txt(self.operator_access_identifier)}</OperatorAccessIdentifier>
+        </body:BodyIdentity>"""
         return header
 
     def _post(self, body: str):
@@ -247,9 +357,23 @@ class EUDRClient:
         if operator_role in ('TRADER', 'REPRESENTATIVE_TRADER'):
             raise ValueError(f"operatorRole '{operator_role}' n'existe plus en V3 (traders exclus de la soumission DDS).")
 
+        if operator_role not in ALLOWED_OPERATOR_ROLES:
+            raise ValueError(
+                f"operatorRole '{operator_role}' is not allowed for this TRACES account "
+                f"(allowed: {', '.join(ALLOWED_OPERATOR_ROLES)}).")
+
         activity_type = str(statement_data.get('activityType') or '').strip().upper()
         if activity_type == 'TRADE':
             raise ValueError("activityType 'TRADE' n'existe plus en V3.")
+        if activity_type and activity_type not in ALLOWED_ACTIVITY_TYPES:
+            raise ValueError(
+                f"activityType '{activity_type}' is not allowed: the operator is established outside the EU "
+                f"({OPERATOR_COUNTRY}), only {', '.join(ALLOWED_ACTIVITY_TYPES)} is accepted.")
+
+        for field in ('countryOfActivity', 'borderCrossCountry'):
+            code = _country(statement_data.get(field))
+            if code and code not in EU_COUNTRIES:
+                raise ValueError(f"{field} must be an EU member state (got '{code}').")
 
         operator_block = ""
         if operator_role == 'REPRESENTATIVE_OPERATOR':
@@ -285,6 +409,9 @@ class EUDRClient:
         species = statement_data.get('speciesInfo') or {}
         # speciesInfo n'est envoyé que s'il est renseigné (bloc vide = rejet XSD)
         species_xml = ""
+        if hs_digits[:2] in TIMBER_HS_CHAPTERS and not (
+                str(species.get('scientificName') or '').strip() and str(species.get('commonName') or '').strip()):
+            raise ValueError(f"HS {hs_digits} is a timber product: scientific name and common name are required.")
         if str(species.get('scientificName') or '').strip() or str(species.get('commonName') or '').strip():
             species_xml = f"""<v3:speciesInfo>
                     {_el('v3:scientificName', species.get('scientificName'))}
@@ -317,26 +444,18 @@ class EUDRClient:
         # faute de payload d'exemple côté app. À ajouter si utilisé:
         # <v3:groupedDeclarations><v3:groupedDeclaration>REF</v3:groupedDeclaration>...</v3:groupedDeclarations>
 
+    @staticmethod
+    def _validate_geojson(geojson_data, statement_data):
+        hs_digits = ''.join(ch for ch in str(statement_data.get('hsHeading') or '') if ch.isdigit())
+        errors = geojson_errors(geojson_data, hs_digits)
+        if errors:
+            raise ValueError("Invalid geolocation: " + " ".join(errors[:10]))
+
     # ------------------------------------------------------------------
     # SUBMIT
     # ------------------------------------------------------------------
     def submit_statement(self, geojson_data: dict, statement_data: dict):
-        def validate_geojson(gj):
-            if not isinstance(gj, dict):
-                return False
-            if gj.get("type") != "FeatureCollection":
-                return False
-            features = gj.get("features", [])
-            if not isinstance(features, list) or len(features) == 0:
-                return False
-            for f in features:
-                if "geometry" not in f or "type" not in f["geometry"] or "coordinates" not in f["geometry"]:
-                    return False
-            return True
-
-        if not validate_geojson(geojson_data):
-            raise ValueError("Invalid GeoJSON provided.")
-
+        self._validate_geojson(geojson_data, statement_data)
         geojson_b64 = base64.b64encode(json.dumps(geojson_data).encode('utf-8')).decode('utf-8')
         producer_xml = self._build_producer_xml(statement_data.get('producers', []), geojson_b64, require_non_empty=True)
         operator_role = statement_data.get('operatorRole', statement_data.get('operatorType', 'OPERATOR'))
@@ -356,16 +475,20 @@ class EUDRClient:
     def check_hs_code(self, hs_code: str):
         """
         Demande à TRACES si un code HS existe, sans jamais créer de DDS : la
-        déclaration envoyée a une géolocalisation volontairement invalide.
-        TRACES contrôle le code HS AVANT la géolocalisation (vérifié en prod) :
-          - EUDR-COMMODITIES-HS-CODE-INVALID   → False (code refusé)
-          - EUDR-COMMODITIES-PRODUCER-GEO-INVALID → True (code accepté)
-          - toute autre réponse                → None (indéterminé)
+        déclaration envoyée a une géolocalisation lisible mais hors limites
+        (latitude 95). ⚠️ Un GeoJSON illisible arrête TRACES AVANT le contrôle
+        du code HS : l'ancienne version déclarait ainsi 0901 ou 1201 valides
+        alors qu'ils sont refusés (testé en prod le 2026-10-08).
+          - EUDR-COMMODITIES-HS-CODE-INVALID           → False (code refusé)
+          - EUDR-COMMODITIES-PRODUCER-GEO-LATITUDE-INVALID seul → True (accepté)
+          - toute autre réponse                        → None (indéterminé)
         """
         digits = ''.join(ch for ch in str(hs_code) if ch.isdigit())
         if not 2 <= len(digits) <= 6:
             return False
-        invalid_geo = base64.b64encode(b"not-a-geojson").decode()
+        invalid_geo = base64.b64encode(json.dumps({"type": "FeatureCollection", "features": [{
+            "type": "Feature", "properties": {"Area": 1},
+            "geometry": {"type": "Point", "coordinates": [32.58, 95.0]}}]}).encode()).decode()
         body = f"""<v3:SubmitDdsRequest>
             <v3:operatorRole>OPERATOR</v3:operatorRole>
             <v3:statement>
@@ -398,7 +521,7 @@ class EUDRClient:
         detail = fault.get('detail') or ''
         if 'EUDR-COMMODITIES-HS-CODE-INVALID' in detail:
             return False
-        if 'EUDR-COMMODITIES-PRODUCER-GEO-INVALID' in detail:
+        if 'EUDR-COMMODITIES-PRODUCER-GEO-LATITUDE-INVALID' in detail:
             return True
         return None
 
@@ -408,6 +531,7 @@ class EUDRClient:
     def amend_statement(self, geojson_data: dict, uuid: str, statement_data: dict):
         if not uuid or not str(uuid).strip():
             raise ValueError("DDS identifier (uuid) is required to amend a statement.")
+        self._validate_geojson(geojson_data, statement_data)
         geojson_b64 = base64.b64encode(json.dumps(geojson_data).encode('utf-8')).decode('utf-8')
         producer_xml = self._build_producer_xml(statement_data.get('producers', []), geojson_b64, require_non_empty=True)
         statement_xml = self._build_statement_xml(statement_data, producer_xml)
@@ -448,21 +572,18 @@ class EUDRClient:
         return self._post(body)
 
     def get_by_reference_and_verification(self, reference: str, verification: str):
-        # ✅ CONFIRMÉ doc officielle: GetDdsByIdentifiersRequestType.referenceAndVerificationNumber
-        # (ReferenceAndVerificationNumberType), et non les deux champs à plat
+        # GetDdsByIdentifiersRequestType.referenceAndVerificationNumber : ses enfants
+        # sont en v3c (common). En v3, TRACES renvoyait toujours une SAXParseException
+        # (testé en prod le 2026-10-08).
         body = f"""
         <v3:GetDdsByIdentifiersRequest>
             <v3:referenceAndVerificationNumber>
-                <v3:referenceNumber>{reference}</v3:referenceNumber>
-                <v3:verificationNumber>{verification}</v3:verificationNumber>
+                <v3c:referenceNumber>{_txt(reference)}</v3c:referenceNumber>
+                <v3c:verificationNumber>{_txt(verification)}</v3c:verificationNumber>
             </v3:referenceAndVerificationNumber>
         </v3:GetDdsByIdentifiersRequest>
         """
-        response = self._post(body)
-        print("\n🔽🔽🔽 [RESPONSE XML] 🔽🔽🔽\n")
-        print(response.text)
-        print("\n🔼🔼🔼 [END RESPONSE XML] 🔼🔼🔼\n")
-        return response
+        return self._post(body)
 
 
 # ==========================================================================
@@ -545,21 +666,25 @@ def extract_operator_identity(xml_text):
 
 
 def extract_statement_info(xml_text):
-    try:
-        root = ET.fromstring(xml_text)
-        ns = {'S': 'http://schemas.xmlsoap.org/soap/envelope/', 'v3': NS_V3}
-        info = {
-            'identifier': root.findtext('.//v3:uuid', default='', namespaces=ns),
-            'internalReferenceNumber': root.findtext('.//v3:internalReferenceNumber', default='', namespaces=ns),
-            'referenceNumber': root.findtext('.//v3:referenceNumber', default='', namespaces=ns),
-            'verificationCode': root.findtext('.//v3:verificationNumber', default='', namespaces=ns),
-            'status': root.findtext('.//v3:status', default='', namespaces=ns),
-            'date': root.findtext('.//v3:date', default='', namespaces=ns),
-            'updatedBy': root.findtext('.//v3:updatedBy', default='', namespaces=ns)
-        }
-        return info
-    except ET.ParseError:
+    """
+    GetDds : les champs de ddsOverviewList sont en v3c (common). Les chercher en
+    v3 renvoyait tout vide, et la route by-dds-id effaçait alors la référence
+    et le statut en base (testé en prod le 2026-10-08).
+    """
+    statements = extract_internal_ref_statements(xml_text)
+    if not statements:
         return None
+    s = statements[0]
+    return {
+        'identifier': s['identifier'],
+        'internalReferenceNumber': s['internalReferenceNumber'],
+        'referenceNumber': s['referenceNumber'],
+        'verificationCode': s['verificationNumber'],
+        'status': s['status'],
+        'rejectionReason': s['rejectionReason'],
+        'date': s['date'],
+        'updatedBy': s['updatedBy'],
+    }
 
 
 def extract_verification_info(xml_text):
@@ -574,41 +699,37 @@ def extract_verification_info(xml_text):
         if statement is None:
             return {'error': 'Statement not found in XML'}
 
+        # Réponse réelle : descriptors/goodsMeasure en v3c, producers/country en v3
+        # (l'inverse de ce qui était cherché → champs vides). Recherche par nom local.
         info = {
-            'referenceNumber': statement.findtext('v3:referenceNumber', default='', namespaces=ns),
-            'activityType': statement.findtext('v3:activityType', default='', namespaces=ns),
-            'status': statement.findtext('.//v3c:status', default='', namespaces=ns),
-            'statusDate': statement.findtext('.//v3c:date', default='', namespaces=ns),
-            # operatorName est en v3c (cf. NS_COMMON) : l'ancien './/v3:operatorName'
-            # renvoyait toujours '' → impossible de voir à quel opérateur la DDS est rattachée.
+            'referenceNumber': _findtext_local(statement, 'referenceNumber'),
+            'activityType': _findtext_local(statement, 'activityType'),
+            'status': _findtext_local(statement, 'status'),
+            'statusDate': _findtext_local(statement, 'date'),
+            'geoLocationConfidential': _findtext_local(statement, 'geoLocationConfidential'),
             'operator': extract_operator_identity(xml_text) or {},
             'commodities': []
         }
 
-        for commodity in statement.findall('.//v3:commodities', ns):
-            descriptors = commodity.find('.//v3:descriptors', ns)
-            species_info = commodity.find('.//v3:speciesInfo', ns)
-            hs_heading = commodity.findtext('v3:hsHeading', default='', namespaces=ns)
-
+        for commodity in statement.findall('v3:commodities', ns):
             commodity_info = {
-                'descriptionOfGoods': descriptors.findtext('v3:descriptionOfGoods', default='', namespaces=ns) if descriptors is not None else '',
+                'descriptionOfGoods': _findtext_local(commodity, 'descriptionOfGoods'),
                 'goodsMeasure': {
-                    'volume': descriptors.findtext('.//v3:volume', default='', namespaces=ns) if descriptors is not None else '',
-                    'netWeight': descriptors.findtext('.//v3:netWeight', default='', namespaces=ns) if descriptors is not None else '',
-                    'supplementaryUnit': descriptors.findtext('.//v3:supplementaryUnit', default='', namespaces=ns) if descriptors is not None else '',
-                    'supplementaryUnitQualifier': descriptors.findtext('.//v3:supplementaryUnitQualifier', default='', namespaces=ns) if descriptors is not None else ''
+                    'netWeight': _findtext_local(commodity, 'netWeight'),
+                    'supplementaryUnit': _findtext_local(commodity, 'supplementaryUnit'),
+                    'supplementaryUnitQualifier': _findtext_local(commodity, 'supplementaryUnitQualifier'),
                 },
                 'speciesInfo': {
-                    'scientificName': species_info.findtext('v3:scientificName', default='', namespaces=ns) if species_info is not None else '',
-                    'commonName': species_info.findtext('v3:commonName', default='', namespaces=ns) if species_info is not None else ''
+                    'scientificName': _findtext_local(commodity, 'scientificName'),
+                    'commonName': _findtext_local(commodity, 'commonName'),
                 },
-                'hsHeading': hs_heading,
+                'hsHeading': _findtext_local(commodity, 'hsHeading'),
                 'producers': []
             }
 
-            for producer in commodity.findall('.//v3:producers', ns):
-                country = producer.findtext('v3c:country', default='', namespaces=ns)
-                geo_b64 = producer.findtext('v3:geometryGeojson', default='', namespaces=ns)
+            for producer in commodity.findall('v3:producers', ns):
+                country = _findtext_local(producer, 'country')
+                geo_b64 = _findtext_local(producer, 'geometryGeojson')
                 decoded_geometry = {}
                 if geo_b64:
                     try:
@@ -670,6 +791,34 @@ def extract_internal_ref_statements(xml_text):
         return None
 
 
+# Erreurs métier TRACES dont la cause n'est pas dans l'enveloppe envoyée.
+TRACES_ERROR_HINTS = {
+    # En operatorRole=OPERATOR, l'opérateur est celui du compte WS : aucun TIN/CBR
+    # n'est envoyé par l'app. TRACES contrôle les identifiants de la fiche
+    # opérateur ; pour un opérateur hors UE (ex. UG), seuls EORI/GLN/DUNS… sont admis.
+    'EUDR-OPERATOR-IDENTIFIER-NOT-ALLOWED-FOR-NON-EU-OPERATOR':
+        "The TRACES operator profile linked to the web-service account (non-EU operator) "
+        "contains TIN and/or Central Business Register identifiers. Remove them from the "
+        "operator profile in TRACES (keep the EORI) and submit again.",
+    'EUDR-WEBSERVICE-USER-ACTIVITY-NOT-ALLOWED':
+        "This TRACES web-service account does not have the requested role "
+        "(e.g. REPRESENTATIVE_OPERATOR). Submit as OPERATOR.",
+    'EUDR-COMMODITIES-HS-CODE-INVALID':
+        "TRACES does not accept this HS code. Use a 6-digit subheading (e.g. 090111 instead of 0901).",
+    'EUDR-COMMODITIES-SPECIES-INFORMATION-EMPTY':
+        "Timber products require a scientific name and a common name.",
+    'EUDR-COMMODITIES-PRODUCER-GEO-AREA-INVALID':
+        "A plot drawn as a Point cannot exceed 4 ha (except cattle): draw it as a Polygon.",
+    'EUDR-COMMODITIES-PRODUCER-GEO-LATITUDE-INVALID':
+        "A latitude is out of range: coordinates must be [longitude, latitude].",
+    'EUDR-COMMODITIES-PRODUCER-GEO-INVALID':
+        "The geolocation is invalid (unclosed polygon, crossing lines, wrong geometry type…). "
+        "Fix the plot boundaries and submit again.",
+    'EUDR-COMMODITITY-PRODUCER-COUNTRY-CODE-INVALID':
+        "The producer country code is not a valid ISO alpha-2 code.",
+}
+
+
 def extract_soap_fault(xml_text):
     """
     Détecte un SOAP Fault (erreur de validation, auth, etc.) dans la réponse brute.
@@ -695,10 +844,19 @@ def extract_soap_fault(xml_text):
                     msg = _findtext_local(el, 'Message')
                     errors.append(f"{err_id}: {msg}" if err_id else msg)
             detail = "\n".join(e for e in errors if e) or fault.findtext('.//detail')
-            return {
+            result = {
                 'faultstring': faultstring or 'Unknown SOAP fault',
                 'detail': detail or ''
             }
+            # Codes en entier (GEO-INVALID est un préfixe de GEO-AREA-INVALID…)
+            codes = set(re.findall(r'EUDR-[A-Z-]+', result['detail']))
+            hints = [hint for code, hint in TRACES_ERROR_HINTS.items() if code in codes]
+            if 'SAXParseException' in result['faultstring'] and 'cvc-enumeration-valid' in result['faultstring']:
+                hints.append("A code value (country, unit…) is not in the list accepted by TRACES; "
+                             "the country of activity must be an EU member state.")
+            if hints:
+                result['hint'] = "\n".join(hints)
+            return result
         return None
     except ET.ParseError:
         return None

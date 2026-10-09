@@ -175,3 +175,104 @@ def polygon_geometry(ring):
     if ring[0] != ring[-1]:
         ring.append(ring[0])
     return {'type': 'Polygon', 'coordinates': [ring]}
+
+
+# ── Tendance AGB sur l'historique 5 ans + prévision (sat-index) ──────────────
+
+def _agb_from_values(values, crop_key):
+    """AGB (t/ha) depuis un dict {indice: valeur} ; None si un indice manque."""
+    agb = _agb_t_ha(values, crop_key)
+    return None if agb is None else round(max(0.0, agb), 4)
+
+
+def _linear_slope_per_year(points):
+    """Pente (t/ha/an) d'une régression linéaire sur [(date 'YYYY-MM-DD', agb)]."""
+    if len(points) < 2:
+        return None
+    xs = [datetime.strptime(d[:10], '%Y-%m-%d').toordinal() / 365.25 for d, _ in points]
+    ys = [v for _, v in points]
+    mx, my = sum(xs) / len(xs), sum(ys) / len(ys)
+    den = sum((x - mx) ** 2 for x in xs)
+    if den == 0:
+        return None
+    return sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / den
+
+
+def compute_agb_trend(history, forecast, crop_name=None, property_type='farm', area_ha=None):
+    """
+    Applique la formule AGB de la culture à chaque lecture de l'historique
+    (≈ 5 ans, trimestriel) et à chaque trimestre prévu (Prophet / seasonal naive).
+
+    history  : lignes {date, ndvi: {value,...} | float, ...}
+    forecast : {indice: [{date, quarter, value, lower_80, upper_80}, ...]}
+    Les formules sont croissantes en chaque indice → l'intervalle 80 % de l'AGB
+    est obtenu en appliquant la formule aux bornes basses / hautes des indices.
+    """
+    crop_key, agb_formula = _agb_model(crop_name, property_type)
+    needed = INDEX_MODELS[crop_key]['indices'] if crop_key else ('ndvi',)
+
+    def _stock_mg(agb):
+        if agb is None or not area_ha:
+            return None
+        return round(calculate_biomass_and_co2(agb * area_ha * 1000.0)['co2_sequestered_kg'] / 1000.0, 4)
+
+    hist_out = []
+    for row in history or []:
+        agb = _agb_from_values(row, crop_key)
+        if agb is None:
+            continue
+        hist_out.append({'date': row.get('date'), 'agb_t_ha': agb, 'stock_co2e_mg': _stock_mg(agb)})
+    hist_out.sort(key=lambda r: r['date'] or '')
+
+    # Prévisions indexées par date ; on ne garde que les trimestres où tous les indices requis existent
+    by_date = {}
+    for idx in needed:
+        for f in (forecast or {}).get(idx) or []:
+            by_date.setdefault(f['date'], {'quarter': f.get('quarter')})[idx] = f
+    fc_out = []
+    for date in sorted(by_date):
+        entry = by_date[date]
+        if not all(idx in entry for idx in needed):
+            continue
+        agb = _agb_from_values({idx: entry[idx]['value'] for idx in needed}, crop_key)
+        lo  = _agb_from_values({idx: entry[idx].get('lower_80', entry[idx]['value']) for idx in needed}, crop_key)
+        hi  = _agb_from_values({idx: entry[idx].get('upper_80', entry[idx]['value']) for idx in needed}, crop_key)
+        if agb is None:
+            continue
+        fc_out.append({
+            'date': date, 'quarter': entry.get('quarter'),
+            'agb_t_ha': agb, 'lower_80': lo, 'upper_80': hi,
+            'stock_co2e_mg': _stock_mg(agb), 'is_forecast': True,
+        })
+
+    slope_hist = _linear_slope_per_year([(r['date'], r['agb_t_ha']) for r in hist_out])
+    last = hist_out[-1]['agb_t_ha'] if hist_out else None
+    end  = fc_out[-1]['agb_t_ha'] if fc_out else None
+    change_pct = round((end - last) / last * 100, 2) if last and end is not None else None
+
+    if slope_hist is None:
+        direction = None
+    elif abs(slope_hist) < 0.01 * max(last or 0, 1e-6):
+        direction = 'stable'
+    else:
+        direction = 'increasing' if slope_hist > 0 else 'decreasing'
+
+    return {
+        'crop':         crop_name,
+        'agb_model':    crop_key or 'generic_ndvi',
+        'agb_formula':  agb_formula,
+        'unit':         't/ha',
+        'area_ha':      round(area_ha, 4) if area_ha else None,
+        'history':      hist_out,
+        'forecast':     fc_out,
+        'summary': {
+            'history_from':           hist_out[0]['date'] if hist_out else None,
+            'history_to':             hist_out[-1]['date'] if hist_out else None,
+            'mean_agb_t_ha':          round(sum(r['agb_t_ha'] for r in hist_out) / len(hist_out), 4) if hist_out else None,
+            'slope_t_ha_per_year':    round(slope_hist, 4) if slope_hist is not None else None,
+            'direction':              direction,
+            'last_agb_t_ha':          last,
+            'forecast_end_agb_t_ha':  end,
+            'forecast_change_pct':    change_pct,
+        },
+    }

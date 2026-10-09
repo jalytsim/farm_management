@@ -29,6 +29,7 @@ from app.utils.dashboard_utils import (count_all_entities, count_users_by_type,
                                        get_admin_full_stats, get_area_stats,
                                        get_forest_tree_stats, get_gfw_stats,
                                        get_latest_updates)
+from app.utils.decorators import admin_required, load_current_user
 
 dashboard_api_bp = Blueprint('dashboard_api', __name__, url_prefix='/api/dashboard')
 
@@ -38,7 +39,7 @@ dashboard_api_bp = Blueprint('dashboard_api', __name__, url_prefix='/api/dashboa
 # ══════════════════════════════════════════════
 
 @dashboard_api_bp.route('/users/by-type', methods=['GET'])
-@jwt_required()
+@admin_required
 def users_by_type():
     return jsonify(count_users_by_type())
 
@@ -46,9 +47,14 @@ def users_by_type():
 @dashboard_api_bp.route('/user/<int:user_id>/activity', methods=['GET'])
 @jwt_required()
 def user_activity(user_id):
+    requester = load_current_user()
+    if not requester or (not requester.is_admin and requester.id != user_id):
+        return jsonify({'error': 'Admin access required'}), 403
     models = [FarmData, Farm, Forest, District, Store, Product]
     activity = {}
     for model in models:
+        if not hasattr(model, 'created_by'):
+            continue
         activity[model.__tablename__] = {
             "created": db.session.query(model).filter_by(created_by=user_id).count(),
             "updated": db.session.query(model).filter_by(modified_by=user_id).count(),
@@ -59,7 +65,16 @@ def user_activity(user_id):
 @dashboard_api_bp.route('/entities/count', methods=['GET'])
 @jwt_required()
 def count_all():
-    return jsonify(count_all_entities())
+    user = load_current_user()
+    if not user:
+        return jsonify({'error': 'User not found'}), 401
+    if user.is_admin:
+        return jsonify(count_all_entities())
+    # Compte client : uniquement ses propres entités (Product n'a pas de created_by)
+    own = {'farms': Farm, 'forests': Forest, 'trees': Tree, 'farmdata': FarmData, 'stores': Store}
+    counts = {k: m.query.filter_by(created_by=user.id).count() for k, m in own.items()}
+    counts['products'] = 0
+    return jsonify(counts)
 
 
 @dashboard_api_bp.route('/latest-updates/<string:model_name>', methods=['GET'])
@@ -73,7 +88,15 @@ def latest_updates(model_name):
     model = model_map.get(model_name.lower())
     if not model:
         return jsonify({'error': f'Model {model_name} not found'}), 404
-    records = model.query.order_by(model.date_updated.desc()).limit(limit).all()
+    user = load_current_user()
+    if not user:
+        return jsonify({'error': 'User not found'}), 401
+    query = model.query
+    if not user.is_admin:
+        if not hasattr(model, 'created_by'):
+            return jsonify([])
+        query = query.filter_by(created_by=user.id)
+    records = query.order_by(model.date_updated.desc()).limit(limit).all()
     return jsonify([
         {col.name: getattr(r, col.name) for col in model.__table__.columns}
         for r in records

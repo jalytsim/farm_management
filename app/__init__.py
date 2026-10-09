@@ -198,6 +198,15 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
 
+    # 🔒 Les valeurs par défaut de SECRET_KEY / JWT_SECRET_KEY sont dans le code
+    # (donc sur GitHub) : sans variables d'environnement, n'importe qui pourrait
+    # signer un JWT admin ou un lien de rapport. On le signale très visiblement.
+    for key in ('SECRET_KEY', 'JWT_SECRET_KEY'):
+        if not os.getenv(key):
+            app.logger.critical(
+                "[SECURITY] %s n'est pas défini dans l'environnement : la valeur par défaut "
+                "publique du code est utilisée. Définissez-le dans .env avant la mise en prod.", key)
+
     init_extensions(app)
     register_blueprints(app)
     register_filters(app)

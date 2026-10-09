@@ -10,6 +10,8 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import func
 from app import db
 
+from app.utils.stored_reports import attach_stored_report, send_stored_report
+from app.utils.report_access import check_owner_access, check_guest_report_access
 from app.utils.pdf_reports import (
     build_eudr_farm_pdf,
     build_eudr_forest_pdf,
@@ -241,6 +243,9 @@ async def forestReport(forest_id):
     forest = Forest.query.filter_by(id=forest_id).first()
     if not forest:
         return jsonify({"error": "Forest not found"}), 404
+    denied = check_owner_access(forest, 'forest')
+    if denied:
+        return denied
     forest_info = {
         'farm_id':      forest.id,
         'name':         forest.name,
@@ -264,6 +269,9 @@ async def farmerReport(farm_id):
     farm = Farm.query.filter_by(farm_id=farm_id).first()
     if not farm:
         return jsonify({"error": "Farm not found"}), 404
+    denied = check_owner_access(farm, 'farm')
+    if denied:
+        return denied
     data, status_code = await gfw_async(owner_type='farmer', owner_id=farm_id)
     if status_code != 200:
         return jsonify(data), status_code
@@ -280,6 +288,9 @@ async def CarbonReport(farm_id):
     farm = Farm.query.filter_by(farm_id=farm_id).first()
     if not farm:
         return jsonify({"error": "Farm not found"}), 404
+    denied = check_owner_access(farm, 'farm')
+    if denied:
+        return denied
     farm_info = _build_farm_info(farm)
     carbon, ring, error = _farm_carbon(farm, farm_info)
     if error:
@@ -294,6 +305,9 @@ async def CarbonReportforest(forest_id):
     forest = Forest.query.filter_by(id=forest_id).first()
     if not forest:
         return jsonify({"error": "Forest not found"}), 404
+    denied = check_owner_access(forest, 'forest')
+    if denied:
+        return denied
     forest_info = {
         'name':         forest.name,
         'tree_type':    forest.tree_type,
@@ -322,8 +336,16 @@ def _send_pdf(pdf_bytes: bytes, filename: str, as_attachment: bool = True, brows
     # la taille dépasse leur seuil, quel que soit Content-Disposition.
     # Le frontend re-type le blob en 'application/pdf' lui-même après coup.
     mimetype = 'application/octet-stream' if browser_safe else 'application/pdf'
-    return send_file(tmp.name, mimetype=mimetype,
-                     as_attachment=as_attachment, download_name=filename)
+    response = send_file(tmp.name, mimetype=mimetype,
+                         as_attachment=as_attachment, download_name=filename)
+    # ✅ PDF conservé 7 jours + en-tête X-Report-Token (re-téléchargement après reload)
+    return attach_stored_report(response, pdf_bytes, filename)
+
+
+@bp.route('/stored-report/<token>', methods=['GET'])
+def stored_report(token):
+    """Re-téléchargement d'un PDF déjà généré (voir app/utils/stored_reports.py)."""
+    return send_stored_report(token)
 
 
 @bp.route('/farm/<string:farm_id>/eudr-pdf', methods=['POST'])
@@ -340,6 +362,9 @@ async def farm_eudr_pdf(farm_id):  # <-- Changé en 'async def' pour pouvoir uti
     farm = Farm.query.filter_by(farm_id=farm_id).first()
     if not farm:
         return jsonify({"error": "Farm not found"}), 404
+    denied = check_owner_access(farm, 'farm')
+    if denied:
+        return denied
 
     # 3. Récupération asynchrone des données GFW
     data, status_code = await gfw_async(owner_type='farmer', owner_id=farm_id)
@@ -374,6 +399,9 @@ async def eudr_forest_pdf(forest_id):
     forest = Forest.query.filter_by(id=forest_id).first()
     if not forest:
         return jsonify({"error": "Forest not found"}), 404
+    denied = check_owner_access(forest, 'forest')
+    if denied:
+        return denied
 
     forest_info = {
         'name':         forest.name,
@@ -410,6 +438,9 @@ async def carbon_farm_pdf(farm_id):
     farm = Farm.query.filter_by(farm_id=farm_id).first()
     if not farm:
         return jsonify({"error": "Farm not found"}), 404
+    denied = check_owner_access(farm, 'farm')
+    if denied:
+        return denied
 
     farm_info = _build_farm_info(farm)
     carbon, ring, error = _farm_carbon(farm, farm_info)
@@ -441,6 +472,9 @@ async def carbon_forest_pdf(forest_id):
     forest = Forest.query.filter_by(id=forest_id).first()
     if not forest:
         return jsonify({"error": "Forest not found"}), 404
+    denied = check_owner_access(forest, 'forest')
+    if denied:
+        return denied
 
     forest_info = {
         'name':         forest.name,
@@ -498,6 +532,9 @@ def guest_eudr_pdf():
 
     if not gfw_data or not isinstance(gfw_data, dict):
         return jsonify({"error": "Missing or invalid 'report' data"}), 400
+    denied = check_guest_report_access('reporteudrguest', req_data.get('phone'))
+    if denied:
+        return denied
 
     farm_info          = req_data.get('farm_info') or {}
     forest_map_base64  = req_data.get('forest_map_image')
@@ -539,6 +576,9 @@ def guest_carbon_pdf():
     Sentinel-2 du polygone, jamais reprises du report envoyé.
     """
     req_data = request.json or {}
+    denied = check_guest_report_access('reportcarbonguest', req_data.get('phone'))
+    if denied:
+        return denied
     gfw_data = req_data.get('report')
 
     farm_info  = req_data.get('farm_info') or {}
@@ -780,6 +820,9 @@ def export_agents_revenue_csv():
 
 @bp.route('/Geojson/ReportFromFile', methods=['POST'])
 async def report_from_file():
+    denied = check_guest_report_access('reporteudrguest')
+    if denied:
+        return denied
     if 'file' not in request.files:
         return jsonify({'error': 'No file provided'}), 400
     file = request.files['file']
@@ -819,6 +862,9 @@ async def report_from_file():
 
 @bp.route('/Geojson/CarbonReportFromFile', methods=['POST'])
 async def carbon_report_from_file():
+    denied = check_guest_report_access('reportcarbonguest')
+    if denied:
+        return denied
     if 'file' not in request.files:
         return jsonify({'error': 'No file provided'}), 400
     file = request.files['file']
@@ -900,8 +946,9 @@ def generate_pdf():
         return jsonify({"error": f"PDF generation failed: {str(e)}"}), 500
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
     tmp.write(pdf_bytes); tmp.close()
-    return send_file(tmp.name, mimetype='application/pdf',
-                     as_attachment=True, download_name=filename)
+    response = send_file(tmp.name, mimetype='application/pdf',
+                         as_attachment=True, download_name=filename)
+    return attach_stored_report(response, pdf_bytes, filename)
 
 
 @bp.route('/generate-receipt', methods=['POST'])

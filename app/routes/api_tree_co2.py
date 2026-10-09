@@ -12,6 +12,8 @@ from flask import Blueprint, jsonify, send_file
 
 from app.models import Forest, Point
 from app.utils.tree_co2_utils import compute_forest_co2_summary, compute_forest_biomass_from_index
+from app.utils.stored_reports import attach_stored_report
+from app.utils.report_access import check_owner_access
 from app.utils.pdf_reports import build_tree_co2_pdf, build_forest_biomass_index_pdf
 
 bp = Blueprint('api_tree_co2', __name__, url_prefix='/api/tree-co2')
@@ -25,8 +27,10 @@ def _send_pdf(pdf_bytes: bytes, filename: str):
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
     tmp.write(pdf_bytes)
     tmp.close()
-    return send_file(tmp.name, mimetype='application/pdf',
-                      as_attachment=True, download_name=filename)
+    response = send_file(tmp.name, mimetype='application/pdf',
+                         as_attachment=True, download_name=filename)
+    # ✅ PDF conservé 7 jours + X-Report-Token (voir app/utils/stored_reports.py)
+    return attach_stored_report(response, pdf_bytes, filename)
 
 
 @bp.route('/species-params', methods=['GET'])
@@ -55,6 +59,9 @@ def forest_co2_report(forest_id):
     forest = Forest.query.filter_by(id=forest_id).first()
     if not forest:
         return jsonify({"error": "Forest not found"}), 404
+    denied = check_owner_access(forest, 'forest')
+    if denied:
+        return denied
 
     try:
         result = compute_forest_co2_summary(forest_id)
@@ -74,6 +81,9 @@ def forest_co2_pdf(forest_id):
     forest = Forest.query.filter_by(id=forest_id).first()
     if not forest:
         return jsonify({"error": "Forest not found"}), 404
+    denied = check_owner_access(forest, 'forest')
+    if denied:
+        return denied
 
     forest_info = {
         'name':      forest.name,
@@ -114,6 +124,9 @@ def _compute_forest_biomass_index(forest_id):
     forest = Forest.query.filter_by(id=forest_id).first()
     if not forest:
         return None, "Forest not found", 404
+    denied = check_owner_access(forest, 'forest')
+    if denied:
+        return None, denied[0].get_json()['error'], denied[1]
 
     points = Point.query.filter_by(owner_type='forest', owner_id=str(forest_id)).order_by(Point.id).all()
     geometry = _build_geometry(points)

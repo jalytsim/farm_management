@@ -19,6 +19,35 @@ def _get_user():
     return User.query.get(uid)
 
 
+def _attach_agb_trend(result, property_type, entity_id=None, crop_name=None, area_ha=None):
+    """Ajoute result['agb_trend'] : AGB (t/ha) calculé depuis l'historique 5 ans
+    et la prévision des indices. Ne fait jamais échouer la route."""
+    from app.utils.carbon_index_utils import compute_agb_trend
+    try:
+        if entity_id is not None:
+            from app.models import Point
+            from app.utils.sentinel_utils import _compute_area_ha_from_points
+            owner_type = 'farmer' if property_type == 'farm' else 'forest'
+            points = Point.query.filter_by(owner_type=owner_type, owner_id=str(entity_id)).order_by(Point.id).all()
+            area_ha = _compute_area_ha_from_points(points)[0] or area_ha
+        if property_type == 'farm' and entity_id is not None and not crop_name:
+            from app.models import Farm
+            from app.routes.api_gfw import _build_farm_info
+            farm = Farm.query.filter_by(farm_id=entity_id).first()
+            if farm:
+                crops = [c.get('crop') for c in _build_farm_info(farm).get('crops', [])
+                         if c.get('crop') not in (None, 'N/A')]
+                crop_name = crops[-1] if crops else None
+        area_ha = area_ha or (result.get('ltv') or {}).get('area_ha')
+        result['agb_trend'] = compute_agb_trend(
+            result.get('history'), result.get('forecast'), crop_name, property_type, area_ha)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f'[AGB trend] {property_type} {entity_id}: {e}')
+        result['agb_trend'] = None
+    return result
+
+
 @sentinel_bp.route('/farm/<string:farm_id>/sat-index', methods=['GET'])
 @jwt_required()
 def farm_sat_index(farm_id):
@@ -43,7 +72,7 @@ def farm_sat_index(farm_id):
     if error:
         code = 404 if 'not found' in error.lower() else 500
         return jsonify({'error': error}), code
-    return jsonify(result), 200
+    return jsonify(_attach_agb_trend(result, 'farm', farm_id)), 200
 
 @sentinel_bp.route('/guest/classification/<string:index_name>', methods=['POST'])
 def guest_classification_image(index_name):
@@ -119,7 +148,7 @@ def forest_sat_index(forest_id):
     if error:
         code = 404 if 'not found' in error.lower() else 500
         return jsonify({'error': error}), code
-    return jsonify(result), 200
+    return jsonify(_attach_agb_trend(result, 'forest', forest_id)), 200
 
 
 @sentinel_bp.route('/farm/<string:farm_id>/sat-index/pdf', methods=['GET'])
@@ -146,7 +175,7 @@ def farm_sat_index_pdf(farm_id):
     if error:
         return jsonify({'error': error}), 500
 
-    html_str = _build_pdf_html(result)
+    html_str = _build_pdf_html(_attach_agb_trend(result, 'farm', farm_id))
 
     try:
         from weasyprint import HTML
@@ -230,6 +259,103 @@ def _build_chart_b64(history, forecast, index_name, color):
         return base64.b64encode(buf.read()).decode('utf-8')
     except Exception:
         return None
+
+
+def _build_agb_chart_b64(agb_trend, color='#15803d'):
+    """Courbe AGB (t/ha) : historique 5 ans + tendance linéaire + prévision (IC 80 %)."""
+    try:
+        import matplotlib
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+        from matplotlib.dates import DateFormatter
+        import numpy as np
+        import pandas as pd, io, base64
+
+        hist = agb_trend.get('history') or []
+        fc   = agb_trend.get('forecast') or []
+        if not hist:
+            return None
+        vd = pd.to_datetime([h['date'] for h in hist])
+        vv = [h['agb_t_ha'] for h in hist]
+
+        fig, ax = plt.subplots(figsize=(11, 3.0))
+        bg = '#0f172a'
+        fig.patch.set_facecolor(bg)
+        ax.set_facecolor(bg)
+        ax.plot(vd, vv, color=color, linewidth=2, label='AGB (historical)')
+        ax.fill_between(vd, vv, alpha=0.12, color=color)
+
+        slope = (agb_trend.get('summary') or {}).get('slope_t_ha_per_year')
+        if slope is not None and len(vv) >= 2:
+            x = np.array([d.toordinal() / 365.25 for d in vd])
+            b = float(np.mean(vv) - slope * np.mean(x))
+            ax.plot(vd, slope * x + b, color='#facc15', linewidth=1, linestyle=':',
+                    label=f'Linear trend ({slope:+.3f} t/ha/yr)')
+
+        if fc:
+            fd = pd.to_datetime([f['date'] for f in fc])
+            fv = [f['agb_t_ha'] for f in fc]
+            ax.plot([vd[-1], fd[0]], [vv[-1], fv[0]], color=color, linewidth=1.5, linestyle='--', alpha=0.6)
+            ax.plot(fd, fv, color=color, linewidth=1.5, linestyle='--', label='AGB (forecast)')
+            ax.fill_between(fd, [f['lower_80'] for f in fc], [f['upper_80'] for f in fc],
+                            alpha=0.18, color=color, label='80% CI')
+
+        for spine in ax.spines.values():
+            spine.set_color('#334155')
+        ax.tick_params(colors='#64748b', labelsize=7.5)
+        ax.xaxis.set_major_formatter(DateFormatter('%Y-%m'))
+        plt.xticks(rotation=40)
+        ax.set_ylim(bottom=0)
+        ax.set_ylabel('AGB (t/ha)', color='#94a3b8', fontsize=9)
+        ax.grid(axis='y', color='#1e293b', alpha=0.6, linewidth=0.7)
+        ax.legend(facecolor='#1e293b', labelcolor='#94a3b8', fontsize=7.5, loc='upper left', framealpha=0.8)
+        ax.set_title('ABOVE-GROUND BIOMASS (AGB)', color='#e2e8f0', fontsize=10, fontweight='bold', pad=4)
+        plt.tight_layout(pad=0.5)
+
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', dpi=130, facecolor=bg, bbox_inches='tight')
+        plt.close(fig)
+        buf.seek(0)
+        return base64.b64encode(buf.read()).decode('utf-8')
+    except Exception:
+        return None
+
+
+def _agb_section_html(agb_trend):
+    """Section PDF : courbe AGB + résumé de tendance + tableau des trimestres prévus."""
+    if not agb_trend or not agb_trend.get('history'):
+        return ''
+    sm  = agb_trend.get('summary') or {}
+    b64 = _build_agb_chart_b64(agb_trend)
+    img = (f'<div class="chart-block"><img src="data:image/png;base64,{b64}" '
+           f'style="width:100%;border-radius:6px;display:block;"/></div>') if b64 else ''
+
+    def _f(v, fmt='{:.2f}'):
+        return 'N/A' if v is None else fmt.format(v)
+
+    rows = ''.join(
+        f"<tr><td>{f.get('quarter') or f['date']}</td><td>{_f(f['agb_t_ha'])}</td>"
+        f"<td>{_f(f['lower_80'])} &ndash; {_f(f['upper_80'])}</td>"
+        f"<td>{_f(f.get('stock_co2e_mg'))}</td></tr>"
+        for f in agb_trend.get('forecast') or []
+    )
+    table = (f'<table><thead><tr><th>Quarter</th><th>AGB (t/ha)</th><th>80% CI (t/ha)</th>'
+             f'<th>Stock (Mg CO&#8322;e)</th></tr></thead><tbody>{rows}</tbody></table>') if rows else ''
+    return f"""
+  <div class="section">
+    <h2>Biomass (AGB) Trend: 5-Year History &amp; Forecast</h2>
+    <p style="font-size:11px;color:#475569;margin:0 0 8px">
+      Crop: <b>{agb_trend.get('crop') or 'N/A'}</b> &nbsp;&middot;&nbsp; Formula: <b>{agb_trend.get('agb_formula')}</b>
+      (applied to each quarterly reading and to the forecast indices)<br/>
+      Mean AGB {sm.get('history_from') or ''} &rarr; {sm.get('history_to') or ''}: <b>{_f(sm.get('mean_agb_t_ha'))} t/ha</b>
+      &nbsp;&middot;&nbsp; Trend: <b>{_f(sm.get('slope_t_ha_per_year'), '{:+.3f}')} t/ha/yr ({sm.get('direction') or 'N/A'})</b>
+      &nbsp;&middot;&nbsp; Last: <b>{_f(sm.get('last_agb_t_ha'))} t/ha</b>
+      &nbsp;&middot;&nbsp; End of forecast: <b>{_f(sm.get('forecast_end_agb_t_ha'))} t/ha
+      ({_f(sm.get('forecast_change_pct'), '{:+.1f}')} %)</b>
+    </p>
+    {img}
+    {table}
+  </div>"""
 
 
 def _build_pdf_html(data):
@@ -455,6 +581,7 @@ def _build_pdf_html(data):
     <h2>Historical Trends &amp; Forecast: NDVI &middot; NDMI &middot; EVI &middot; NMDI</h2>
     {chart_rows if chart_rows else no_charts_msg}
   </div>
+  {_agb_section_html(data.get('agb_trend'))}
   <div class="section">
     <h2>1-Year Forecast: All Indices</h2>
     <table><thead><tr><th>Quarter</th>{th}</tr></thead><tbody>{fc_body}</tbody></table>
@@ -656,7 +783,7 @@ def guest_sat_index():
     from app.routes.api_gfw import _log_gfw
     _log_gfw('guest_sentinel_report', 'guest', phone, agent_id=agent_id)
 
-    return jsonify(result), 200
+    return jsonify(_attach_agb_trend(result, 'farm', crop_name=data.get('crop'))), 200
 
 
 @sentinel_bp.route('/farm/<string:farm_id>/crop-biomass', methods=['GET'])
