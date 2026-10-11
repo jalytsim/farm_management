@@ -51,6 +51,13 @@ class Config:
     FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://www.nkusu.com')
     DPO_REDIRECT_URL = os.getenv('DPO_REDIRECT_URL', 'https://www.nkusu.com/api/payments/payment/success')
     DPO_BACK_URL = os.getenv('DPO_BACK_URL', 'https://www.nkusu.com/api/payments/payment/cancelled')
+    # Domaines publics servis par ce backend. Les URL de retour de paiement
+    # suivent le domaine de la requête s'il est dans cette liste (utils/site_url.py).
+    SITE_URLS = [
+        u.strip()
+        for u in os.getenv('SITE_URLS', 'https://www.nkusu.com,https://2tume.com,https://www.2tume.com').split(',')
+        if u.strip()
+    ]
     DPO_COMPANY_TOKEN = os.getenv('DPO_COMPANY_TOKEN')
     DPO_SERVICE_TYPE = os.getenv('DPO_SERVICE_TYPE')
 
@@ -65,6 +72,6 @@ class Config:
     # ── CORS ─────────────────────────────────────────────────────────────────
     CORS_ORIGINS = [
         o.strip()
-        for o in os.getenv('CORS_ORIGINS', 'https://www.nkusu.com').split(',')
+        for o in os.getenv('CORS_ORIGINS', 'https://www.nkusu.com,https://2tume.com,https://www.2tume.com').split(',')
         if o.strip()
     ]

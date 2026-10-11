@@ -15,6 +15,7 @@ from app.utils.feature_payment_utils import (
 )
 from app.models import PaidFeatureAccess, FeaturePrice, db
 from app.utils.dpo_payment import DPOPayment
+from app.utils.site_url import on_site, site_url
 
 logger = logging.getLogger(__name__)
 
@@ -172,8 +173,8 @@ def initiate_dpo_payment():
         amount=amount,
         currency=currency,
         reference=txn_id,
-        redirect_url=current_app.config["DPO_REDIRECT_URL"],
-        back_url=current_app.config["DPO_BACK_URL"],
+        redirect_url=on_site(current_app.config["DPO_REDIRECT_URL"]),
+        back_url=on_site(current_app.config["DPO_BACK_URL"]),
         customer_phone=phone,
         customer_email=email,
         description=payment.narrative,
@@ -303,7 +304,7 @@ def list_my_payments():
 @api_payments_bp.route('/payment/success', methods=['GET'])
 def dpo_payment_success():
     trans_token = request.args.get('TransactionToken')
-    frontend_url = current_app.config["FRONTEND_URL"]
+    frontend_url = site_url()
 
     if not trans_token:
         return redirect(f"{frontend_url}/payment/error?error=Missing+token")
@@ -326,7 +327,7 @@ def dpo_payment_success():
 @api_payments_bp.route('/payment/cancelled', methods=['GET'])
 def dpo_payment_cancelled():
     trans_token = request.args.get('TransactionToken')
-    frontend_url = current_app.config["FRONTEND_URL"]
+    frontend_url = site_url()
 
     # Ne pas toucher au statut : le paiement peut encore réussir après annulation
     return redirect(f"{frontend_url}/payment/cancelled?TransactionToken={trans_token}")
