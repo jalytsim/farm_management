@@ -160,20 +160,26 @@ def _call_statistics(geometry, date_from, date_to, interval='P3M', mosaicking_or
     )
 
     last_exc = None
-    for attempt in range(1, 3):  # 1 essai + 1 retry
+    for attempt in range(1, 4):  # 1 essai + 2 retries
         try:
             resp = requests.post(
                 STATS_URL, json=payload,
                 headers={'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'},
                 timeout=180,  # 3 min — les grands polygones sur 5 ans sont lents côté Copernicus
             )
+            # Erreurs passagères de Copernicus (quota, surcharge) : on retente au
+            # lieu de faire échouer un rapport déjà payé par un invité.
+            if resp.status_code in (429, 500, 502, 503, 504) and attempt < 3:
+                logger.warning(f'[Sentinel][Statistics] {resp.status_code} tentative {attempt}/3 — retry...')
+                time.sleep(3 * attempt)
+                continue
             if not resp.ok:
                 logger.error(f'[Sentinel][Statistics] {resp.status_code} Bad Request: {resp.text}')
             resp.raise_for_status()
             return resp.json()
-        except requests.exceptions.Timeout as e:
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
             last_exc = e
-            logger.warning(f'[Sentinel][Statistics] Timeout tentative {attempt}/2 — retry...')
+            logger.warning(f'[Sentinel][Statistics] {type(e).__name__} tentative {attempt}/3 — retry...')
     raise last_exc
 
 def _parse_response(api_response):
