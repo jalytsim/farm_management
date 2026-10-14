@@ -73,19 +73,30 @@ def _decimal(value, field):
 # TRACES n'accepte le qualificatif (EUDR-COMMODITIES-DESCRIPTOR-SUPPLEMENTARY-
 # UNIT-QUALIFIER-INVALID) que s'il correspond à l'unité supplémentaire de la
 # Nomenclature combinée (NC) pour le code HS. Unités connues des positions EUDR :
+# Toutes vérifiées contre TRACES le 2026-10-14 (sondes sans création de DDS)
+# sur l'ensemble des codes proposés par le formulaire.
 SUPPLEMENTARY_UNIT_BY_HS = {
-    '0102': 'NAR',   # bovins vivants : nombre de têtes (p/st)
     '4011': 'NAR',   # pneumatiques neufs (p/st)
     '4012': 'NAR',   # pneumatiques rechapés / usagés (p/st)
+    '4013': 'NAR',   # chambres à air (p/st)
     '4403': 'MTQ',   # bois brut (m³)
     '4406': 'MTQ',   # traverses (m³)
-    '4407': 'MTQ',   # bois sciés (m³)
     '4408': 'MTQ',   # feuilles de placage (m³)
+    '4410': 'MTQ',   # panneaux de particules (m³)
+    '4411': 'MTQ',   # panneaux de fibres (m³)
     '4412': 'MTQ',   # bois contreplaqués (m³)
+    '4413': 'MTQ',   # bois densifiés (m³)
+    '4704': 'KSD',   # pâtes au bisulfite (kg à 90 % de matière sèche)
 }
 # Chapitres sans unité supplémentaire en NC : seul le poids net (kg) est déclaré.
 # Viandes (02, 16), café (09), soja (12), huiles (15), cacao (18), tourteaux (23).
 NO_SUPPLEMENTARY_UNIT_CHAPTERS = ('02', '09', '12', '15', '16', '18', '23')
+# Positions où TRACES refuse toute unité supplémentaire
+# (EUDR-COMMODITIES-DESCRIPTOR-SUPPLEMENTARY-UNIT-NOT-ALLOWED) : bovins vivants
+# au niveau 0102, bois sciés 4407.
+NO_SUPPLEMENTARY_UNIT_HEADINGS = ('0102', '4407')
+SUPPLEMENTARY_UNIT_LABELS = {'NAR': 'number of items', 'MTQ': 'cubic metres',
+                             'KSD': 'kg of 90 % dry substance'}
 
 
 def _supplementary_unit(hs_digits, unit, qualifier):
@@ -98,14 +109,14 @@ def _supplementary_unit(hs_digits, unit, qualifier):
     """
     unit = _decimal(unit, 'goodsMeasure.supplementaryUnit')
     qualifier = str(qualifier or '').strip().upper()
-    if hs_digits[:2] in NO_SUPPLEMENTARY_UNIT_CHAPTERS:
+    if hs_digits[:2] in NO_SUPPLEMENTARY_UNIT_CHAPTERS or hs_digits[:4] in NO_SUPPLEMENTARY_UNIT_HEADINGS:
         return None, ''
     expected = SUPPLEMENTARY_UNIT_BY_HS.get(hs_digits[:4])
     if expected:
         if not unit:
             raise ValueError(
                 f"HS {hs_digits} requires a supplementary unit in {expected} "
-                f"({'number of items' if expected == 'NAR' else 'cubic metres'}).")
+                f"({SUPPLEMENTARY_UNIT_LABELS.get(expected, expected)}).")
         return unit, expected
     if not unit:
         return None, ''  # qualificatif seul = rejeté par TRACES
@@ -125,6 +136,10 @@ EU_COUNTRIES = ('AT', 'BE', 'BG', 'CY', 'CZ', 'DE', 'DK', 'EE', 'ES', 'FI', 'FR'
 
 # Bovins (Annexe I) : seuls produits autorisés au-delà de 4 ha pour un Point.
 CATTLE_HS_PREFIXES = ('0102', '0201', '0202', '0206', '1602', '4101', '4104', '4107')
+# TRACES n'applique l'exception qu'aux codes exacts de l'Annexe I, pas à leurs
+# sous-positions (020110 refusé, 0201 accepté) ni à 0102 (vérifié le 2026-10-14).
+CATTLE_POINT_EXEMPT_CODES = ('0201', '0202', '020610', '020622', '020629', '160250',
+                             '010221', '010229', '4101', '4104', '4107')
 
 # Bois : TRACES exige nom scientifique + nom commun (EUDR-COMMODITIES-SPECIES-INFORMATION-EMPTY).
 TIMBER_HS_CHAPTERS = ('44', '47', '48', '49')
@@ -178,7 +193,7 @@ def geojson_errors(gj, hs_digits=''):
     if not isinstance(features, list) or not features:
         return ["The geolocation must contain at least one plot (Feature)."]
     errors = []
-    is_cattle = str(hs_digits).startswith(CATTLE_HS_PREFIXES)
+    is_cattle = str(hs_digits) in CATTLE_POINT_EXEMPT_CODES
     for i, f in enumerate(features, start=1):
         where = f"Plot {i}"
         geom = (f or {}).get('geometry') if isinstance(f, dict) else None

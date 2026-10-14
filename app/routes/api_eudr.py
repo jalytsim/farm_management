@@ -3,7 +3,7 @@ import base64
 import json
 from flask import Blueprint, request, jsonify
 from app.utils.eudr_utils import (
-    geojson_errors, EU_COUNTRIES, CATTLE_HS_PREFIXES, TIMBER_HS_CHAPTERS, GEOJSON_GEOMETRY_TYPES,
+    geojson_errors, EU_COUNTRIES, CATTLE_HS_PREFIXES, CATTLE_POINT_EXEMPT_CODES, TIMBER_HS_CHAPTERS, GEOJSON_GEOMETRY_TYPES,
     OPERATOR_COUNTRY, OPERATOR_IS_EU, ALLOWED_ACTIVITY_TYPES, ALLOWED_OPERATOR_ROLES,
 )
 from app.utils.eudr_utils import EUDRClient, extract_amend_status, extract_dds_identifier, extract_internal_ref_statements, extract_statement_info, extract_verification_info, extract_soap_fault, extract_operator_identity  # Ton fichier contenant la classe EUDRClient
@@ -191,6 +191,7 @@ def submission_config():
         "pointMaxAreaHa": 4,
         "pointMinAreaHa": 0.0001,
         "cattleHsPrefixes": list(CATTLE_HS_PREFIXES),
+        "cattlePointExemptCodes": list(CATTLE_POINT_EXEMPT_CODES),
         "timberHsChapters": list(TIMBER_HS_CHAPTERS),
         "internalReferenceMaxLength": 50,
     })
