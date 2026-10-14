@@ -583,7 +583,7 @@ def guest_eudr_pdf():
 
     farm_info          = req_data.get('farm_info') or {}
     forest_map_base64  = req_data.get('forest_map_image')
-    guest_id           = req_data.get('guest_id') or farm_info.get('farm_id') or 'GUEST'
+    guest_id           = farm_info.get('farm_id') or req_data.get('guest_id') or 'GUEST'
     agent_id           = req_data.get('agent_id')
 
     try:
@@ -614,6 +614,7 @@ def guest_carbon_pdf():
         "report": {...},     # sinon : dict groupé (format CarbonReportFromFile),
                              # seules ses coordonnées sont utilisées
         "crop": "...",       # optionnel : culture (modèle AGB par culture)
+        "property_type": "farm" | "forest",  # forest → rapport forêt (surface boisée mensuelle)
         "farm_info": {...},  # optionnel
         "guest_id": "..."    # optionnel
       }
@@ -627,38 +628,61 @@ def guest_carbon_pdf():
     gfw_data = req_data.get('report')
 
     farm_info  = req_data.get('farm_info') or {}
-    guest_id   = req_data.get('guest_id') or farm_info.get('farm_id') or 'GUEST'
+    guest_id   = farm_info.get('farm_id') or req_data.get('guest_id') or 'GUEST'
     agent_id   = req_data.get('agent_id')
     crop_name  = req_data.get('crop') or next(
         (c.get('crop') for c in reversed(farm_info.get('crops') or []) if c.get('crop')), None)
 
+    is_forest = str(req_data.get('property_type') or '').lower() == 'forest'
+    property_type = 'forest' if is_forest else 'farm'
     if req_data.get('geojson'):
-        carbon, ring, error = _carbon_from_geojson(req_data['geojson'], crop_name)
+        carbon, ring, error = _carbon_from_geojson(req_data['geojson'], crop_name, property_type)
     elif isinstance(gfw_data, dict) and gfw_data:
         first = next((items[0] for items in gfw_data.values() if isinstance(items, list) and items), {})
         ring = ring_from_report_coordinates(first.get('coordinates'))
-        carbon, error = _carbon_for_ring(ring, crop_name)
+        carbon, error = _carbon_for_ring(ring, crop_name, property_type)
     else:
         return jsonify({"error": "Missing 'geojson' or 'report' data"}), 400
     if error:
         return jsonify({"error": error}), 400
 
     try:
-        pdf_bytes = build_carbon_farm_pdf(
-            farm_id     = str(guest_id),
-            farm_info   = farm_info,
-            carbon      = carbon,
-            coords      = ring,
-            logo_parrot = LOGO_PARROT,
-            logo_agri   = LOGO_AGRI,
-        )
+        if is_forest:
+            # Modèle AGB forêt (calculé ci-dessus) + surface boisée mensuelle
+            area_change, area_error = _forest_area_change(ring)
+            if area_error:
+                print(f'[guest_carbon_pdf] area change unavailable: {area_error}')
+            pdf_bytes = build_carbon_forest_pdf(
+                forest_id   = str(guest_id),
+                forest_info = {
+                    'name':         farm_info.get('name') or farm_info.get('farm_id') or str(guest_id),
+                    'tree_type':    farm_info.get('tree_type') or 'N/A',
+                    'date_created': 'N/A',
+                    'date_updated': 'N/A',
+                },
+                carbon      = carbon,
+                area_change = area_change,
+                coords      = ring,
+                logo_parrot = LOGO_PARROT,
+                logo_agri   = LOGO_AGRI,
+            )
+        else:
+            pdf_bytes = build_carbon_farm_pdf(
+                farm_id     = str(guest_id),
+                farm_info   = farm_info,
+                carbon      = carbon,
+                coords      = ring,
+                logo_parrot = LOGO_PARROT,
+                logo_agri   = LOGO_AGRI,
+            )
     except Exception as e:
         import traceback
         traceback.print_exc()
         return jsonify({"error": f"Génération PDF échouée: {str(e)}"}), 500
 
     _log_gfw('guest_carbon_pdf', 'guest', guest_id, agent_id=agent_id)
-    return _send_pdf(pdf_bytes, f'Carbon_Report_{guest_id}.pdf', as_attachment=False, browser_safe=True)
+    kind = 'Forest_Carbon' if is_forest else 'Farmland_Carbon'
+    return _send_pdf(pdf_bytes, f'{kind}_Report_{guest_id}.pdf', as_attachment=False, browser_safe=True)
 
 
 # ============================================
