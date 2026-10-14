@@ -806,6 +806,9 @@ TRACES_ERROR_HINTS = {
         "(e.g. REPRESENTATIVE_OPERATOR). Submit as OPERATOR.",
     'EUDR-COMMODITIES-HS-CODE-INVALID':
         "TRACES does not accept this HS code. Use a 6-digit subheading (e.g. 090111 instead of 0901).",
+    'EUDR-API-AMEND-NOT-ALLOWED-FOR-STATUS':
+        "TRACES is still processing this DDS (status SUBMITTED). It can be amended once it is "
+        "AVAILABLE, usually a few minutes after submission: wait and try again.",
     'EUDR-COMMODITIES-SPECIES-INFORMATION-EMPTY':
         "Timber products require a scientific name and a common name.",
     'EUDR-COMMODITIES-PRODUCER-GEO-AREA-INVALID':
