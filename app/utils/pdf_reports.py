@@ -1402,7 +1402,7 @@ def build_carbon_farm_pdf(
         buf, pagesize=A4,
         leftMargin=MARGIN, rightMargin=MARGIN,
         topMargin=MARGIN, bottomMargin=22 * mm,
-        title=f'Carbon Emissions Assessment {farm_id}',
+        title=f'Farmland Carbon Assessment {farm_id}',
         author='Agriyields',
     )
     st    = _styles()
@@ -1413,7 +1413,7 @@ def build_carbon_farm_pdf(
     # ── En-tête ──────────────────────────────────────────────────────────────
     elems.append(_header_table(
         logo_parrot, logo_agri,
-        'CARBON EMISSIONS ASSESSMENT',
+        'FARMLAND CARBON ASSESSMENT',
         f'Generated on {today}  •  Regulation (EU) 2023/1115',
     ))
     elems.append(Spacer(1, 5 * mm))
@@ -1470,7 +1470,7 @@ def build_carbon_forest_pdf(
         buf, pagesize=A4,
         leftMargin=MARGIN, rightMargin=MARGIN,
         topMargin=MARGIN, bottomMargin=22 * mm,
-        title=f'Carbon Emissions Assessment Forest {forest_id}',
+        title=f'Forest Carbon Assessment {forest_id}',
         author='Agriyields',
     )
     st    = _styles()
@@ -1480,7 +1480,7 @@ def build_carbon_forest_pdf(
 
     elems.append(_header_table(
         logo_parrot, logo_agri,
-        'CARBON EMISSIONS ASSESSMENT FOREST',
+        'FOREST CARBON ASSESSMENT',
         f'Generated on {today}  •  Regulation (EU) 2023/1115',
     ))
     elems.append(Spacer(1, 5 * mm))
