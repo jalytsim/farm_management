@@ -551,8 +551,12 @@ def _build_order_items(cart_items):
                 "per currency."
             )
 
-        total += product.price * qty
-        order_items.append((product, qty))
+        # La colonne price est déclarée Numeric mais la base de prod la renvoie
+        # en float : float * Decimal levait un TypeError (« Unexpected server
+        # error » au paiement). On passe toujours par Decimal.
+        price = _dec(product.price, 'Price')
+        total += price * qty
+        order_items.append((product, qty, price))
 
     return order_items, total, (currency or 'USD'), None
 
@@ -629,10 +633,10 @@ def initiate_checkout():
         db.session.add(order)
         db.session.flush()
 
-        for product, qty in order_items:
+        for product, qty, price in order_items:
             db.session.add(EcoOrderItem(
                 order_id=order.id, product_id=product.id,
-                quantity=qty, unit_price=product.price, unit=product.unit,
+                quantity=qty, unit_price=price, unit=product.unit,
             ))
         db.session.commit()
 
