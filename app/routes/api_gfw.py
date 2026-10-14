@@ -19,8 +19,11 @@ from app.utils.pdf_reports import (
     build_carbon_forest_pdf,
 )
 from app.utils.carbon_index_utils import (
-    compute_carbon_from_indices, fetch_index_rows, polygon_geometry, ring_from_report_coordinates,
+    compute_carbon_from_indices, fetch_index_rows, fetch_soc_stock, polygon_geometry,
+    ring_from_report_coordinates,
 )
+from app.utils.forest_area_utils import compute_forest_area_change
+from concurrent.futures import ThreadPoolExecutor
 
 UPLOAD_FOLDER      = 'uploads/geojsons'
 LOG_FILE           = 'logs/geojson_uploads.log'
@@ -197,12 +200,21 @@ def _carbon_for_ring(ring, crop_name=None, property_type='farm', fallback_area_h
         return None, 'No geometry available — add polygon points first'
     area_ha, _ = _compute_area_ha_from_coords(ring)
     area_ha = area_ha or fallback_area_ha
-    try:
-        rows = fetch_index_rows(polygon_geometry(ring))
-    except Exception as e:
-        import traceback; traceback.print_exc()
-        return None, f'Sentinel query failed: {e}'
-    return compute_carbon_from_indices(rows, area_ha, crop_name, property_type)
+    # Sentinel (5 ans) et SoilGrids (≈ 30 s) en parallèle : ils sont lents tous les deux.
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        rows_job = pool.submit(fetch_index_rows, polygon_geometry(ring))
+        soc_job = pool.submit(fetch_soc_stock, ring)
+        try:
+            rows = rows_job.result()
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            return None, f'Sentinel query failed: {e}'
+        try:
+            soc = soc_job.result()
+        except Exception:
+            import traceback; traceback.print_exc()
+            soc = None
+    return compute_carbon_from_indices(rows, area_ha, crop_name, property_type, soc=soc)
 
 
 def _farm_carbon(farm, farm_info):
@@ -218,6 +230,35 @@ def _forest_carbon(forest_id):
     ring = _owner_ring('forest', forest_id)
     carbon, error = _carbon_for_ring(ring, property_type='forest')
     return carbon, ring, error
+
+
+def _forest_area_change(ring, months=12):
+    """(result, error) — surface boisée mensuelle du polygone."""
+    from app.utils.sentinel_utils import _compute_area_ha_from_coords
+    if not ring:
+        return None, 'No geometry available — add polygon points first'
+    area_ha, _ = _compute_area_ha_from_coords(ring)
+    return compute_forest_area_change(polygon_geometry(ring), area_ha, months)
+
+
+@bp.route('/forest/<int:forest_id>/area-change', methods=['GET'])
+def forest_area_change(forest_id):
+    """
+    GET /api/gfw/forest/<forest_id>/area-change?months=12
+    Surface boisée mois par mois et variation (dégradation / déforestation).
+    """
+    forest = Forest.query.filter_by(id=forest_id).first()
+    if not forest:
+        return jsonify({"error": "Forest not found"}), 404
+    denied = check_owner_access(forest, 'forest')
+    if denied:
+        return denied
+    result, error = _forest_area_change(_owner_ring('forest', forest_id),
+                                        request.args.get('months', 12, type=int))
+    if error:
+        return jsonify({"error": error}), 400
+    result.update({'forest_id': forest_id, 'forest_name': forest.name})
+    return jsonify(result), 200
 
 
 def _carbon_from_geojson(geojson_data, crop_name=None, property_type='farm'):
@@ -486,12 +527,16 @@ async def carbon_forest_pdf(forest_id):
     carbon, ring, error = _forest_carbon(forest_id)
     if error:
         return jsonify({"error": error}), 400
+    area_change, area_error = _forest_area_change(ring)
+    if area_error:
+        print(f'[carbon_forest_pdf] area change unavailable: {area_error}')
 
     try:
         pdf_bytes = build_carbon_forest_pdf(
             forest_id   = forest_id,
             forest_info = forest_info,
             carbon      = carbon,
+            area_change = area_change,
             coords      = ring,
             logo_parrot = LOGO_PARROT,
             logo_agri   = LOGO_AGRI,

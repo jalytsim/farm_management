@@ -9,8 +9,21 @@ annuelles + cacao) ou d'une équation allométrique (café).
 | Maize   | 45.2 + 310.5 × NDVI                          | NDVI          |
 | Rice    | 120.3 + 250.7 × EVI                          | EVI           |
 | Wheat   | -80 + 400 × NDVI + 180 × SAVI                | NDVI + SAVI   |
-| Coffee  | 0.0673 × (ρ × DBH² × H)^0.976  (kg / arbre)  | ρ, DBH, H     |
 | Cocoa   | 25 + 280 × NDVI + x × NDII                   | NDVI + NDII   |
+
+Cultures pérennes — équations allométriques (kg de biomasse sèche par plant),
+utilisées quand le diamètre (et la hauteur si requise) sont fournis :
+
+| Culture          | Formule                                              | Source                              |
+| ---------------- | ---------------------------------------------------- | ----------------------------------- |
+| Coffee Robusta   | 0.2811 × D^2.0635                                    | Arifin 2001 (Sumberjaya, robusta)   |
+| Coffee Arabica   | 10^(−1.15 + 1.66·log10(D15) + 0.54·log10(H))         | Segura, Kanninen & Suárez 2006      |
+| Coffee Liberica  | Robusta (même genre, pas d'équation propre trouvée)  | —                                   |
+| Coffee (inconnu) | 0.0673 × (ρ × D² × H)^0.976                          | Chave et al. 2014                   |
+| Cocoa            | 0.1208 × D^1.98                                      | Yuliasmara et al. 2009              |
+| Oil Palm         | (0.0976 × H + 0.0706) × 1000, H = hauteur du stipe   | ICRAF / Khasanah — à vérifier       |
+| Rubber, Avocado, | 0.0673 × (ρ × D² × H)^0.976 avec ρ par espèce        | Chave et al. 2014 (pantropical)     |
+| Macadamia        |                                                      |                                     |
 
 Hypothèses (à confirmer / recalibrer localement) :
   - Les régressions indice → biomasse donnent une biomasse sèche en g/m²
@@ -18,11 +31,15 @@ Hypothèses (à confirmer / recalibrer localement) :
     le NDVI est très bas, ex. wheat sur sol nu).
   - NDII = (B08 - B11) / (B08 + B11) : c'est exactement le NDMI déjà calculé
     par l'evalscript Sentinel (sentinel_utils.py), on le réutilise.
-  - Café : équation pantropicale de Chave et al. (2014), exposant 0.976.
-    ρ = densité du bois (g/cm³), DBH en cm, H en m → AGB en kg par arbre.
+  - Café : D = diamètre de la tige (cm) ; arabica : D15 = diamètre à 15 cm du
+    sol. Chave et al. (2014) reste le repli quand la variété est inconnue.
+  - Pas d'équation publiée trouvée pour l'avocatier, le macadamia ni l'hévéa :
+    Chave 2014 avec une densité de bois indicative par espèce, à recalibrer.
   - Cacao : le coefficient x du NDII n'a pas été fourni. COCOA_NDII_COEF vaut 0
     tant qu'il n'est pas calibré (la formule se réduit alors au terme NDVI).
 """
+
+import math
 
 from app.utils.tree_co2_utils import calculate_biomass_and_co2
 
@@ -35,6 +52,13 @@ COCOA_NDII_COEF = 0.0
 COFFEE_CHAVE_A   = 0.0673
 COFFEE_CHAVE_EXP = 0.976
 COFFEE_DEFAULT_WOOD_DENSITY = 0.6  # g/cm³, valeur indicative Coffea spp. — surcharger si mesurée
+
+# Densités de bois indicatives (g/cm³) pour Chave 2014 — surcharger si mesurées.
+DEFAULT_WOOD_DENSITY = {
+    'rubber':    0.56,   # Hevea brasiliensis
+    'avocado':   0.60,   # Persea americana
+    'macadamia': 0.70,   # Macadamia integrifolia
+}
 
 
 def _maize(ix):
@@ -62,23 +86,111 @@ INDEX_MODELS = {
               'formula': f'25 + 280 × NDVI + {COCOA_NDII_COEF} × NDII'},
 }
 
-SUPPORTED_CROPS = ('maize', 'rice', 'wheat', 'coffee', 'cocoa')
 
-# Noms de Crop.name rencontrés (EN/FR, variétés) → clé de modèle
+
+def _chave(d_cm, h_m, rho):
+    return COFFEE_CHAVE_A * (rho * d_cm ** 2 * h_m) ** COFFEE_CHAVE_EXP
+
+
+def _robusta(d_cm, h_m, rho):
+    return 0.2811 * d_cm ** 2.0635
+
+
+def _arabica(d_cm, h_m, rho):
+    return 10 ** (-1.15 + 1.66 * math.log10(d_cm) + 0.54 * math.log10(h_m))
+
+
+# Équations allométriques (kg de biomasse sèche par plant).
+# needs : mesures obligatoires ; rho : densité du bois par défaut (Chave).
+ALLOMETRIC_MODELS = {
+    'coffee_robusta': {
+        'fn': _robusta, 'needs': ('dbh_cm',),
+        'formula': '0.2811 × D^2.0635 (D = stem diameter, cm)',
+        'source': 'Arifin (2001), robusta coffee, Sumberjaya, Indonesia',
+    },
+    'coffee_arabica': {
+        'fn': _arabica, 'needs': ('dbh_cm', 'height_m'),
+        'formula': '10^(−1.15 + 1.66·log10(D15) + 0.54·log10(H)) '
+                   '(D15 = diameter 15 cm above ground, cm; H = height, m)',
+        'source': 'Segura, Kanninen & Suárez (2006), Agroforestry Systems',
+    },
+    'coffee_liberica': {
+        'fn': _robusta, 'needs': ('dbh_cm',),
+        'formula': '0.2811 × D^2.0635 (robusta equation, no Liberica-specific model published)',
+        'source': 'Arifin (2001), applied by analogy',
+    },
+    'coffee_mixed': {
+        'fn': lambda d, h, rho: (_robusta(d, h, rho) + _arabica(d, h, rho)) / 2,
+        'needs': ('dbh_cm', 'height_m'),
+        'formula': 'mean of the Robusta and Arabica equations',
+        'source': 'Arifin (2001) + Segura et al. (2006)',
+    },
+    'coffee': {
+        'fn': _chave, 'needs': ('dbh_cm', 'height_m'), 'rho': COFFEE_DEFAULT_WOOD_DENSITY,
+        'formula': f'{COFFEE_CHAVE_A} × (ρ × D² × H)^{COFFEE_CHAVE_EXP}',
+        'source': 'Chave et al. (2014), pantropical',
+    },
+    'cocoa': {
+        'fn': lambda d, h, rho: 0.1208 * d ** 1.98, 'needs': ('dbh_cm',),
+        'formula': '0.1208 × D^1.98 (D = diameter at breast height, cm)',
+        'source': 'Yuliasmara, Wibawa & Prawoto (2009), Coffee and Cocoa Research Journal',
+    },
+    'oil_palm': {
+        'fn': lambda d, h, rho: (0.0976 * h + 0.0706) * 1000.0, 'needs': ('height_m',),
+        'formula': '(0.0976 × H + 0.0706) Mg × 1000 (H = trunk height, m)',
+        'source': 'ICRAF oil palm equation (Khasanah et al.), coefficients to be verified',
+    },
+    **{
+        key: {
+            'fn': _chave, 'needs': ('dbh_cm', 'height_m'), 'rho': rho,
+            'formula': f'{COFFEE_CHAVE_A} × (ρ × D² × H)^{COFFEE_CHAVE_EXP}, ρ = {rho} g/cm³',
+            'source': 'Chave et al. (2014), pantropical; no species-specific equation published',
+        }
+        for key, rho in DEFAULT_WOOD_DENSITY.items()
+    },
+}
+
+SUPPORTED_CROPS = tuple(dict.fromkeys((*INDEX_MODELS, *ALLOMETRIC_MODELS)))
+
+# Noms de Crop.name rencontrés (EN/FR, variétés) → clé de modèle. Le café est
+# résolu à part (variété) avant les autres cultures.
 _CROP_ALIASES = {
     'maize': ('maize', 'corn', 'maïs', 'mais'),
     'rice':  ('rice', 'paddy', 'riz'),
     'wheat': ('wheat', 'blé', 'ble'),
-    'coffee': ('coffee', 'café', 'cafe', 'arabica', 'robusta'),
     'cocoa': ('cocoa', 'cacao'),
+    'oil_palm': ('oil palm', 'palm oil', 'palmier', 'elaeis'),
+    'rubber': ('rubber', 'hevea', 'hévéa', 'caoutchouc'),
+    'avocado': ('avocado', 'avocat', 'persea'),
+    'macadamia': ('macadamia', 'macademia'),
 }
+_COFFEE_ALIASES = ('coffee', 'café', 'cafe', 'arabica', 'robusta', 'liberica')
+
+
+def _coffee_key(name):
+    has_robusta, has_arabica = 'robusta' in name, 'arabica' in name
+    if has_robusta and has_arabica:
+        return 'coffee_mixed'
+    if has_robusta:
+        return 'coffee_robusta'
+    if has_arabica:
+        return 'coffee_arabica'
+    if 'liberica' in name:
+        return 'coffee_liberica'
+    return 'coffee'
+
+
+def is_coffee(crop_key):
+    return bool(crop_key) and crop_key.startswith('coffee')
 
 
 def resolve_crop_key(crop_name):
-    """'Coffee Arabica' → 'coffee', 'Maïs' → 'maize'. None si culture non supportée."""
+    """'Coffee Arabica' → 'coffee_arabica', 'Maïs' → 'maize'. None si culture non supportée."""
     if not crop_name:
         return None
     name = str(crop_name).strip().lower()
+    if any(a in name for a in _COFFEE_ALIASES):
+        return _coffee_key(name)
     for key, aliases in _CROP_ALIASES.items():
         if any(a in name for a in aliases):
             return key
@@ -108,7 +220,17 @@ def biomass_from_indices(crop_key, row):
 
 def coffee_agb_per_tree_kg(dbh_cm, height_m, wood_density=COFFEE_DEFAULT_WOOD_DENSITY):
     """AGB d'un caféier (kg) — Chave et al. (2014)."""
-    return COFFEE_CHAVE_A * (wood_density * dbh_cm ** 2 * height_m) ** COFFEE_CHAVE_EXP
+    return _chave(dbh_cm, height_m, wood_density)
+
+
+def allometric_agb_per_plant_kg(crop_key, dbh_cm=None, height_m=None, wood_density=None):
+    """AGB (kg) d'un plant avec l'équation de sa culture. ValueError si une mesure manque."""
+    model = ALLOMETRIC_MODELS[crop_key]
+    given = {'dbh_cm': dbh_cm, 'height_m': height_m}
+    missing = [n for n in model['needs'] if not given[n] or given[n] <= 0]
+    if missing:
+        raise ValueError(', '.join(missing))
+    return model['fn'](dbh_cm, height_m, wood_density or model.get('rho'))
 
 
 def compute_crop_biomass(crop_name, history_rows, area_ha,
@@ -118,7 +240,7 @@ def compute_crop_biomass(crop_name, history_rows, area_ha,
 
     history_rows : lignes Sentinel {date, ndvi, evi, savi, ndmi, ...} (brutes ou guest)
     area_ha      : surface de la parcelle (ha)
-    Café         : dbh_cm, height_m (obligatoires), wood_density, number_of_trees
+    Pérennes     : dbh_cm, height_m (selon l'équation), wood_density, number_of_trees
 
     Retourne (result_dict, error_message).
     """
@@ -129,7 +251,8 @@ def compute_crop_biomass(crop_name, history_rows, area_ha,
     if not area_ha or area_ha <= 0:
         return None, 'Could not compute parcel area'
 
-    if crop_key == 'coffee':
+    has_measures = dbh_cm not in (None, '') or height_m not in (None, '')
+    if crop_key in ALLOMETRIC_MODELS and (crop_key not in INDEX_MODELS or has_measures):
         try:
             dbh_cm = float(dbh_cm) if dbh_cm not in (None, '') else None
             height_m = float(height_m) if height_m not in (None, '') else None
@@ -137,19 +260,24 @@ def compute_crop_biomass(crop_name, history_rows, area_ha,
             number_of_trees = int(number_of_trees) if number_of_trees not in (None, '') else None
         except (TypeError, ValueError):
             return None, 'dbh_cm, height_m, wood_density and trees must be numbers.'
-        if not dbh_cm or not height_m:
-            return None, 'Coffee biomass requires dbh_cm (stem diameter, cm) and height_m (tree height, m).'
+        model = ALLOMETRIC_MODELS[crop_key]
+        try:
+            per_tree_kg = allometric_agb_per_plant_kg(crop_key, dbh_cm, height_m, wood_density)
+        except ValueError:
+            labels = {'dbh_cm': 'dbh_cm (stem diameter, cm)', 'height_m': 'height_m (height, m)'}
+            needed = ' and '.join(labels[n] for n in model['needs'])
+            return None, f'{crop_name} biomass requires {needed}.'
         if not number_of_trees:
-            return None, 'Coffee biomass requires the number of trees (FarmData.number_of_tree or ?trees=).'
-        rho = wood_density or COFFEE_DEFAULT_WOOD_DENSITY
-        per_tree_kg = coffee_agb_per_tree_kg(dbh_cm, height_m, rho)
+            return None, f'{crop_name} biomass requires the number of trees (FarmData.number_of_tree or ?trees=).'
+        rho = wood_density or model.get('rho')
         agb_total_kg = per_tree_kg * number_of_trees
         result = calculate_biomass_and_co2(agb_total_kg)
         result.update({
             'crop':              crop_key,
             'crop_name':         crop_name,
             'method':            'allometric',
-            'formula':           f'{COFFEE_CHAVE_A} × (ρ × DBH² × H)^{COFFEE_CHAVE_EXP}',
+            'formula':           model['formula'],
+            'source':            model['source'],
             'inputs':            {'wood_density': rho, 'dbh_cm': dbh_cm, 'height_m': height_m,
                                   'number_of_trees': number_of_trees},
             'agb_per_tree_kg':   round(per_tree_kg, 4),

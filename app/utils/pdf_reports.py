@@ -1076,7 +1076,7 @@ def build_eudr_forest_pdf(
 # BUILD CARBON FARM PDF
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _carbon_table(vals: dict) -> Table:
+def _carbon_table(vals: dict, width: float = CONTENT_W) -> Table:
     """Table des valeurs carbone."""
     BADGE_COLORS = {
         'emissions': colors.HexColor('#e53935'),
@@ -1108,8 +1108,18 @@ def _carbon_table(vals: dict) -> Table:
         [Paragraph('Carbon Stock (Belowground)', _styles()['body']),
          Paragraph(f"{vals['stock_below_c']:.4f} Mg C", _styles()['body'])],
     ]
+    if vals.get('stock_soc_c') is not None:
+        rows.append([Paragraph(f"Soil Organic Carbon ({(vals.get('soc') or {}).get('depth', '0-30cm')})",
+                               _styles()['body']),
+                     Paragraph(f"{vals['stock_soc_c']:.4f} Mg C", _styles()['body'])])
+    if vals.get('stock_total_c') is not None:
+        rows.append([Paragraph('<b>Total Carbon Stock</b>', _styles()['body']),
+                     Paragraph(f"<b>{vals['stock_total_c']:.4f} Mg C</b><br/>"
+                               f"{vals['stock_total_co2e_mg']:.4f} Mg CO<sub>2</sub>e", _styles()['body'])])
 
-    t = Table(rows, colWidths=[CONTENT_W * 0.65, CONTENT_W * 0.35])
+    # Largeur imposée par l'appelant : à côté du camembert, la table pleine
+    # largeur débordait et sa colonne de valeurs passait sous le graphique.
+    t = Table(rows, colWidths=[width * 0.58, width * 0.42])
     t.setStyle(TableStyle([
         ('BACKGROUND',   (0, 0), (-1, 0),   GREEN),
         ('TEXTCOLOR',    (0, 0), (-1, 0),   WHITE),
@@ -1181,9 +1191,10 @@ def _carbon_summary_elems(carbon: dict, st: dict) -> list:
         'Gross Emissions': abs(emissions),
         'Gross Removals':  abs(removals),
         'Net Flux':        abs(net),
-        'Carbon Stock':    abs(carbon['stock_above_c'] + carbon['stock_below_c']),
+        'Carbon Stock':    abs(carbon.get('stock_total_c')
+                               or carbon['stock_above_c'] + carbon['stock_below_c']),
     }, size=60 * mm)
-    side_t = Table([[_carbon_table(carbon), pie]], colWidths=[CONTENT_W - 68 * mm, 68 * mm])
+    side_t = Table([[_carbon_table(carbon, CONTENT_W - 70 * mm), pie]], colWidths=[CONTENT_W - 68 * mm, 68 * mm])
     side_t.setStyle(TableStyle([
         ('VALIGN',       (0, 0), (-1, -1), 'TOP'),
         ('LEFTPADDING',  (0, 0), (-1, -1), 0),
@@ -1207,14 +1218,19 @@ def _carbon_assessment_elems(carbon: dict, st: dict, summary: bool = True) -> li
     elems.append(_carbon_indices_table(carbon))
     elems.append(Spacer(1, 5 * mm))
 
+    elems += _carbon_history_elems(carbon, st)
+
     elems += _section_bar('Methodology & Interpretation', st)
     period = f"{carbon.get('start_date') or 'N/A'} → {carbon.get('end_date') or 'N/A'}"
     interp = [
         ('<b>Biomass (AGB)</b>',  f"{carbon['agb_formula']}, computed for each monthly Sentinel-2 reading."),
-        ('<b>Carbon Stock</b>',   'AGB × area, + BGB (20 % of AGB) × 72.5 % dry matter × 50 % carbon × 3.67 (CO<sub>2</sub>/C). '
+        ('<b>Biomass Stock</b>',  'AGB × area, + BGB (20 % of AGB) × 72.5 % dry matter × 50 % carbon × 3.67 (CO<sub>2</sub>/C). '
                                   f"Start: {carbon['stock_start_co2e_mg']:.4f}, end: {carbon['stock_end_co2e_mg']:.4f} Mg CO<sub>2</sub>e."),
-        ('<b>Gross Emissions</b>', f'Loss of carbon stock over {period} (max(−ΔStock, 0)).'),
-        ('<b>Gross Removals</b>',  f'Gain of carbon stock over {period} (max(ΔStock, 0)).'),
+        ('<b>Soil Organic Carbon</b>', _soc_method_text(carbon)),
+        ('<b>Total Carbon Stock</b>', 'AGB carbon + BGB carbon + SOC (IPCC pools, dead wood and litter excluded); '
+                                      'CO<sub>2</sub>e = C × 44/12.'),
+        ('<b>Gross Emissions</b>', f'Loss of biomass carbon stock over the last 12 months, {period} (max(−ΔStock, 0)).'),
+        ('<b>Gross Removals</b>',  f'Gain of biomass carbon stock over the last 12 months, {period} (max(ΔStock, 0)).'),
         ('<b>Net Flux</b>',        f'Emissions − Removals: {"positive (net source)" if net_positive else "negative (net sink)"}. '
                                    f'Current value: {net:.4f} Mg CO<sub>2</sub>e.'),
     ]
@@ -1234,6 +1250,140 @@ def _carbon_assessment_elems(carbon: dict, st: dict, summary: bool = True) -> li
         ('LEFTPADDING',  (0, 0), (-1, -1), 6),
     ]))
     elems.append(interp_t)
+    elems.append(Spacer(1, 5 * mm))
+    return elems
+
+
+def _soc_method_text(carbon: dict) -> str:
+    soc = carbon.get('soc')
+    if not soc:
+        return 'Not available for this report (ISRIC SoilGrids did not answer).'
+    return (f"ISRIC SoilGrids v2.0 organic carbon stock, {soc.get('depth', '0-30cm')} "
+            f"(IPCC default depth for mineral soils): {soc['ocs_t_c_ha']:.2f} t C/ha at "
+            f"{soc.get('lat')}, {soc.get('lon')} × area. Static map: counted in the total stock, "
+            'not in emissions/removals.')
+
+
+def _line_chart_image(fig, width=CONTENT_W, ratio=0.42) -> Image:
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png', dpi=150, bbox_inches='tight', facecolor='white')
+    plt.close(fig)
+    buf.seek(0)
+    return Image(buf, width=width, height=width * ratio)
+
+
+def _simple_table(header: list, rows: list, col_widths: list) -> Table:
+    data = [[Paragraph(f'<b>{h}</b>', _styles()['body_bold']) for h in header]]
+    data += [[Paragraph(str(c), _styles()['body']) for c in r] for r in rows]
+    t = Table(data, colWidths=col_widths)
+    t.setStyle(TableStyle([
+        ('BACKGROUND',   (0, 0), (-1, 0),  GREEN),
+        ('TEXTCOLOR',    (0, 0), (-1, 0),  WHITE),
+        ('GRID',         (0, 0), (-1, -1), 0.5, GRAY_BORDER),
+        ('VALIGN',       (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING',   (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING',(0, 0), (-1, -1), 4),
+        ('LEFTPADDING',  (0, 0), (-1, -1), 6),
+    ]))
+    return t
+
+
+def _fmt(v, digits=2, signed=False):
+    if v is None:
+        return 'N/A'
+    return f'{v:+.{digits}f}' if signed else f'{v:.{digits}f}'
+
+
+def _carbon_history_elems(carbon: dict, st: dict) -> list:
+    """Stock carbone sur 5 ans : courbe mensuelle + moyennes annuelles."""
+    history = [h for h in carbon.get('history') or [] if h.get('date')]
+    yearly = carbon.get('history_yearly') or []
+    if len(history) < 2:
+        return []
+    soc_co2e = (carbon.get('stock_soc_c') or 0) * 3.67
+
+    dates = [datetime.strptime(h['date'][:10], '%Y-%m-%d') for h in history]
+    biomass = [h['stock_co2e_mg'] for h in history]
+    fig, ax = plt.subplots(figsize=(7.5, 3.1), facecolor='white')
+    ax.plot(dates, biomass, color='#2d7a2d', linewidth=1.4, marker='o', markersize=2.5,
+            label='Biomass stock (AGB + BGB)')
+    if soc_co2e:
+        ax.plot(dates, [b + soc_co2e for b in biomass], color='#8d6e63', linewidth=1.4,
+                label='Total stock (biomass + SOC)')
+    for y in yearly:
+        ax.hlines(y['biomass_stock_co2e_mg'], datetime(y['year'], 1, 1), datetime(y['year'], 12, 31),
+                  colors='#fb8c00', linestyles='dashed', linewidth=1)
+    ax.plot([], [], color='#fb8c00', linestyle='dashed', label='Yearly mean (biomass)')
+    ax.set_ylabel('Mg CO$_2$e', fontsize=8)
+    ax.tick_params(labelsize=7)
+    ax.grid(alpha=0.3)
+    ax.legend(fontsize=7, frameon=False, loc='upper left')
+    fig.tight_layout()
+
+    elems = [KeepTogether(_section_bar('Carbon Stock: 5-Year History', st) + [_line_chart_image(fig)])]
+    trend = carbon.get('trend_co2e_mg_per_year')
+    if trend is not None:
+        direction = 'increasing (sink)' if trend > 0 else 'decreasing (source)' if trend < 0 else 'stable'
+        elems.append(Paragraph(
+            f"Trend {carbon.get('history_from')} → {carbon.get('history_to')}: "
+            f"<b>{trend:+.4f} Mg CO<sub>2</sub>e / year</b>, {direction}.", st['body']))
+    elems.append(Spacer(1, 3 * mm))
+    if yearly:
+        w = CONTENT_W / 5
+        elems.append(_simple_table(
+            ['Year', 'Readings', 'Biomass stock (Mg CO2e)', 'Change vs previous year', 'Total incl. SOC (Mg CO2e)'],
+            [[y['year'], y['readings'], _fmt(y['biomass_stock_co2e_mg'], 4),
+              _fmt(y.get('change_co2e_mg'), 4, signed=True), _fmt(y['total_stock_co2e_mg'], 4)]
+             for y in yearly],
+            [w * 0.6, w * 0.7, w * 1.2, w * 1.3, w * 1.2]))
+    elems.append(Spacer(1, 5 * mm))
+    return elems
+
+
+def _forest_area_elems(area: dict, st: dict) -> list:
+    """Surface boisée mois par mois : courbe + barres de variation + tableau."""
+    if not area:
+        return []
+    months = [m for m in area.get('months') or [] if m.get('forest_area_ha') is not None]
+    if not months:
+        return []
+
+    x = [datetime.strptime(m['month'], '%Y-%m') for m in months]
+    fig, ax = plt.subplots(figsize=(7.5, 3.1), facecolor='white')
+    changes = [m['change_ha'] or 0 for m in months]
+    ax.bar(x, changes, width=20, color=['#c62828' if c < 0 else '#43a047' for c in changes],
+           alpha=0.55, label='Monthly change (ha)')
+    ax.set_ylabel('Change (ha)', fontsize=8)
+    ax2 = ax.twinx()
+    ax2.plot(x, [m['forest_area_ha'] for m in months], color='#2d7a2d', marker='o',
+             markersize=3, linewidth=1.5, label='Forest area (ha)')
+    ax2.set_ylabel('Forest area (ha)', fontsize=8)
+    for a in (ax, ax2):
+        a.tick_params(labelsize=7)
+    ax.grid(alpha=0.3)
+    h1, l1 = ax.get_legend_handles_labels()
+    h2, l2 = ax2.get_legend_handles_labels()
+    ax.legend(h1 + h2, l1 + l2, fontsize=7, frameon=False, loc='lower left')
+    fig.tight_layout()
+
+    elems = [KeepTogether(_section_bar('Monthly Forest Area Change (Degradation & Deforestation)', st)
+                          + [_line_chart_image(fig)])]
+    net = area.get('net_change_ha')
+    elems.append(Paragraph(
+        f"{area['period_from']} → {area['period_to']}: forest area "
+        f"<b>{area['current_forest_area_ha']:.2f} ha</b> of {area['area_ha']:.2f} ha, "
+        f"net change <b>{_fmt(net, 2, signed=True)} ha</b> ({_fmt(area.get('net_change_pct'), 2, signed=True)} %). "
+        f"{area['method']} Cloudy months (less than half of the forest visible) are skipped.",
+        st['body']))
+    elems.append(Spacer(1, 3 * mm))
+    w = CONTENT_W / 4
+    elems.append(_simple_table(
+        ['Month', 'Forest area (ha)', 'Change (ha)', 'Change (%)'],
+        [[m['month'],
+          'cloudy' if m.get('forest_area_ha') is None else _fmt(m['forest_area_ha']),
+          _fmt(m.get('change_ha'), 2, signed=True), _fmt(m.get('change_pct'), 2, signed=True)]
+         for m in area.get('months') or []],
+        [w] * 4))
     elems.append(Spacer(1, 5 * mm))
     return elems
 
@@ -1309,6 +1459,7 @@ def build_carbon_forest_pdf(
     forest_id  : int | str,
     forest_info: dict,
     carbon     : dict,
+    area_change: dict | None = None,
     coords     : list | None = None,
     logo_parrot: str | None = None,
     logo_agri  : str | None = None,
@@ -1350,6 +1501,7 @@ def build_carbon_forest_pdf(
     elems.append(Spacer(1, 5 * mm))
 
     elems += _carbon_assessment_elems(carbon, st)
+    elems += _forest_area_elems(area_change, st)
 
     if coords:
         map_img = _mapbox_image(coords)

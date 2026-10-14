@@ -123,7 +123,8 @@ function evaluatePixel(s){
   };
 }"""  
 
-def _call_statistics(geometry, date_from, date_to, interval='P3M', mosaicking_order=None):
+def _call_statistics(geometry, date_from, date_to, interval='P3M', mosaicking_order=None,
+                     evalscript=None):
     token   = _get_token()
     data_filter = {
         'timeRange':       {'from': date_from, 'to': date_to},
@@ -146,7 +147,7 @@ def _call_statistics(geometry, date_from, date_to, interval='P3M', mosaicking_or
             'timeRange':           {'from': date_from, 'to': date_to},
             'aggregationInterval': {'of': interval},
             'resx': resx, 'resy': resy,
-            'evalscript': EVALSCRIPT,
+            'evalscript': evalscript or EVALSCRIPT,
         },
         'calculations': {'default': {}},
     }

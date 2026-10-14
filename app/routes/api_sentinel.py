@@ -802,7 +802,9 @@ def farm_crop_biomass(farm_id):
     from app.utils.sentinel_utils import (
         _build_geometry, _compute_area_ha_from_points, _call_statistics, _parse_response,
     )
-    from app.utils.crop_biomass_utils import compute_crop_biomass, resolve_crop_key
+    from app.utils.crop_biomass_utils import (
+        INDEX_MODELS, SUPPORTED_CROPS, compute_crop_biomass, resolve_crop_key,
+    )
 
     farm = Farm.query.filter_by(farm_id=farm_id).first()
     if not farm:
@@ -815,7 +817,7 @@ def farm_crop_biomass(farm_id):
         crop = Crop.query.get(farm_data.crop_id)
         crop_name = crop.name if crop else None
     if not crop_name:
-        return jsonify({'error': 'No crop recorded for this farm — pass ?crop=maize|rice|wheat|coffee|cocoa'}), 400
+        return jsonify({'error': f"No crop recorded for this farm — pass ?crop={'|'.join(SUPPORTED_CROPS)}"}), 400
 
     points = Point.query.filter_by(owner_type='farmer', owner_id=str(farm_id)).order_by(Point.id).all()
     area_ha, _ = _compute_area_ha_from_points(points)
@@ -823,7 +825,9 @@ def farm_crop_biomass(farm_id):
         area_ha = farm_data.tilled_land_size
 
     rows = []
-    if resolve_crop_key(crop_name) != 'coffee':
+    # Les indices ne servent qu'aux cultures à modèle satellite (cacao inclus,
+    # qui bascule sur l'allométrie si dbh_cm est fourni).
+    if resolve_crop_key(crop_name) in INDEX_MODELS:
         geometry = _build_geometry(points, farm.geolocation)
         if not geometry:
             return jsonify({'error': 'No geometry available — add polygon points first'}), 400
