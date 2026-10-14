@@ -102,7 +102,10 @@ def fetch_soc_stock(ring):
     # Les vues sont async : asyncio.run doit tourner hors de la boucle courante.
     with ThreadPoolExecutor(max_workers=1) as pool:
         data = pool.submit(asyncio.run, _fetch_soc_soilgrids(lat, lon)).result()
-    ocs = (data or {}).get(f'ocs_{SOC_DEPTH}')
+    # _fetch_soc_soilgrids divise par le d_factor (10) : ocs y est en kg/m²
+    # (unité cible SoilGrids). 1 kg/m² = 10 t/ha.
+    ocs_kg_m2 = (data or {}).get(f'ocs_{SOC_DEPTH}')
+    ocs = None if ocs_kg_m2 is None else ocs_kg_m2 * 10.0
     if ocs is None:
         logger.warning(f'[Carbon] SoilGrids SOC unavailable at {lat:.5f},{lon:.5f}')
         return None
