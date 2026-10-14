@@ -391,9 +391,10 @@ class EUDRClient:
         if missing:
             raise ValueError(f"Missing required field(s): {', '.join(missing)}")
 
-        # HSHeadingType : 2 à 6 chiffres. TRACES accepte le code au niveau de l'Annexe I
-        # (ex. 0901, vérifié en prod le 2026-10-03) ou une sous-position existante
-        # (090111). L'existence du code est contrôlée en amont par la table
+        # HSHeadingType : 2 à 6 chiffres. TRACES accepte certaines positions de
+        # l'Annexe I (1801, 1806, 1511, 4403) mais en refuse d'autres : 0901 (café)
+        # est rejeté (EUDR-COMMODITIES-HS-CODE-INVALID, vérifié le 2026-10-14), il
+        # faut une sous-position (090111, 090112, 090121…). L'existence du code est contrôlée en amont par la table
         # hscode/hscode_subheading (verdicts TRACES, cf. hscode_sync.py).
         hs_digits = ''.join(ch for ch in str(statement_data['hsHeading']) if ch.isdigit())
         if not 2 <= len(hs_digits) <= 6:
