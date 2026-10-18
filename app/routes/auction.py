@@ -437,6 +437,7 @@ def pay_deposit(id):
         amount=float(reg.deposit_amount),
         currency=reg.deposit_currency or reg.auction.currency,
         reference=f"NKU-DEPOSIT-{reg.id}",
+        description=f"Nkusu Services - Auction deposit NKU-DEPOSIT-{reg.id}",
         redirect_url=f"{site_url()}/api/auction/deposit/success",
         back_url=f"{site_url()}/api/auction/deposit/cancelled",
         customer_phone=data.get('phone_number') or reg.contact_phone or '',
@@ -1006,6 +1007,7 @@ def pay_awarded_order(order_id):
     result = DPOPayment().create_payment_token(
         amount=float(order.total_amount), currency=order.currency,
         reference=f"NKU-AUCTION-{order.id}",
+        description=f"Nkusu Services - Auction order NKU-AUCTION-{order.id}",
         redirect_url=f"{site_url()}/api/ecommerce/checkout/success",
         back_url=f"{site_url()}/api/ecommerce/checkout/cancelled",
         customer_phone=data.get('phone_number', ''),

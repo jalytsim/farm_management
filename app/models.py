@@ -1832,3 +1832,46 @@ class CropVariety(db.Model):
             'date_created': self.date_created.isoformat() if self.date_created else None,
             'date_updated': self.date_updated.isoformat() if self.date_updated else None,
         }
+
+class CropCalibrationPlot(db.Model):
+    """
+    Parcelle de mesure terrain servant à calibrer, par culture pérenne, la
+    relation indice Sentinel-2 → biomasse (crop_calibration_utils.py).
+    AGB = équation allométrique de la culture × densité de plantation ;
+    indices = Sentinel-2 de la ferme autour de la date de mesure.
+    """
+    __tablename__ = 'crop_calibration_plot'
+    id             = db.Column(db.Integer, primary_key=True)
+    # Pas de ForeignKey : farm.farm_id vient du dump MariaDB (collation
+    # différente), MySQL 8 refuse la contrainte (erreur 3780).
+    farm_id        = db.Column(db.String(50), nullable=False, index=True)
+    crop_name      = db.Column(db.String(100), nullable=False)
+    crop_key       = db.Column(db.String(50), nullable=False)
+    family         = db.Column(db.String(50), nullable=False, index=True)
+    measured_on    = db.Column(db.Date, nullable=False)
+    mean_dbh_cm    = db.Column(db.Float, nullable=True)
+    mean_height_m  = db.Column(db.Float, nullable=True)
+    plants_per_ha  = db.Column(db.Float, nullable=False)
+    wood_density   = db.Column(db.Float, nullable=True)
+    agb_t_ha       = db.Column(db.Float, nullable=False)
+    ndvi           = db.Column(db.Float, nullable=True)
+    evi            = db.Column(db.Float, nullable=True)
+    savi           = db.Column(db.Float, nullable=True)
+    ndre           = db.Column(db.Float, nullable=True)
+    index_date     = db.Column(db.String(10), nullable=True)
+    notes          = db.Column(db.String(255), nullable=True)
+    created_by     = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    date_created   = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id, 'farm_id': self.farm_id, 'crop_name': self.crop_name,
+            'crop_key': self.crop_key, 'family': self.family,
+            'measured_on': self.measured_on.isoformat() if self.measured_on else None,
+            'mean_dbh_cm': self.mean_dbh_cm, 'mean_height_m': self.mean_height_m,
+            'plants_per_ha': self.plants_per_ha, 'wood_density': self.wood_density,
+            'agb_t_ha': self.agb_t_ha,
+            'ndvi': self.ndvi, 'evi': self.evi, 'savi': self.savi, 'ndre': self.ndre,
+            'index_date': self.index_date, 'notes': self.notes,
+            'date_created': self.date_created.isoformat() if self.date_created else None,
+        }

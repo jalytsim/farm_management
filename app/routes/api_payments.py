@@ -177,7 +177,7 @@ def initiate_dpo_payment():
         back_url=on_site(current_app.config["DPO_BACK_URL"]),
         customer_phone=phone,
         customer_email=email,
-        description=payment.narrative,
+        description=f"Nkusu Services - {payment.narrative}",
     )
 
     if result['success']:

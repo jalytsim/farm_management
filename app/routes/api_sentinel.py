@@ -4,7 +4,10 @@ api_sentinel.py — Blueprint /api/sentinel
 GET  /api/sentinel/farm/<farm_id>/sat-index
 GET  /api/sentinel/forest/<forest_id>/sat-index
 GET  /api/sentinel/farm/<farm_id>/sat-index/pdf
+POST /api/sentinel/guest/sat-index/pdf
 """
+
+import asyncio
 
 from flask import Blueprint, jsonify, request, send_file
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -90,7 +93,7 @@ def guest_classification_image(index_name):
     logger = logging.getLogger(__name__)
 
     if index_name not in CLASSIFICATION_THRESHOLDS:
-        return jsonify({'error': f'Index "{index_name}" non supporté'}), 400
+        return jsonify({'error': f'Index "{index_name}" is not supported'}), 400
 
     data    = request.get_json(silent=True) or {}
     phone   = data.get('phone')
@@ -609,7 +612,7 @@ def farm_classification_image(farm_id, index_name):
     import base64, io
 
     if index_name not in CLASSIFICATION_THRESHOLDS:
-        return jsonify({'error': f'Index "{index_name}" non supporté'}), 400
+        return jsonify({'error': f'Index "{index_name}" is not supported'}), 400
 
     entity = Farm.query.filter_by(farm_id=farm_id).first()
     if not entity:
@@ -650,7 +653,7 @@ def forest_classification_image(forest_id, index_name):
     import base64, io
 
     if index_name not in CLASSIFICATION_THRESHOLDS:
-        return jsonify({'error': f'Index "{index_name}" non supporté'}), 400
+        return jsonify({'error': f'Index "{index_name}" is not supported'}), 400
 
     entity = Forest.query.get(forest_id)
     if not entity:
@@ -784,6 +787,51 @@ def guest_sat_index():
     _log_gfw('guest_sentinel_report', 'guest', phone, agent_id=agent_id)
 
     return jsonify(_attach_agb_trend(result, 'farm', crop_name=data.get('crop'))), 200
+
+
+@sentinel_bp.route('/guest/sat-index/pdf', methods=['POST'])
+def guest_sat_index_pdf():
+    """PDF du rapport d'indices satellite guest : mêmes données que /guest/sat-index
+    (servies par GuestSentinelCache), même contrôle d'accès payé."""
+    from app.utils.sentinel_utils import get_sat_index_full_guest
+    from app.utils.feature_payment_utils import has_guest_access
+    from datetime import datetime
+    import io
+
+    data    = request.get_json(silent=True) or {}
+    phone   = data.get('phone')
+    geojson = data.get('geojson')
+    if not phone or not geojson:
+        return jsonify({'error': 'phone and geojson are required'}), 400
+    if not has_guest_access(phone, 'reportndviguest'):
+        return jsonify({'error': 'No active paid access for this phone number'}), 403
+
+    result, error = asyncio.run(get_sat_index_full_guest(
+        geojson, phone,
+        loan_amount    = data.get('loan_amount'),
+        yield_t_per_ha = data.get('yield_t_per_ha', 1.5),
+        price_per_t    = data.get('price_per_t', 500),
+        hist_yield_1   = data.get('hist_yield_1'),
+        hist_yield_2   = data.get('hist_yield_2'),
+    ))
+    if error:
+        return jsonify({'error': error}), 400 if 'polygon' in error.lower() else 500
+
+    html_str = _build_pdf_html(_attach_agb_trend(result, 'farm', crop_name=data.get('crop')))
+    try:
+        from weasyprint import HTML
+        pdf_bytes = HTML(string=html_str).write_pdf()
+    except Exception as e:
+        return jsonify({'error': f'PDF generation failed: {str(e)}'}), 500
+    if not pdf_bytes:
+        return jsonify({'error': 'PDF generation produced empty output'}), 500
+
+    return send_file(
+        io.BytesIO(pdf_bytes),
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=f"satellite_index_report_{datetime.utcnow().strftime('%Y%m%d')}.pdf",
+    )
 
 
 @sentinel_bp.route('/farm/<string:farm_id>/crop-biomass', methods=['GET'])
@@ -1106,6 +1154,73 @@ def guest_predict_crop():
         code = 400 if 'not trained' in error.lower() or 'not enough' in error.lower() else 500
         return jsonify({'error': error}), code
     return jsonify(result), 200
+
+
+# ── Calibration indice → biomasse des cultures pérennes (parcelles terrain) ──
+
+def _require_admin():
+    user = _get_user()
+    if not user or not user.is_admin:
+        return None, (jsonify({'error': 'Admin access required'}), 403)
+    return user, None
+
+
+@sentinel_bp.route('/crop-calibration', methods=['GET'])
+@jwt_required()
+def crop_calibration_status():
+    """État de calibration par culture + parcelles de mesure enregistrées."""
+    _, denied = _require_admin()
+    if denied:
+        return denied
+    from app.models import CropCalibrationPlot
+    from app.utils.crop_calibration_utils import (
+        FAMILY_LABELS, MIN_LOO_R2, MIN_PLOTS, WINDOW_DAYS, all_calibration_status,
+    )
+    plots = CropCalibrationPlot.query.order_by(CropCalibrationPlot.measured_on.desc()).all()
+    return jsonify({
+        'families':    all_calibration_status(),
+        'plots':       [p.to_dict() for p in plots],
+        'crops':       FAMILY_LABELS,
+        'rules':       {'min_plots': MIN_PLOTS, 'min_loo_r2': MIN_LOO_R2, 'window_days': WINDOW_DAYS},
+    }), 200
+
+
+@sentinel_bp.route('/crop-calibration/plots', methods=['POST'])
+@jwt_required()
+def crop_calibration_add_plot():
+    """
+    Body : {farm_id, crop, measured_on, mean_dbh_cm, mean_height_m,
+            plants_per_ha, wood_density?, notes?}
+    """
+    user, denied = _require_admin()
+    if denied:
+        return denied
+    from app.models import Farm
+    from app.utils.crop_calibration_utils import create_plot
+    data = request.get_json(silent=True) or {}
+    farm = Farm.query.filter_by(farm_id=str(data.get('farm_id') or '').strip()).first()
+    if not farm:
+        return jsonify({'error': 'Farm not found'}), 404
+    plot, error = create_plot(farm, data, user_id=user.id)
+    if error:
+        return jsonify({'error': error}), 400
+    return jsonify(plot.to_dict()), 201
+
+
+@sentinel_bp.route('/crop-calibration/plots/<int:plot_id>', methods=['DELETE'])
+@jwt_required()
+def crop_calibration_delete_plot(plot_id):
+    _, denied = _require_admin()
+    if denied:
+        return denied
+    from app import db
+    from app.models import CropCalibrationPlot
+    plot = CropCalibrationPlot.query.get(plot_id)
+    if not plot:
+        return jsonify({'error': 'Plot not found'}), 404
+    db.session.delete(plot)
+    db.session.commit()
+    return jsonify({'deleted': plot_id}), 200
 
 
 @sentinel_bp.route('/crop-model/train', methods=['POST'])

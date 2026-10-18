@@ -649,6 +649,7 @@ def initiate_checkout():
             redirect_url=f"{site_url()}/api/ecommerce/checkout/success",
             back_url=f"{site_url()}/api/ecommerce/checkout/cancelled",
             customer_phone=phone, customer_email=email,
+            description=f"Nkusu Services - Shop order NKU-SHOP-{order.id}",
         )
 
         if not result.get('success'):

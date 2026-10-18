@@ -22,6 +22,7 @@ import requests
 import pandas as pd
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
+from app.utils.sar_fill_utils import fill_rows_with_sar
 
 warnings.filterwarnings('ignore')
 logger = logging.getLogger(__name__)
@@ -98,15 +99,19 @@ def _compute_safe_resolution(geometry, max_dim=500, min_res=0.0001):
     )
     return round(resx, 6), round(resy, 6)
 
+# Nuages, ombres et cirrus (SCL 3, 8, 9, 10) sortent de la moyenne : sans ce
+# masque, un mois partiellement nuageux faisait chuter le NDVI et passait pour
+# une perte de biomasse dans le bilan carbone.
 EVALSCRIPT = """//VERSION=3
-function setup(){return{input:[{bands:['B02','B03','B04','B05','B08','B11','B12','dataMask']}],output:[
+function setup(){return{input:[{bands:['B02','B03','B04','B05','B08','B11','B12','SCL','dataMask']}],output:[
   {id:'ndvi',bands:1},{id:'ndmi',bands:1},{id:'ndwi',bands:1},{id:'nmdi',bands:1},
   {id:'evi',bands:1},{id:'savi',bands:1},{id:'nbr',bands:1},{id:'bsi',bands:1},
   {id:'ndre',bands:1},{id:'dataMask',bands:1}
 ]};}
 function clamp(v,lo,hi){return Math.max(lo,Math.min(hi,v));}
 function evaluatePixel(s){
-  if(s.dataMask===0)return{ndvi:[0],ndmi:[0],ndwi:[0],nmdi:[0],evi:[0],savi:[0],nbr:[0],bsi:[0],ndre:[0],dataMask:[0]};
+  var cloud=(s.SCL===3||s.SCL===8||s.SCL===9||s.SCL===10);
+  if(s.dataMask===0||cloud)return{ndvi:[0],ndmi:[0],ndwi:[0],nmdi:[0],evi:[0],savi:[0],nbr:[0],bsi:[0],ndre:[0],dataMask:[0]};
   var ndvi=(s.B08-s.B04)/(s.B08+s.B04+1e-10);
   var ndmi=(s.B08-s.B11)/(s.B08+s.B11+1e-10);
   var ndwi=(s.B03-s.B08)/(s.B03+s.B08+1e-10);
@@ -124,14 +129,17 @@ function evaluatePixel(s){
 }"""  
 
 def _call_statistics(geometry, date_from, date_to, interval='P3M', mosaicking_order=None,
-                     evalscript=None):
+                     evalscript=None, data_type='sentinel-2-l2a', data_filter=None,
+                     processing=None):
     token   = _get_token()
-    data_filter = {
-        'timeRange':       {'from': date_from, 'to': date_to},
-        'maxCloudCoverage': 30,
-    }
-    if mosaicking_order:
-        data_filter['mosaickingOrder'] = mosaicking_order
+    if data_filter is None:
+        # Scène la moins nuageuse de l'intervalle ; les pixels nuageux restants
+        # sont masqués par l'evalscript (SCL).
+        data_filter = {
+            'timeRange':       {'from': date_from, 'to': date_to},
+            'maxCloudCoverage': 30,
+            'mosaickingOrder': mosaicking_order or 'leastCC',
+        }
 
     resx, resy = _compute_safe_resolution(geometry)
 
@@ -141,7 +149,8 @@ def _call_statistics(geometry, date_from, date_to, interval='P3M', mosaicking_or
                 'geometry': geometry,
                 'properties': {'crs': 'http://www.opengis.net/def/crs/EPSG/0/4326'},
             },
-            'data': [{'type': 'sentinel-2-l2a', 'dataFilter': data_filter}],
+            'data': [{'type': data_type, 'dataFilter': data_filter,
+                      **({'processing': processing} if processing else {})}],
         },
         'aggregation': {
             'timeRange':           {'from': date_from, 'to': date_to},
@@ -1379,7 +1388,7 @@ def _build_classification_evalscript(index_name):
 
 def _call_process_image(geometry, date_from, date_to, index_name, width=1024, height=1024):
     if index_name not in CLASSIFICATION_THRESHOLDS:
-        raise ValueError(f'Index "{index_name}" non supporté pour la classification')
+        raise ValueError(f'Index "{index_name}" is not supported for classification')
 
     token = _get_token()
     evalscript = _build_classification_evalscript(index_name)
@@ -1469,6 +1478,8 @@ def _build_history_rows(historical, indices):
     history_out = []
     for row in historical:
         out = {'date': row['date']}
+        if row.get('sar_filled'):
+            out['sar_filled'] = row['sar_filled']
         for idx in indices:
             val     = row.get(idx)
             raw_val = row.get(f'{idx}_raw')
@@ -1529,6 +1540,7 @@ def get_monthly_trend(entity_type, entity_id, months=12):
     except Exception as e:
         logger.error(f'[Sentinel] Monthly trend API call failed for {entity_id}: {e}')
         return None, f'Sentinel API error: {e}'
+    historical, sar_fill = fill_rows_with_sar(historical, geometry, date_from, date_to, indices)
 
     by_month = {row['date'][:7]: row for row in historical}
 
@@ -1562,6 +1574,7 @@ def get_monthly_trend(entity_type, entity_id, months=12):
         'history':          history_out,
         'tiers_meta':       TIERS,
         'out_of_bounds':    out_of_bounds,
+        'sar_fill':         sar_fill,
     }, None
 
 
@@ -1604,6 +1617,7 @@ def get_monthly_trend_guest(geojson, months=12):
     except Exception as e:
         logger.error(f'[Sentinel] Guest monthly trend API call failed: {e}')
         return None, f'Sentinel API error: {e}'
+    historical, sar_fill = fill_rows_with_sar(historical, geometry, date_from, date_to, indices)
 
     by_month = {row['date'][:7]: row for row in historical}
 
@@ -1636,6 +1650,7 @@ def get_monthly_trend_guest(geojson, months=12):
         'history':          history_out,
         'tiers_meta':       TIERS,
         'out_of_bounds':    out_of_bounds,
+        'sar_fill':         sar_fill,
     }, None
 
 

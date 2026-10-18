@@ -193,7 +193,8 @@ def _owner_ring(owner_type: str, owner_id, geolocation=None):
     return [[float(lon), float(lat)] for lon, lat in geometry['coordinates'][0]]
 
 
-def _carbon_for_ring(ring, crop_name=None, property_type='farm', fallback_area_ha=None):
+def _carbon_for_ring(ring, crop_name=None, property_type='farm', fallback_area_ha=None,
+                     tree_type=None):
     """(carbon, error) — indices Sentinel-2 du polygone → bilan carbone."""
     from app.utils.sentinel_utils import _compute_area_ha_from_coords
     if not ring:
@@ -214,7 +215,8 @@ def _carbon_for_ring(ring, crop_name=None, property_type='farm', fallback_area_h
         except Exception:
             import traceback; traceback.print_exc()
             soc = None
-    return compute_carbon_from_indices(rows, area_ha, crop_name, property_type, soc=soc)
+    return compute_carbon_from_indices(rows, area_ha, crop_name, property_type, soc=soc,
+                                       tree_type=tree_type, ring=ring)
 
 
 def _farm_carbon(farm, farm_info):
@@ -228,7 +230,9 @@ def _farm_carbon(farm, farm_info):
 
 def _forest_carbon(forest_id):
     ring = _owner_ring('forest', forest_id)
-    carbon, error = _carbon_for_ring(ring, property_type='forest')
+    forest = Forest.query.get(forest_id)
+    carbon, error = _carbon_for_ring(ring, property_type='forest',
+                                     tree_type=forest.tree_type if forest else None)
     return carbon, ring, error
 
 
@@ -261,7 +265,7 @@ def forest_area_change(forest_id):
     return jsonify(result), 200
 
 
-def _carbon_from_geojson(geojson_data, crop_name=None, property_type='farm'):
+def _carbon_from_geojson(geojson_data, crop_name=None, property_type='farm', tree_type=None):
     """Polygon / MultiPolygon (1er polygone), Feature ou FeatureCollection."""
     geom = geojson_data or {}
     if geom.get('type') == 'FeatureCollection':
@@ -271,7 +275,7 @@ def _carbon_from_geojson(geojson_data, crop_name=None, property_type='farm'):
     ring = None
     if geom.get('type') in ('Polygon', 'MultiPolygon'):
         ring = ring_from_report_coordinates(geom.get('coordinates'))
-    carbon, error = _carbon_for_ring(ring, crop_name, property_type)
+    carbon, error = _carbon_for_ring(ring, crop_name, property_type, tree_type=tree_type)
     return carbon, ring, error
 
 
@@ -635,12 +639,14 @@ def guest_carbon_pdf():
 
     is_forest = str(req_data.get('property_type') or '').lower() == 'forest'
     property_type = 'forest' if is_forest else 'farm'
+    tree_type = farm_info.get('tree_type') if is_forest else None
     if req_data.get('geojson'):
-        carbon, ring, error = _carbon_from_geojson(req_data['geojson'], crop_name, property_type)
+        carbon, ring, error = _carbon_from_geojson(req_data['geojson'], crop_name, property_type,
+                                                   tree_type=tree_type)
     elif isinstance(gfw_data, dict) and gfw_data:
         first = next((items[0] for items in gfw_data.values() if isinstance(items, list) and items), {})
         ring = ring_from_report_coordinates(first.get('coordinates'))
-        carbon, error = _carbon_for_ring(ring, crop_name, property_type)
+        carbon, error = _carbon_for_ring(ring, crop_name, property_type, tree_type=tree_type)
     else:
         return jsonify({"error": "Missing 'geojson' or 'report' data"}), 400
     if error:

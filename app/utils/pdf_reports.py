@@ -1229,8 +1229,34 @@ def _carbon_assessment_elems(carbon: dict, st: dict, summary: bool = True) -> li
         ('<b>Soil Organic Carbon</b>', _soc_method_text(carbon)),
         ('<b>Total Carbon Stock</b>', 'AGB carbon + BGB carbon + SOC (IPCC pools, dead wood and litter excluded); '
                                       'CO<sub>2</sub>e = C × 44/12.'),
-        ('<b>Gross Emissions</b>', f'Loss of biomass carbon stock over the last 12 months, {period} (max(−ΔStock, 0)).'),
-        ('<b>Gross Removals</b>',  f'Gain of biomass carbon stock over the last 12 months, {period} (max(ΔStock, 0)).'),
+        ('<b>Stock Change (ΔStock)</b>',
+         f"{carbon.get('stock_change_co2e_mg', 0):.4f} Mg CO<sub>2</sub>e: "
+         f"{carbon.get('stock_change_method') or period}. Comparing yearly means removes the seasonal "
+         'swing (leaf flush, dry season) and the noise of a single cloudy reading.'),
+    ]
+    growth = carbon.get('forest_growth')
+    if growth:
+        interp += [
+            ('<b>Gross Removals</b>',
+             'IPCC gain-loss method: a standing forest keeps absorbing CO<sub>2</sub> even when its stock '
+             f"falls. Default growth {growth['source']}; × area × (1 + 20 % BGB) × 50 % carbon × 3.67 = "
+             f"{growth['gross_growth_co2e_mg']:.4f} Mg CO<sub>2</sub>e/yr (or ΔStock when the observed "
+             'gain is larger).'),
+            ('<b>Gross Emissions</b>',
+             'Removals − ΔStock: the biomass lost to harvest, degradation or disturbance over the year '
+             '(0 when the stock grew at least as fast as the default growth).'),
+        ]
+    else:
+        interp += [
+            ('<b>Gross Emissions</b>', f'Loss of biomass carbon stock over the year, {period} (max(−ΔStock, 0)).'),
+            ('<b>Gross Removals</b>',  f'Gain of biomass carbon stock over the year, {period} (max(ΔStock, 0)).'),
+        ]
+    sar = carbon.get('sar_filled_months') or []
+    if sar:
+        interp.append(('<b>Cloudy Months</b>',
+                       f'{len(sar)} cloudy month(s) filled with Sentinel-1 radar (sees through clouds), '
+                       'using a per-parcel regression of each index on Sentinel-1 VH backscatter and RVI.'))
+    interp += [
         ('<b>Net Flux</b>',        f'Emissions − Removals: {"positive (net source)" if net_positive else "negative (net sink)"}. '
                                    f'Current value: {net:.4f} Mg CO<sub>2</sub>e.'),
     ]
