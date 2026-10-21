@@ -27,11 +27,10 @@ from app.models import (
 )
 from app.utils.dpo_payment import DPOPayment
 from app.utils.decorators import admin_required, current_user_id
+from app.utils.site_url import site_url
 
 bp = Blueprint('auction', __name__, url_prefix='/api/auction')
 
-FRONTEND_URL = "https://www.nkusu.com"
-BACKEND_URL = "https://www.nkusu.com/api"
 ZERO = Decimal('0')
 
 # Sans eux, une inscription n'engage personne : « Coffee Co » ne se poursuit
@@ -438,8 +437,9 @@ def pay_deposit(id):
         amount=float(reg.deposit_amount),
         currency=reg.deposit_currency or reg.auction.currency,
         reference=f"NKU-DEPOSIT-{reg.id}",
-        redirect_url=f"{BACKEND_URL}/auction/deposit/success",
-        back_url=f"{BACKEND_URL}/auction/deposit/cancelled",
+        description=f"Nkusu Services - Auction deposit NKU-DEPOSIT-{reg.id}",
+        redirect_url=f"{site_url()}/api/auction/deposit/success",
+        back_url=f"{site_url()}/api/auction/deposit/cancelled",
         customer_phone=data.get('phone_number') or reg.contact_phone or '',
         customer_email=data.get('email') or reg.contact_email or '',
     )
@@ -507,22 +507,22 @@ def verify_deposit(trans_token):
 def deposit_success():
     trans_token = request.args.get('TransactionToken')
     if not trans_token:
-        return redirect(f"{FRONTEND_URL}/auction/deposit/error?error=Missing+token")
+        return redirect(f"{site_url()}/auction/deposit/error?error=Missing+token")
     try:
         reg = AuctionRegistration.query.filter_by(dpo_trans_token=trans_token).first()
         if reg:
             _confirm_deposit(reg.id)
-        return redirect(f"{FRONTEND_URL}/auction/deposit/success?TransactionToken={trans_token}")
+        return redirect(f"{site_url()}/auction/deposit/success?TransactionToken={trans_token}")
     except Exception:
         db.session.rollback()
         traceback.print_exc()
-        return redirect(f"{FRONTEND_URL}/auction/deposit/error?error=Server+error")
+        return redirect(f"{site_url()}/auction/deposit/error?error=Server+error")
 
 
 @bp.route('/deposit/cancelled', methods=['GET'])
 def deposit_cancelled():
     trans_token = request.args.get('TransactionToken')
-    return redirect(f"{FRONTEND_URL}/auction/deposit/cancelled?TransactionToken={trans_token}")
+    return redirect(f"{site_url()}/auction/deposit/cancelled?TransactionToken={trans_token}")
 
 
 # =============================================================================
@@ -1007,8 +1007,9 @@ def pay_awarded_order(order_id):
     result = DPOPayment().create_payment_token(
         amount=float(order.total_amount), currency=order.currency,
         reference=f"NKU-AUCTION-{order.id}",
-        redirect_url=f"{BACKEND_URL}/ecommerce/checkout/success",
-        back_url=f"{BACKEND_URL}/ecommerce/checkout/cancelled",
+        description=f"Nkusu Services - Auction order NKU-AUCTION-{order.id}",
+        redirect_url=f"{site_url()}/api/ecommerce/checkout/success",
+        back_url=f"{site_url()}/api/ecommerce/checkout/cancelled",
         customer_phone=data.get('phone_number', ''),
         customer_email=data.get('email', ''),
     )

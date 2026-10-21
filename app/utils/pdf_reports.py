@@ -9,6 +9,7 @@ Rapports disponibles :
   • build_eudr_forest_pdf(forest_id, forest_info, gfw_data) → bytes
   • build_carbon_farm_pdf(farm_id, farm_info, carbon, coords)     → bytes
   • build_carbon_forest_pdf(forest_id, forest_info, carbon, coords) → bytes
+  • build_sat_index_pdf(report_id, farm_info, data, coords)         → bytes
     (carbon = carbon_index_utils.compute_carbon_from_indices, Sentinel-2)
 
 Dépendances Python :
@@ -1076,7 +1077,7 @@ def build_eudr_forest_pdf(
 # BUILD CARBON FARM PDF
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _carbon_table(vals: dict) -> Table:
+def _carbon_table(vals: dict, width: float = CONTENT_W) -> Table:
     """Table des valeurs carbone."""
     BADGE_COLORS = {
         'emissions': colors.HexColor('#e53935'),
@@ -1108,8 +1109,18 @@ def _carbon_table(vals: dict) -> Table:
         [Paragraph('Carbon Stock (Belowground)', _styles()['body']),
          Paragraph(f"{vals['stock_below_c']:.4f} Mg C", _styles()['body'])],
     ]
+    if vals.get('stock_soc_c') is not None:
+        rows.append([Paragraph(f"Soil Organic Carbon ({(vals.get('soc') or {}).get('depth', '0-30cm')})",
+                               _styles()['body']),
+                     Paragraph(f"{vals['stock_soc_c']:.4f} Mg C", _styles()['body'])])
+    if vals.get('stock_total_c') is not None:
+        rows.append([Paragraph('<b>Total Carbon Stock</b>', _styles()['body']),
+                     Paragraph(f"<b>{vals['stock_total_c']:.4f} Mg C</b><br/>"
+                               f"{vals['stock_total_co2e_mg']:.4f} Mg CO<sub>2</sub>e", _styles()['body'])])
 
-    t = Table(rows, colWidths=[CONTENT_W * 0.65, CONTENT_W * 0.35])
+    # Largeur imposée par l'appelant : à côté du camembert, la table pleine
+    # largeur débordait et sa colonne de valeurs passait sous le graphique.
+    t = Table(rows, colWidths=[width * 0.58, width * 0.42])
     t.setStyle(TableStyle([
         ('BACKGROUND',   (0, 0), (-1, 0),   GREEN),
         ('TEXTCOLOR',    (0, 0), (-1, 0),   WHITE),
@@ -1172,20 +1183,19 @@ def _carbon_indices_table(carbon: dict) -> Table:
     return t
 
 
-def _carbon_assessment_elems(carbon: dict, st: dict) -> list:
-    """Résumé carbone + indices + méthode — commun aux rapports ferme et forêt."""
+def _carbon_summary_elems(carbon: dict, st: dict) -> list:
+    """Tableau émissions / absorptions / stock + camembert."""
     emissions, removals, net = carbon['emissions'], carbon['removals'], carbon['net']
-    net_positive = net >= 0
     elems = []
-
     elems += _section_bar('Carbon Assessment Summary', st)
     pie = _pie_chart_image({
         'Gross Emissions': abs(emissions),
         'Gross Removals':  abs(removals),
         'Net Flux':        abs(net),
-        'Carbon Stock':    abs(carbon['stock_above_c'] + carbon['stock_below_c']),
+        'Carbon Stock':    abs(carbon.get('stock_total_c')
+                               or carbon['stock_above_c'] + carbon['stock_below_c']),
     }, size=60 * mm)
-    side_t = Table([[_carbon_table(carbon), pie]], colWidths=[CONTENT_W - 68 * mm, 68 * mm])
+    side_t = Table([[_carbon_table(carbon, CONTENT_W - 70 * mm), pie]], colWidths=[CONTENT_W - 68 * mm, 68 * mm])
     side_t.setStyle(TableStyle([
         ('VALIGN',       (0, 0), (-1, -1), 'TOP'),
         ('LEFTPADDING',  (0, 0), (-1, -1), 0),
@@ -1193,19 +1203,61 @@ def _carbon_assessment_elems(carbon: dict, st: dict) -> list:
     ]))
     elems.append(side_t)
     elems.append(Spacer(1, 5 * mm))
+    return elems
+
+
+def _carbon_assessment_elems(carbon: dict, st: dict, summary: bool = True) -> list:
+    """Indices + méthode, précédés du résumé carbone (forêt uniquement : summary=True)."""
+    net = carbon['net']
+    net_positive = net >= 0
+    elems = []
+
+    if summary:
+        elems += _carbon_summary_elems(carbon, st)
 
     elems += _section_bar('Vegetation Indices (Sentinel-2)', st)
     elems.append(_carbon_indices_table(carbon))
     elems.append(Spacer(1, 5 * mm))
 
+    elems += _carbon_history_elems(carbon, st)
+
     elems += _section_bar('Methodology & Interpretation', st)
     period = f"{carbon.get('start_date') or 'N/A'} → {carbon.get('end_date') or 'N/A'}"
     interp = [
         ('<b>Biomass (AGB)</b>',  f"{carbon['agb_formula']}, computed for each monthly Sentinel-2 reading."),
-        ('<b>Carbon Stock</b>',   'AGB × area, + BGB (20 % of AGB) × 72.5 % dry matter × 50 % carbon × 3.67 (CO<sub>2</sub>/C). '
+        ('<b>Biomass Stock</b>',  'AGB × area, + BGB (20 % of AGB) × 72.5 % dry matter × 50 % carbon × 3.67 (CO<sub>2</sub>/C). '
                                   f"Start: {carbon['stock_start_co2e_mg']:.4f}, end: {carbon['stock_end_co2e_mg']:.4f} Mg CO<sub>2</sub>e."),
-        ('<b>Gross Emissions</b>', f'Loss of carbon stock over {period} (max(−ΔStock, 0)).'),
-        ('<b>Gross Removals</b>',  f'Gain of carbon stock over {period} (max(ΔStock, 0)).'),
+        ('<b>Soil Organic Carbon</b>', _soc_method_text(carbon)),
+        ('<b>Total Carbon Stock</b>', 'AGB carbon + BGB carbon + SOC (IPCC pools, dead wood and litter excluded); '
+                                      'CO<sub>2</sub>e = C × 44/12.'),
+        ('<b>Stock Change (ΔStock)</b>',
+         f"{carbon.get('stock_change_co2e_mg', 0):.4f} Mg CO<sub>2</sub>e: "
+         f"{carbon.get('stock_change_method') or period}. Comparing yearly means removes the seasonal "
+         'swing (leaf flush, dry season) and the noise of a single cloudy reading.'),
+    ]
+    growth = carbon.get('forest_growth')
+    if growth:
+        interp += [
+            ('<b>Gross Removals</b>',
+             'IPCC gain-loss method: a standing forest keeps absorbing CO<sub>2</sub> even when its stock '
+             f"falls. Default growth {growth['source']}; × area × (1 + 20 % BGB) × 50 % carbon × 3.67 = "
+             f"{growth['gross_growth_co2e_mg']:.4f} Mg CO<sub>2</sub>e/yr (or ΔStock when the observed "
+             'gain is larger).'),
+            ('<b>Gross Emissions</b>',
+             'Removals − ΔStock: the biomass lost to harvest, degradation or disturbance over the year '
+             '(0 when the stock grew at least as fast as the default growth).'),
+        ]
+    else:
+        interp += [
+            ('<b>Gross Emissions</b>', f'Loss of biomass carbon stock over the year, {period} (max(−ΔStock, 0)).'),
+            ('<b>Gross Removals</b>',  f'Gain of biomass carbon stock over the year, {period} (max(ΔStock, 0)).'),
+        ]
+    sar = carbon.get('sar_filled_months') or []
+    if sar:
+        interp.append(('<b>Cloudy Months</b>',
+                       f'{len(sar)} cloudy month(s) filled with Sentinel-1 radar (sees through clouds), '
+                       'using a per-parcel regression of each index on Sentinel-1 VH backscatter and RVI.'))
+    interp += [
         ('<b>Net Flux</b>',        f'Emissions − Removals: {"positive (net source)" if net_positive else "negative (net sink)"}. '
                                    f'Current value: {net:.4f} Mg CO<sub>2</sub>e.'),
     ]
@@ -1229,6 +1281,140 @@ def _carbon_assessment_elems(carbon: dict, st: dict) -> list:
     return elems
 
 
+def _soc_method_text(carbon: dict) -> str:
+    soc = carbon.get('soc')
+    if not soc:
+        return 'Not available for this report (ISRIC SoilGrids did not answer).'
+    return (f"ISRIC SoilGrids v2.0 organic carbon stock, {soc.get('depth', '0-30cm')} "
+            f"(IPCC default depth for mineral soils): {soc['ocs_t_c_ha']:.2f} t C/ha at "
+            f"{soc.get('lat')}, {soc.get('lon')} × area. Static map: counted in the total stock, "
+            'not in emissions/removals.')
+
+
+def _line_chart_image(fig, width=CONTENT_W, ratio=0.42) -> Image:
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png', dpi=150, bbox_inches='tight', facecolor='white')
+    plt.close(fig)
+    buf.seek(0)
+    return Image(buf, width=width, height=width * ratio)
+
+
+def _simple_table(header: list, rows: list, col_widths: list) -> Table:
+    data = [[Paragraph(f'<b>{h}</b>', _styles()['body_bold']) for h in header]]
+    data += [[Paragraph(str(c), _styles()['body']) for c in r] for r in rows]
+    t = Table(data, colWidths=col_widths)
+    t.setStyle(TableStyle([
+        ('BACKGROUND',   (0, 0), (-1, 0),  GREEN),
+        ('TEXTCOLOR',    (0, 0), (-1, 0),  WHITE),
+        ('GRID',         (0, 0), (-1, -1), 0.5, GRAY_BORDER),
+        ('VALIGN',       (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING',   (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING',(0, 0), (-1, -1), 4),
+        ('LEFTPADDING',  (0, 0), (-1, -1), 6),
+    ]))
+    return t
+
+
+def _fmt(v, digits=2, signed=False):
+    if v is None:
+        return 'N/A'
+    return f'{v:+.{digits}f}' if signed else f'{v:.{digits}f}'
+
+
+def _carbon_history_elems(carbon: dict, st: dict) -> list:
+    """Stock carbone sur 5 ans : courbe mensuelle + moyennes annuelles."""
+    history = [h for h in carbon.get('history') or [] if h.get('date')]
+    yearly = carbon.get('history_yearly') or []
+    if len(history) < 2:
+        return []
+    soc_co2e = (carbon.get('stock_soc_c') or 0) * 3.67
+
+    dates = [datetime.strptime(h['date'][:10], '%Y-%m-%d') for h in history]
+    biomass = [h['stock_co2e_mg'] for h in history]
+    fig, ax = plt.subplots(figsize=(7.5, 3.1), facecolor='white')
+    ax.plot(dates, biomass, color='#2d7a2d', linewidth=1.4, marker='o', markersize=2.5,
+            label='Biomass stock (AGB + BGB)')
+    if soc_co2e:
+        ax.plot(dates, [b + soc_co2e for b in biomass], color='#8d6e63', linewidth=1.4,
+                label='Total stock (biomass + SOC)')
+    for y in yearly:
+        ax.hlines(y['biomass_stock_co2e_mg'], datetime(y['year'], 1, 1), datetime(y['year'], 12, 31),
+                  colors='#fb8c00', linestyles='dashed', linewidth=1)
+    ax.plot([], [], color='#fb8c00', linestyle='dashed', label='Yearly mean (biomass)')
+    ax.set_ylabel('Mg CO$_2$e', fontsize=8)
+    ax.tick_params(labelsize=7)
+    ax.grid(alpha=0.3)
+    ax.legend(fontsize=7, frameon=False, loc='upper left')
+    fig.tight_layout()
+
+    elems = [KeepTogether(_section_bar('Carbon Stock: 5-Year History', st) + [_line_chart_image(fig)])]
+    trend = carbon.get('trend_co2e_mg_per_year')
+    if trend is not None:
+        direction = 'increasing (sink)' if trend > 0 else 'decreasing (source)' if trend < 0 else 'stable'
+        elems.append(Paragraph(
+            f"Trend {carbon.get('history_from')} → {carbon.get('history_to')}: "
+            f"<b>{trend:+.4f} Mg CO<sub>2</sub>e / year</b>, {direction}.", st['body']))
+    elems.append(Spacer(1, 3 * mm))
+    if yearly:
+        w = CONTENT_W / 5
+        elems.append(_simple_table(
+            ['Year', 'Readings', 'Biomass stock (Mg CO2e)', 'Change vs previous year', 'Total incl. SOC (Mg CO2e)'],
+            [[y['year'], y['readings'], _fmt(y['biomass_stock_co2e_mg'], 4),
+              _fmt(y.get('change_co2e_mg'), 4, signed=True), _fmt(y['total_stock_co2e_mg'], 4)]
+             for y in yearly],
+            [w * 0.6, w * 0.7, w * 1.2, w * 1.3, w * 1.2]))
+    elems.append(Spacer(1, 5 * mm))
+    return elems
+
+
+def _forest_area_elems(area: dict, st: dict) -> list:
+    """Surface boisée mois par mois : courbe + barres de variation + tableau."""
+    if not area:
+        return []
+    months = [m for m in area.get('months') or [] if m.get('forest_area_ha') is not None]
+    if not months:
+        return []
+
+    x = [datetime.strptime(m['month'], '%Y-%m') for m in months]
+    fig, ax = plt.subplots(figsize=(7.5, 3.1), facecolor='white')
+    changes = [m['change_ha'] or 0 for m in months]
+    ax.bar(x, changes, width=20, color=['#c62828' if c < 0 else '#43a047' for c in changes],
+           alpha=0.55, label='Monthly change (ha)')
+    ax.set_ylabel('Change (ha)', fontsize=8)
+    ax2 = ax.twinx()
+    ax2.plot(x, [m['forest_area_ha'] for m in months], color='#2d7a2d', marker='o',
+             markersize=3, linewidth=1.5, label='Forest area (ha)')
+    ax2.set_ylabel('Forest area (ha)', fontsize=8)
+    for a in (ax, ax2):
+        a.tick_params(labelsize=7)
+    ax.grid(alpha=0.3)
+    h1, l1 = ax.get_legend_handles_labels()
+    h2, l2 = ax2.get_legend_handles_labels()
+    ax.legend(h1 + h2, l1 + l2, fontsize=7, frameon=False, loc='lower left')
+    fig.tight_layout()
+
+    elems = [KeepTogether(_section_bar('Monthly Forest Area Change (Degradation & Deforestation)', st)
+                          + [_line_chart_image(fig)])]
+    net = area.get('net_change_ha')
+    elems.append(Paragraph(
+        f"{area['period_from']} → {area['period_to']}: forest area "
+        f"<b>{area['current_forest_area_ha']:.2f} ha</b> of {area['area_ha']:.2f} ha, "
+        f"net change <b>{_fmt(net, 2, signed=True)} ha</b> ({_fmt(area.get('net_change_pct'), 2, signed=True)} %). "
+        f"{area['method']} Cloudy months (less than half of the forest visible) are skipped.",
+        st['body']))
+    elems.append(Spacer(1, 3 * mm))
+    w = CONTENT_W / 4
+    elems.append(_simple_table(
+        ['Month', 'Forest area (ha)', 'Change (ha)', 'Change (%)'],
+        [[m['month'],
+          'cloudy' if m.get('forest_area_ha') is None else _fmt(m['forest_area_ha']),
+          _fmt(m.get('change_ha'), 2, signed=True), _fmt(m.get('change_pct'), 2, signed=True)]
+         for m in area.get('months') or []],
+        [w] * 4))
+    elems.append(Spacer(1, 5 * mm))
+    return elems
+
+
 def build_carbon_farm_pdf(
     farm_id    : str,
     farm_info  : dict,
@@ -1243,7 +1429,7 @@ def build_carbon_farm_pdf(
         buf, pagesize=A4,
         leftMargin=MARGIN, rightMargin=MARGIN,
         topMargin=MARGIN, bottomMargin=22 * mm,
-        title=f'Carbon Emissions Assessment {farm_id}',
+        title=f'Farmland Carbon Assessment {farm_id}',
         author='Agriyields',
     )
     st    = _styles()
@@ -1254,7 +1440,7 @@ def build_carbon_farm_pdf(
     # ── En-tête ──────────────────────────────────────────────────────────────
     elems.append(_header_table(
         logo_parrot, logo_agri,
-        'CARBON EMISSIONS ASSESSMENT',
+        'FARMLAND CARBON ASSESSMENT',
         f'Generated on {today}  •  Regulation (EU) 2023/1115',
     ))
     elems.append(Spacer(1, 5 * mm))
@@ -1279,7 +1465,7 @@ def build_carbon_farm_pdf(
     elems.append(_info_table(rows))
     elems.append(Spacer(1, 5 * mm))
 
-    elems += _carbon_assessment_elems(carbon, st)
+    elems += _carbon_assessment_elems(carbon, st, summary=False)
 
     # ── Satellite map ─────────────────────────────────────────────────────────
     if coords:
@@ -1300,6 +1486,7 @@ def build_carbon_forest_pdf(
     forest_id  : int | str,
     forest_info: dict,
     carbon     : dict,
+    area_change: dict | None = None,
     coords     : list | None = None,
     logo_parrot: str | None = None,
     logo_agri  : str | None = None,
@@ -1310,7 +1497,7 @@ def build_carbon_forest_pdf(
         buf, pagesize=A4,
         leftMargin=MARGIN, rightMargin=MARGIN,
         topMargin=MARGIN, bottomMargin=22 * mm,
-        title=f'Carbon Emissions Assessment Forest {forest_id}',
+        title=f'Forest Carbon Assessment {forest_id}',
         author='Agriyields',
     )
     st    = _styles()
@@ -1320,7 +1507,7 @@ def build_carbon_forest_pdf(
 
     elems.append(_header_table(
         logo_parrot, logo_agri,
-        'CARBON EMISSIONS ASSESSMENT FOREST',
+        'FOREST CARBON ASSESSMENT',
         f'Generated on {today}  •  Regulation (EU) 2023/1115',
     ))
     elems.append(Spacer(1, 5 * mm))
@@ -1341,6 +1528,7 @@ def build_carbon_forest_pdf(
     elems.append(Spacer(1, 5 * mm))
 
     elems += _carbon_assessment_elems(carbon, st)
+    elems += _forest_area_elems(area_change, st)
 
     if coords:
         map_img = _mapbox_image(coords)
@@ -1523,6 +1711,364 @@ def build_forest_biomass_index_pdf(
     elems.append(Paragraph(note2, ParagraphStyle(
         'note2', fontName='Helvetica', fontSize=8, textColor=MUTED, leading=11,
     )))
+
+    doc.build(elems, onFirstPage=_footer_canvas, onLaterPages=_footer_canvas, canvasmaker=_NumberedCanvas)
+    return buf.getvalue()
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BUILD SATELLITE INDEX PDF (rapport « indices satellite », ferme / invité)
+# ══════════════════════════════════════════════════════════════════════════════
+
+SAT_INDICES = [
+    # clé, libellé, ce que l'indice mesure, formule Sentinel-2
+    ('ndvi', 'NDVI', 'Vegetation health',        '(B08 − B04) / (B08 + B04)'),
+    ('evi',  'EVI',  'Enhanced vegetation',      '2.5 × (B08 − B04) / (B08 + 6·B04 − 7.5·B02 + 1)'),
+    ('savi', 'SAVI', 'Soil-adjusted vegetation', '1.5 × (B08 − B04) / (B08 + B04 + 0.5)'),
+    ('ndmi', 'NDMI', 'Canopy moisture',          '(B08 − B11) / (B08 + B11)'),
+    ('ndwi', 'NDWI', 'Water content',            '(B03 − B08) / (B03 + B08)'),
+    ('nmdi', 'NMDI', 'Soil drought',             '(B08 − (B11 − B12)) / (B08 + (B11 − B12))'),
+    ('nbr',  'NBR',  'Burn ratio',               '(B08 − B12) / (B08 + B12)'),
+    ('bsi',  'BSI',  'Bare soil',                '((B11 + B04) − (B08 + B02)) / ((B11 + B04) + (B08 + B02))'),
+]
+SAT_CHART_INDICES = [('ndvi', '#16a34a'), ('evi', '#0d9488'), ('ndmi', '#0284c7'), ('nmdi', '#f97316')]
+# Plage physique habituelle de chaque indice (axe Y des courbes), comme l'écran.
+SAT_INDEX_RANGE = {
+    'ndvi': (-0.2, 0.9), 'evi': (-0.2, 0.8), 'savi': (-0.2, 0.8), 'ndmi': (-0.5, 0.6),
+    'ndwi': (-0.5, 0.5), 'nmdi': (0.0, 1.2), 'nbr': (-0.5, 0.8), 'bsi': (-0.5, 0.5),
+}
+
+
+def _sat_val(row, idx):
+    v = (row or {}).get(idx)
+    return (v.get('value'), v.get('tier') or {}) if isinstance(v, dict) else (v, {})
+
+
+def _quarter_label(date_str):
+    """'2026-07-18' → '2026-Q3 (from 18 Jul)' : les trimestres partent de la date de début du rapport."""
+    try:
+        d = datetime.strptime(date_str[:10], '%Y-%m-%d')
+    except (TypeError, ValueError):
+        return date_str or 'N/A'
+    return f"{d.year}-Q{(d.month - 1) // 3 + 1} (from {d.strftime('%d %b')})"
+
+
+def _sat_status_badge(ndvi, last_date):
+    """Bannière d'état de la végétation (dernier NDVI), même gabarit que le bilan carbone."""
+    if ndvi is None:
+        label, bg, color, icon = 'Vegetation status unavailable', GRAY_BG, MUTED, _icon_warn(color=MUTED)
+    elif ndvi >= 0.6:
+        label, bg, color, icon = 'Healthy Vegetation', GREEN_LIGHT, colors.HexColor('#1b5e20'), _icon_ok(color=colors.HexColor('#1b5e20'))
+    elif ndvi >= 0.3:
+        label, bg, color, icon = 'Moderate Vegetation', ORANGE_LIGHT, ORANGE, _icon_warn(color=ORANGE)
+    else:
+        label, bg, color, icon = 'Sparse or Stressed Vegetation', RED_LIGHT, RED, _icon_bad(color=RED)
+    if ndvi is not None:
+        label += f'  ·  NDVI {ndvi:.3f}, {_quarter_label(last_date)}'
+    row = _icon_text_row(icon, label, ParagraphStyle('sb', fontName='Helvetica-Bold', fontSize=12, textColor=color))
+    t = Table([[row]], colWidths=[CONTENT_W])
+    t.setStyle(TableStyle([
+        ('BACKGROUND',   (0, 0), (-1, -1), bg),
+        ('BOX',          (0, 0), (-1, -1), 1, GRAY_BORDER),
+        ('TOPPADDING',   (0, 0), (-1, -1), 8),
+        ('BOTTOMPADDING',(0, 0), (-1, -1), 8),
+        ('LEFTPADDING',  (0, 0), (-1, -1), 14),
+    ]))
+    return t
+
+
+def _sat_latest_table(last, forecast):
+    """Dernière lecture de chaque indice, son état et la prévision du trimestre suivant."""
+    st = _styles()
+    small = ParagraphStyle('sl', parent=st['body'], fontSize=8, leading=10)
+    head = ['Index', 'Measures', 'Latest value', 'Status', 'Next quarter (80 % CI)']
+    data = [[Paragraph(f'<b>{h}</b>', ParagraphStyle('slh', parent=small, textColor=WHITE)) for h in head]]
+    style = [
+        ('BACKGROUND',   (0, 0), (-1, 0), GREEN),
+        ('GRID',         (0, 0), (-1, -1), 0.5, GRAY_BORDER),
+        ('VALIGN',       (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING',   (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING',(0, 0), (-1, -1), 4),
+        ('LEFTPADDING',  (0, 0), (-1, -1), 6),
+    ]
+    for i, (idx, label, measures, _) in enumerate(SAT_INDICES, start=1):
+        val, tier = _sat_val(last, idx)
+        fc = ((forecast or {}).get(idx) or [None])[0]
+        fc_txt = (f"{fc['value']:.4f}  ({fc.get('lower_80', fc['value']):.3f} – {fc.get('upper_80', fc['value']):.3f})"
+                  if fc else 'N/A')
+        tier_color = colors.HexColor(tier.get('color', '#666666'))
+        data.append([
+            Paragraph(f'<b>{label}</b>', small),
+            Paragraph(measures, small),
+            Paragraph(f'{val:.4f}' if val is not None else 'N/A', small),
+            Paragraph(f'<b>{tier.get("label", "N/A")}</b>', ParagraphStyle(f'tc{i}', parent=small, textColor=tier_color)),
+            Paragraph(fc_txt, small),
+        ])
+        if tier.get('bg'):
+            style.append(('BACKGROUND', (3, i), (3, i), colors.HexColor(tier['bg'])))
+    t = Table(data, colWidths=[16 * mm, 36 * mm, 24 * mm, 44 * mm, CONTENT_W - 120 * mm])
+    t.setStyle(TableStyle(style))
+    return t
+
+
+def _sat_index_chart(history, forecast, idx, color, label):
+    """Courbe historique trimestrielle + prévision (pointillés) + IC 80 %, fond blanc."""
+    pts = [(datetime.strptime(r['date'][:10], '%Y-%m-%d'), _sat_val(r, idx)[0]) for r in history if r.get('date')]
+    pts = [(d, v) for d, v in pts if v is not None]
+    if len(pts) < 2:
+        return None
+    fc = [f for f in (forecast or {}).get(idx) or [] if f.get('date')]
+    fig, ax = plt.subplots(figsize=(3.7, 2.1), facecolor='white')
+    ax.plot([d for d, _ in pts], [v for _, v in pts], color=color, linewidth=1.4, marker='o', markersize=2, label='Observed')
+    lo, hi = SAT_INDEX_RANGE.get(idx, (-1, 1))
+    values = [v for _, v in pts]
+    if fc:
+        fd = [datetime.strptime(f['date'][:10], '%Y-%m-%d') for f in fc]
+        fv = [f['value'] for f in fc]
+        ax.plot([pts[-1][0], fd[0]], [pts[-1][1], fv[0]], color=color, linewidth=1, linestyle='--', alpha=0.6)
+        ax.plot(fd, fv, color=color, linewidth=1.2, linestyle='--', label='Forecast')
+        ax.fill_between(fd, [f.get('lower_80', f['value']) for f in fc],
+                        [f.get('upper_80', f['value']) for f in fc], color=color, alpha=0.18, label='80 % CI')
+        values += [f.get('lower_80', f['value']) for f in fc] + [f.get('upper_80', f['value']) for f in fc]
+    pad = 0.05
+    ax.set_ylim(min(lo, min(values) - pad), max(hi, max(values) + pad))
+    ax.set_title(label, fontsize=8.5, fontweight='bold', loc='left')
+    ax.tick_params(labelsize=6.5)
+    ax.grid(alpha=0.3)
+    ax.legend(fontsize=6, frameon=False, loc='lower left', ncol=3)
+    fig.autofmt_xdate(rotation=30)
+    fig.tight_layout(pad=0.4)
+    return _line_chart_image(fig, width=CONTENT_W / 2 - 2 * mm, ratio=2.1 / 3.7)
+
+
+def _sat_agb_elems(agb, st):
+    """Biomasse aérienne (AGB) : historique, tendance et prévision."""
+    hist = [h for h in (agb or {}).get('history') or [] if h.get('date') and h.get('agb_t_ha') is not None]
+    if len(hist) < 2:
+        return []
+    fc = [f for f in agb.get('forecast') or [] if f.get('date')]
+    sm = agb.get('summary') or {}
+    hd = [datetime.strptime(h['date'][:10], '%Y-%m-%d') for h in hist]
+    fig, ax = plt.subplots(figsize=(7.5, 2.6), facecolor='white')
+    ax.plot(hd, [h['agb_t_ha'] for h in hist], color='#2d7a2d', linewidth=1.4, marker='o', markersize=2.5, label='AGB (observed)')
+    slope = sm.get('slope_t_ha_per_year')
+    if slope is not None:
+        xs = [d.toordinal() / 365.25 for d in hd]
+        ys = [h['agb_t_ha'] for h in hist]
+        b = sum(ys) / len(ys) - slope * sum(xs) / len(xs)
+        ax.plot(hd, [slope * x + b for x in xs], color='#fb8c00', linewidth=1, linestyle=':',
+                label=f'Linear trend ({slope:+.3f} t/ha/yr)')
+    if fc:
+        fd = [datetime.strptime(f['date'][:10], '%Y-%m-%d') for f in fc]
+        ax.plot([hd[-1], fd[0]], [hist[-1]['agb_t_ha'], fc[0]['agb_t_ha']], color='#2d7a2d', linewidth=1, linestyle='--', alpha=0.6)
+        ax.plot(fd, [f['agb_t_ha'] for f in fc], color='#2d7a2d', linewidth=1.2, linestyle='--', label='AGB (forecast)')
+        ax.fill_between(fd, [f.get('lower_80') or f['agb_t_ha'] for f in fc],
+                        [f.get('upper_80') or f['agb_t_ha'] for f in fc], color='#2d7a2d', alpha=0.15, label='80 % CI')
+    ax.set_ylim(bottom=0)
+    ax.set_ylabel('AGB (t/ha)', fontsize=8)
+    ax.tick_params(labelsize=7)
+    ax.grid(alpha=0.3)
+    ax.legend(fontsize=7, frameon=False, loc='upper left', ncol=2)
+    fig.tight_layout()
+
+    elems = [KeepTogether(_section_bar('Above-Ground Biomass (AGB): 5-Year Trend & Forecast', st) + [_line_chart_image(fig, ratio=0.35)])]
+    elems.append(Paragraph(
+        f"Model: <b>{agb.get('agb_formula')}</b>, applied to each quarterly reading and to the forecast indices. "
+        f"Mean AGB {sm.get('history_from') or ''} → {sm.get('history_to') or ''}: <b>{_fmt(sm.get('mean_agb_t_ha'))} t/ha</b>; "
+        f"trend <b>{_fmt(sm.get('slope_t_ha_per_year'), 3, signed=True)} t/ha/yr</b> ({sm.get('direction') or 'N/A'}); "
+        f"last <b>{_fmt(sm.get('last_agb_t_ha'))} t/ha</b>; end of forecast <b>{_fmt(sm.get('forecast_end_agb_t_ha'))} t/ha</b> "
+        f"({_fmt(sm.get('forecast_change_pct'), 1, signed=True)} %).", st['body']))
+    if agb.get('agb_model') == 'generic_ndvi':
+        elems.append(Paragraph(
+            'Note: generic NDVI biomass model (no field calibration for this crop yet). It is very sensitive to NDVI '
+            '(+0.1 NDVI ≈ ×1.9 AGB), so quarter-to-quarter swings reflect canopy greenness more than real biomass change.',
+            ParagraphStyle('agbn', parent=st['small'], textColor=ORANGE)))
+    if fc:
+        w = CONTENT_W / 4
+        elems.append(_simple_table(
+            ['Quarter', 'AGB (t/ha)', '80 % CI (t/ha)', 'Biomass stock (Mg CO2e)'],
+            [[f.get('quarter') or f['date'], _fmt(f['agb_t_ha']),
+              f"{_fmt(f.get('lower_80'))} – {_fmt(f.get('upper_80'))}", _fmt(f.get('stock_co2e_mg'))] for f in fc],
+            [w] * 4))
+    elems.append(Spacer(1, 5 * mm))
+    return elems
+
+
+def _sat_ltv_elems(ltv, st):
+    """Analyse financière multi-indices (LTV) — même calcul que l'écran."""
+    if not ltv or not ltv.get('indices'):
+        return []
+    labels = {k: lbl for k, lbl, _, _ in SAT_INDICES}
+    rows = []
+    for idx, v in ltv['indices'].items():
+        rows.append([labels.get(idx, idx.upper()), _fmt(v.get('index_value'), 4), _fmt(v.get('factor'), 3),
+                     _fmt(v.get('adjusted_yield_t_ha'), 3), f"{v.get('estimated_crop_value_usd') or 0:,.2f}",
+                     f"{v['ltv_ratio_pct']} %" if v.get('ltv_ratio_pct') is not None else 'N/A',
+                     f"{v.get('insurance_premium_pct', 0):.2f} %", f"{(v.get('weight') or 0) * 100:.0f} %"])
+    c = ltv.get('composite') or {}
+    rows.append(['<b>Composite</b>', '—', f"<b>{_fmt(c.get('factor'), 3)}</b>",
+                 f"<b>{_fmt(c.get('adjusted_yield_t_ha'), 3)}</b>", f"<b>{c.get('estimated_crop_value_usd') or 0:,.2f}</b>",
+                 f"<b>{c['ltv_ratio_pct']} %</b>" if c.get('ltv_ratio_pct') is not None else 'N/A',
+                 f"<b>{c.get('insurance_premium_pct', 0):.2f} %</b>", '<b>100 %</b>'])
+    w = CONTENT_W
+    table = _simple_table(
+        ['Index', 'Value', 'Productivity factor', 'Adjusted yield (t/ha)', 'Crop value (USD)', 'LTV', 'Insurance premium', 'Weight'],
+        rows, [w * 0.11, w * 0.10, w * 0.13, w * 0.14, w * 0.15, w * 0.10, w * 0.15, w * 0.12])
+    table.setStyle(TableStyle([('BACKGROUND', (0, len(rows)), (-1, len(rows)), GREEN_LIGHT)]))
+    loan = ltv.get('loan_amount_usd')
+    head = _section_bar('Financial Analysis (LTV): Multi-Index Breakdown', st)
+    head.append(Paragraph(
+        f"Area <b>{ltv.get('area_ha', 'N/A')} ha</b> · target yield <b>{ltv.get('yield_t_per_ha', 'N/A')} t/ha</b> · "
+        f"market price <b>USD {ltv.get('price_per_t') or 0:,.0f}/t</b> · loan amount <b>"
+        + (f"USD {loan:,.0f}" if loan else 'not provided (LTV not computed)') + '</b>', st['body']))
+    elems = [KeepTogether(head + [table])]
+    elems += [Spacer(1, 2 * mm), Paragraph(
+        'Each index is turned into a productivity factor (0–1, relative to its optimal value); adjusted yield = target yield × factor; '
+        'crop value = area × adjusted yield × price; LTV = loan ÷ crop value; insurance premium = 3 % + health risk + LTV risk. '
+        'The composite weights the indices (NDVI 28 %, EVI and NDMI 18 %, SAVI 14 %, NDWI 10 %, NMDI 6 %, NBR 4 %, BSI 2 %).',
+        st['small']), Spacer(1, 5 * mm)]
+    return elems
+
+
+def _sat_history_table(history):
+    st = _styles()
+    small = ParagraphStyle('sh', parent=st['body'], fontSize=7, leading=9)
+    head = ['Quarter'] + [lbl for _, lbl, _, _ in SAT_INDICES]
+    data = [[Paragraph(f'<b>{h}</b>', ParagraphStyle('shh', parent=small, textColor=WHITE)) for h in head]]
+    for row in reversed(history):
+        cells = [Paragraph(_quarter_label(row.get('date')), small)]
+        for idx, _, _, _ in SAT_INDICES:
+            val, tier = _sat_val(row, idx)
+            cells.append(Paragraph(f'{val:.3f}' if val is not None else '—',
+                                   ParagraphStyle('shc', parent=small, textColor=colors.HexColor(tier.get('color', '#1a1a1a')))))
+        data.append(cells)
+    first = 34 * mm
+    t = Table(data, colWidths=[first] + [(CONTENT_W - first) / len(SAT_INDICES)] * len(SAT_INDICES), repeatRows=1)
+    t.setStyle(TableStyle([
+        ('BACKGROUND',   (0, 0), (-1, 0), GREEN),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [WHITE, GRAY_BG]),
+        ('GRID',         (0, 0), (-1, -1), 0.4, GRAY_BORDER),
+        ('VALIGN',       (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING',   (0, 0), (-1, -1), 2.5),
+        ('BOTTOMPADDING',(0, 0), (-1, -1), 2.5),
+        ('LEFTPADDING',  (0, 0), (-1, -1), 4),
+    ]))
+    return t
+
+
+def build_sat_index_pdf(
+    report_id  : str,
+    farm_info  : dict,
+    data       : dict,
+    coords     : list | None = None,
+    logo_parrot: str | None = None,
+    logo_agri  : str | None = None,
+) -> bytes:
+    """
+    Rapport « Satellite Index » (sortie de get_sat_index_full / _guest +
+    agb_trend) — même gabarit que les rapports Carbon et EUDR.
+    """
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=MARGIN, rightMargin=MARGIN,
+        topMargin=MARGIN, bottomMargin=22 * mm,
+        title=f'Satellite Index Report {report_id}',
+        author='Agriyields',
+    )
+    st      = _styles()
+    today   = datetime.now().strftime('%d %B %Y')
+    history = [r for r in data.get('history') or [] if r.get('date')]
+    history.sort(key=lambda r: r['date'])
+    forecast = data.get('forecast') or {}
+    period   = data.get('period') or {}
+    last     = history[-1] if history else {}
+    elems    = []
+
+    elems.append(_header_table(
+        logo_parrot, logo_agri,
+        'SATELLITE INDEX REPORT',
+        f'Generated on {today}  •  Sentinel-2 L2A  •  {period.get("from", "")} → {period.get("to", "")}',
+    ))
+    elems.append(Spacer(1, 5 * mm))
+
+    ndvi, _ = _sat_val(last, 'ndvi')
+    elems.append(_sat_status_badge(ndvi, last.get('date')))
+    elems.append(Spacer(1, 5 * mm))
+
+    elems += _section_bar('Farm Information', st)
+    area_ha = (data.get('ltv') or {}).get('area_ha') or data.get('area_ha')
+    rows = [
+        ('Farm ID',     farm_info.get('farm_id') or report_id),
+        ('Name',        farm_info.get('name') or data.get('name')),
+        ('Geolocation', farm_info.get('geolocation') or data.get('geolocation')),
+        ('Crop',        farm_info.get('crop') or (data.get('agb_trend') or {}).get('crop')),
+    ]
+    if area_ha:
+        rows.append(('Project Area', f"{float(area_ha) * 10_000:,.2f} m²  ({float(area_ha):.2f} ha)"))
+    rows += [
+        ('Observation Period', f"{period.get('from', 'N/A')} → {period.get('to', 'N/A')}  ({len(history)} quarterly readings)"),
+        ('Latest Reading', _quarter_label(last.get('date')) if last else 'N/A'),
+    ]
+    elems.append(_info_table([(k, v) for k, v in rows if v]))
+    elems.append(Spacer(1, 5 * mm))
+
+    elems.append(KeepTogether(_section_bar('Latest Vegetation Indices', st) + [_sat_latest_table(last, forecast)]))
+    elems.append(Spacer(1, 5 * mm))
+
+    charts = [_sat_index_chart(history, forecast, idx, color, lbl)
+              for idx, color in SAT_CHART_INDICES
+              for k, lbl, _, _ in SAT_INDICES if k == idx]
+    charts = [c for c in charts if c is not None]
+    if charts:
+        if len(charts) % 2:
+            charts.append(Paragraph('', st['body']))
+        grid = Table([charts[i:i + 2] for i in range(0, len(charts), 2)], colWidths=[CONTENT_W / 2] * 2)
+        grid.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                                  ('LEFTPADDING', (0, 0), (-1, -1), 0), ('RIGHTPADDING', (0, 0), (-1, -1), 0)]))
+        elems.append(KeepTogether(_section_bar('Index Trends: 5-Year History & Forecast', st) + [grid]))
+        elems.append(Spacer(1, 5 * mm))
+
+    elems += _sat_agb_elems(data.get('agb_trend'), st)
+    elems += _sat_ltv_elems(data.get('ltv'), st)
+
+    if history:
+        elems += _section_bar('Quarterly Readings', st)
+        elems.append(_sat_history_table(history))
+        elems.append(Spacer(1, 5 * mm))
+
+    elems += _section_bar('Methodology & Interpretation', st)
+    method = [(f'<b>{lbl}</b>', f'{measures}: {formula}') for _, lbl, measures, formula in SAT_INDICES]
+    method += [
+        ('<b>Imagery</b>', 'Sentinel-2 L2A surface reflectance, 10–20 m, via the Copernicus Data Space Statistical API. '
+                           'Clouds, cloud shadows and cirrus (scene classification SCL 3, 8, 9, 10) are masked pixel by pixel; '
+                           'the least cloudy scene of each quarter is used. Values are polygon means per quarter.'),
+        ('<b>Status</b>', 'Each value is placed in a class (e.g. NDVI > 0.6 = Dense / Healthy, 0.3–0.6 = Moderate, 0.1–0.3 = '
+                          'Sparse / Stressed) shown in colour in the tables.'),
+        ('<b>Forecast</b>', 'Next quarters forecast with Prophet (seasonal time-series model) on the quarterly history, '
+                            'with an 80 % confidence interval; seasonal naive forecast when the history is too short.'),
+    ]
+    for oob in (data.get('out_of_bounds') or [])[:5]:
+        method.append(('<b>Note</b>', f"{oob.get('index', '').upper()} on {oob.get('date')}: raw value {oob.get('raw')} "
+                                      f"outside [−1, 1], clamped to {oob.get('clamped_to')}."))
+    mt = Table([[Paragraph(a, ParagraphStyle('mk', fontName='Helvetica-Bold', fontSize=8, textColor=GREEN)),
+                 Paragraph(b, ParagraphStyle('md', fontName='Helvetica', fontSize=8, textColor=BLACK, leading=11))]
+                for a, b in method], colWidths=[30 * mm, CONTENT_W - 30 * mm])
+    mt.setStyle(TableStyle([
+        ('BACKGROUND',   (0, 0), (-1, -1), GRAY_BG),
+        ('GRID',         (0, 0), (-1, -1), 0.5, GRAY_BORDER),
+        ('VALIGN',       (0, 0), (-1, -1), 'TOP'),
+        ('TOPPADDING',   (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING',(0, 0), (-1, -1), 4),
+        ('LEFTPADDING',  (0, 0), (-1, -1), 6),
+    ]))
+    elems.append(mt)
+    elems.append(Spacer(1, 5 * mm))
+
+    if coords:
+        map_img = _mapbox_image(coords)
+        if map_img:
+            elems += _section_bar('Plot Map: Satellite View', st)
+            elems.append(map_img)
 
     doc.build(elems, onFirstPage=_footer_canvas, onLaterPages=_footer_canvas, canvasmaker=_NumberedCanvas)
     return buf.getvalue()

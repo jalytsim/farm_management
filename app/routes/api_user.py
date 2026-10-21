@@ -4,6 +4,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.models import User
 from app import db
 from werkzeug.security import generate_password_hash
+from app.utils.decorators import admin_required, load_current_user
 
 bp = Blueprint('api_user', __name__, url_prefix='/api/users')
 
@@ -27,7 +28,7 @@ def _serialize_user(u):
 
 # ─── GET all users (ou filtrer par username / email) ─────────────────────────
 @bp.route('/', methods=['GET'])
-@jwt_required()
+@admin_required
 def get_users():
     username = request.args.get('username')
     email    = request.args.get('email')
@@ -48,6 +49,9 @@ def get_users():
 @bp.route('/<int:id>', methods=['GET'])
 @jwt_required()
 def get_user(id):
+    requester = load_current_user()
+    if not requester or (not requester.is_admin and requester.id != id):
+        return jsonify({'message': 'Admin access required'}), 403
     user = User.query.get(id)
     if not user:
         return jsonify({'message': 'User not found'}), 404
@@ -56,6 +60,7 @@ def get_user(id):
 
 # ─── CREATE user ─────────────────────────────────────────────────────────────
 @bp.route('/create', methods=['POST'])
+@admin_required
 def create_user():
     data         = request.json
     username     = data.get('username')
@@ -91,7 +96,7 @@ def create_user():
 
 # ─── EDIT user ────────────────────────────────────────────────────────────────
 @bp.route('/<int:id>/edit', methods=['PUT'])
-@jwt_required()
+@admin_required
 def edit_user(id):
     user = User.query.get(id)
     if not user:
@@ -117,7 +122,7 @@ def edit_user(id):
 
 # ─── DELETE user ─────────────────────────────────────────────────────────────
 @bp.route('/<int:id>/delete', methods=['DELETE'])
-@jwt_required()
+@admin_required
 def delete_user(id):
     user = User.query.get(id)
     if not user:
@@ -130,7 +135,7 @@ def delete_user(id):
 
 # ─── PATCH accès WBII (route dédiée, admin seulement) ────────────────────────
 @bp.route('/<int:user_id>/update-access', methods=['PATCH'])
-@jwt_required()
+@admin_required
 def update_wbii_access(user_id):
     identity  = get_jwt_identity()
     requester = User.query.get(identity['id'])
@@ -156,7 +161,7 @@ def update_wbii_access(user_id):
 
 # ─── PATCH permissions modulaires (admin seulement) ──────────────────────────
 @bp.route('/<int:user_id>/update-permissions', methods=['PATCH'])
-@jwt_required()
+@admin_required
 def update_permissions(user_id):
     """
     Met à jour le champ JSON 'permissions' d'un utilisateur.

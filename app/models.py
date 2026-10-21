@@ -6,6 +6,7 @@ from base64 import b64encode, b64decode
 from app import db
 from decimal import Decimal
 from datetime import timedelta
+import secrets
 
 
 # ── Helpers partagés ─────────────────────────────────────────────────────────
@@ -18,7 +19,8 @@ RECEIPT_STATUSES = ('issued', 'pledged', 'partially_released', 'released', 'sold
 # Statuses where the goods are still physically in the warehouse.
 OPEN_RECEIPT_STATUSES = ('issued', 'pledged', 'partially_released')
 DEPOSITOR_TYPES = ('farmer', 'cooperative', 'sacco', 'aggregator', 'trader', 'other')
-
+SUB_FREQUENCIES = (1, 2, 3)          # livraison toutes les N semaines
+SUB_STATUSES    = ('pending', 'active', 'paused', 'cancelled')
 
 ZERO = Decimal('0')
 
@@ -1147,8 +1149,8 @@ class EcoProduct(db.Model):
         """Prix du lot entier — n'a de sens qu'en mode 'lot'."""
         if not self.is_lot or self.price is None or self.stock_qty is None:
             return None
-        return self.price * self.stock_qty
- 
+        return Decimal(str(self.price)) * self.stock_qty
+     
     def is_valid_quantity(self, qty):
         """Une quantité est valide si elle respecte min, pas et stock disponible.
  
@@ -1338,7 +1340,8 @@ class EcoOrderItem(db.Model):
             'quantity': _f(self.quantity),
             'unit': self.unit or (self.product.unit if self.product else None),
             'unit_price': _f(self.unit_price),
-            'line_total': _f(self.quantity * self.unit_price),
+            'line_total': _f(Decimal(str(self.unit_price)) * self.quantity)
+                          if self.unit_price is not None and self.quantity is not None else None,
             'auction_lot_id': self.auction_lot_id,
         }
 
@@ -2000,7 +2003,7 @@ class WarehouseReceipt(db.Model):
             'status': self.status,
             'store_id': self.store_id,
             'warehouse_name': self.store.name if self.store else None,
-            'warehouse_code': self.store.code if self.store else None,
+            'warehouse_code': getattr(self.store, 'code', None) if self.store else None,
             'country': self.store.country if self.store else None,
             'depositor_type': self.depositor_type,
             'depositor_name': self.depositor_name,
@@ -2103,4 +2106,169 @@ class WarehouseMovement(db.Model):
             'commodity': self.crop.name if self.crop else None,
             'note': self.note,
             'date_created': self.date_created.isoformat() if self.date_created else None,
+        }
+
+class CropCalibrationPlot(db.Model):
+    """
+    Parcelle de mesure terrain servant à calibrer, par culture pérenne, la
+    relation indice Sentinel-2 → biomasse (crop_calibration_utils.py).
+    AGB = équation allométrique de la culture × densité de plantation ;
+    indices = Sentinel-2 de la ferme autour de la date de mesure.
+    """
+    __tablename__ = 'crop_calibration_plot'
+    id             = db.Column(db.Integer, primary_key=True)
+    # Pas de ForeignKey : farm.farm_id vient du dump MariaDB (collation
+    # différente), MySQL 8 refuse la contrainte (erreur 3780).
+    farm_id        = db.Column(db.String(50), nullable=False, index=True)
+    crop_name      = db.Column(db.String(100), nullable=False)
+    crop_key       = db.Column(db.String(50), nullable=False)
+    family         = db.Column(db.String(50), nullable=False, index=True)
+    measured_on    = db.Column(db.Date, nullable=False)
+    mean_dbh_cm    = db.Column(db.Float, nullable=True)
+    mean_height_m  = db.Column(db.Float, nullable=True)
+    plants_per_ha  = db.Column(db.Float, nullable=False)
+    wood_density   = db.Column(db.Float, nullable=True)
+    agb_t_ha       = db.Column(db.Float, nullable=False)
+    ndvi           = db.Column(db.Float, nullable=True)
+    evi            = db.Column(db.Float, nullable=True)
+    savi           = db.Column(db.Float, nullable=True)
+    ndre           = db.Column(db.Float, nullable=True)
+    index_date     = db.Column(db.String(10), nullable=True)
+    notes          = db.Column(db.String(255), nullable=True)
+    created_by     = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    date_created   = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id, 'farm_id': self.farm_id, 'crop_name': self.crop_name,
+            'crop_key': self.crop_key, 'family': self.family,
+            'measured_on': self.measured_on.isoformat() if self.measured_on else None,
+            'mean_dbh_cm': self.mean_dbh_cm, 'mean_height_m': self.mean_height_m,
+            'plants_per_ha': self.plants_per_ha, 'wood_density': self.wood_density,
+            'agb_t_ha': self.agb_t_ha,
+            'ndvi': self.ndvi, 'evi': self.evi, 'savi': self.savi, 'ndre': self.ndre,
+            'index_date': self.index_date, 'notes': self.notes,
+            'date_created': self.date_created.isoformat() if self.date_created else None,
+        }
+
+class Subscription(db.Model):
+    """Un client reçoit X kg d'un produit toutes les N semaines.
+    À chaque échéance, le cron crée une EcoOrder normale (payée via DPO)."""
+    __tablename__ = 'subscription'
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    # Compte OU invité — même convention que EcoOrder
+    user_id     = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True, index=True)
+    guest_email = db.Column(db.String(255), nullable=True)
+    guest_name  = db.Column(db.String(255), nullable=True)
+    guest_phone = db.Column(db.String(20), nullable=True)
+    # Lien "gérer mon abonnement" pour les invités
+    manage_token = db.Column(db.String(64), unique=True, nullable=False,
+                             default=lambda: secrets.token_urlsafe(32))
+
+    product_id       = db.Column(db.Integer, db.ForeignKey('ecoproduct.id'), nullable=False, index=True)
+    quantity_kg      = db.Column(db.Numeric(12, 3), nullable=False)
+    frequency_weeks  = db.Column(db.SmallInteger, nullable=False)
+    shipping_address = db.Column(db.Text, nullable=False)
+
+    status             = db.Column(db.String(20), nullable=False, default='pending', index=True)
+    next_delivery_date = db.Column(db.Date, nullable=False, index=True)
+    cancelled_at       = db.Column(db.DateTime, nullable=True)
+    date_created       = db.Column(db.DateTime, default=datetime.utcnow)
+    date_updated       = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    product = db.relationship('EcoProduct')
+    user    = db.relationship('User', foreign_keys=[user_id])
+    links   = db.relationship('SubscriptionOrder', backref='subscription', lazy=True,
+                              cascade='all, delete-orphan',
+                              order_by='SubscriptionOrder.delivery_date.desc()')
+
+    # ── Règles métier ────────────────────────────────────────────────────────
+
+    @staticmethod
+    def is_valid_quantity(product, qty):
+        """Minimum et pas viennent du produit. Pas de maximum, pas de contrôle
+        de stock ici : le stock est vérifié à chaque livraison."""
+        try:
+            qty = Decimal(str(qty))
+        except Exception:
+            return False
+        min_qty = product.min_order_qty or Decimal('1')
+        step = product.order_step or Decimal('1')
+        if qty < min_qty:
+            return False
+        return step <= ZERO or (qty - min_qty) % step == ZERO
+
+    @staticmethod
+    def is_valid_frequency(weeks):
+        try:
+            return int(weeks) in SUB_FREQUENCIES
+        except (TypeError, ValueError):
+            return False
+
+    @staticmethod
+    def is_subscribable(product):
+        """Seul le vrac au kilo est abonnable."""
+        return bool(product and product.is_active and not product.is_auction_only
+                    and product.sale_mode == 'weight' and product.unit == 'kg')
+
+    def advance(self):
+        self.next_delivery_date += timedelta(weeks=self.frequency_weeks)
+
+    def to_dict(self, for_admin=False):
+        p = self.product
+        unit_price = Decimal(str(p.price)) if p and p.price is not None else None        
+        data = {
+            'id': self.id,
+            'product_id': self.product_id,
+            'product_name': p.name if p else None,
+            'product_image': p.images[0].public_url if p and p.images else None,
+            'unit_price': _f(unit_price),
+            'estimated_total': _f(unit_price * self.quantity_kg) if unit_price is not None else None,
+            'currency': p.currency if p else None,
+            'quantity_kg': _f(self.quantity_kg),
+            'min_order_qty': _f(p.min_order_qty) if p else None,
+            'order_step': _f(p.order_step) if p else None,
+            'frequency_weeks': self.frequency_weeks,
+            'shipping_address': self.shipping_address,
+            'status': self.status,
+            'next_delivery_date': self.next_delivery_date.isoformat() if self.next_delivery_date else None,
+            'date_created': self.date_created.isoformat() if self.date_created else None,
+            'orders': [l.to_dict() for l in self.links],
+        }
+        if for_admin:
+            data.update({
+                'user_id': self.user_id,
+                'customer_name': self.guest_name or (self.user.username if self.user else None),
+                'customer_email': self.guest_email or (self.user.email if self.user else None),
+                'customer_phone': self.guest_phone,
+                'cancelled_at': self.cancelled_at.isoformat() if self.cancelled_at else None,
+            })
+        return data
+
+
+class SubscriptionOrder(db.Model):
+    """Lien abonnement -> commande générée pour une échéance."""
+    __tablename__ = 'subscriptionorder'
+
+    id              = db.Column(db.Integer, primary_key=True)
+    subscription_id = db.Column(db.Integer, db.ForeignKey('subscription.id'), nullable=False, index=True)
+    order_id        = db.Column(db.Integer, db.ForeignKey('ecoorder.id'), nullable=False, unique=True)
+    delivery_date   = db.Column(db.Date, nullable=False)
+    date_created    = db.Column(db.DateTime, default=datetime.utcnow)
+
+    order = db.relationship('EcoOrder')
+
+    # Le cron peut tourner deux fois le même jour sans créer de doublon.
+    __table_args__ = (
+        db.UniqueConstraint('subscription_id', 'delivery_date', name='uq_sub_delivery_date'),
+    )
+
+    def to_dict(self):
+        return {
+            'order_id': self.order_id,
+            'delivery_date': self.delivery_date.isoformat() if self.delivery_date else None,
+            'status': self.order.status if self.order else None,
+            'total_amount': _f(self.order.total_amount) if self.order else None,
         }

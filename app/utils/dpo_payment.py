@@ -1,5 +1,7 @@
 # app/utils/dpo_payment.py
 
+import os
+
 import requests
 import xml.etree.ElementTree as ET
 from xml.sax.saxutils import escape as xml_escape
@@ -10,7 +12,11 @@ class DPOPayment:
     def __init__(self):
         self.company_token = "D56DE103-2570-4C0A-9A50-DD12EF18C5AA"
         #self.company_token = "8D3DA73D-9D7F-4E09-96D4-3D44E7A83EA3"
-        self.service_id = "108375"
+        # Le libellé « Service type » des reçus DPO est le NOM de ce service,
+        # défini dans le back-office DPO (pas dans l'API). Pour afficher
+        # « Nkusu Services », renommer le service 108375 chez DPO, ou en créer
+        # un nouveau et mettre son ID dans DPO_SERVICE_TYPE (.env).
+        self.service_id = os.getenv("DPO_SERVICE_TYPE") or "108375"
         #self.service_id = "5525"
         self.api_endpoint = "https://secure.3gdirectpay.com/API/v6/"
         self.payment_url_base = "https://secure.3gdirectpay.com/payv2.php?ID="

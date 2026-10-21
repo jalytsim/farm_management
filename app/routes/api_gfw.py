@@ -10,6 +10,8 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import func
 from app import db
 
+from app.utils.stored_reports import attach_stored_report, send_stored_report
+from app.utils.report_access import check_owner_access, check_guest_report_access
 from app.utils.pdf_reports import (
     build_eudr_farm_pdf,
     build_eudr_forest_pdf,
@@ -17,8 +19,11 @@ from app.utils.pdf_reports import (
     build_carbon_forest_pdf,
 )
 from app.utils.carbon_index_utils import (
-    compute_carbon_from_indices, fetch_index_rows, polygon_geometry, ring_from_report_coordinates,
+    compute_carbon_from_indices, fetch_index_rows, fetch_soc_stock, polygon_geometry,
+    ring_from_report_coordinates,
 )
+from app.utils.forest_area_utils import compute_forest_area_change
+from concurrent.futures import ThreadPoolExecutor
 
 UPLOAD_FOLDER      = 'uploads/geojsons'
 LOG_FILE           = 'logs/geojson_uploads.log'
@@ -188,19 +193,30 @@ def _owner_ring(owner_type: str, owner_id, geolocation=None):
     return [[float(lon), float(lat)] for lon, lat in geometry['coordinates'][0]]
 
 
-def _carbon_for_ring(ring, crop_name=None, property_type='farm', fallback_area_ha=None):
+def _carbon_for_ring(ring, crop_name=None, property_type='farm', fallback_area_ha=None,
+                     tree_type=None):
     """(carbon, error) — indices Sentinel-2 du polygone → bilan carbone."""
     from app.utils.sentinel_utils import _compute_area_ha_from_coords
     if not ring:
         return None, 'No geometry available — add polygon points first'
     area_ha, _ = _compute_area_ha_from_coords(ring)
     area_ha = area_ha or fallback_area_ha
-    try:
-        rows = fetch_index_rows(polygon_geometry(ring))
-    except Exception as e:
-        import traceback; traceback.print_exc()
-        return None, f'Sentinel query failed: {e}'
-    return compute_carbon_from_indices(rows, area_ha, crop_name, property_type)
+    # Sentinel (5 ans) et SoilGrids (≈ 30 s) en parallèle : ils sont lents tous les deux.
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        rows_job = pool.submit(fetch_index_rows, polygon_geometry(ring))
+        soc_job = pool.submit(fetch_soc_stock, ring)
+        try:
+            rows = rows_job.result()
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            return None, f'Sentinel query failed: {e}'
+        try:
+            soc = soc_job.result()
+        except Exception:
+            import traceback; traceback.print_exc()
+            soc = None
+    return compute_carbon_from_indices(rows, area_ha, crop_name, property_type, soc=soc,
+                                       tree_type=tree_type, ring=ring)
 
 
 def _farm_carbon(farm, farm_info):
@@ -214,11 +230,42 @@ def _farm_carbon(farm, farm_info):
 
 def _forest_carbon(forest_id):
     ring = _owner_ring('forest', forest_id)
-    carbon, error = _carbon_for_ring(ring, property_type='forest')
+    forest = Forest.query.get(forest_id)
+    carbon, error = _carbon_for_ring(ring, property_type='forest',
+                                     tree_type=forest.tree_type if forest else None)
     return carbon, ring, error
 
 
-def _carbon_from_geojson(geojson_data, crop_name=None, property_type='farm'):
+def _forest_area_change(ring, months=12):
+    """(result, error) — surface boisée mensuelle du polygone."""
+    from app.utils.sentinel_utils import _compute_area_ha_from_coords
+    if not ring:
+        return None, 'No geometry available — add polygon points first'
+    area_ha, _ = _compute_area_ha_from_coords(ring)
+    return compute_forest_area_change(polygon_geometry(ring), area_ha, months)
+
+
+@bp.route('/forest/<int:forest_id>/area-change', methods=['GET'])
+def forest_area_change(forest_id):
+    """
+    GET /api/gfw/forest/<forest_id>/area-change?months=12
+    Surface boisée mois par mois et variation (dégradation / déforestation).
+    """
+    forest = Forest.query.filter_by(id=forest_id).first()
+    if not forest:
+        return jsonify({"error": "Forest not found"}), 404
+    denied = check_owner_access(forest, 'forest')
+    if denied:
+        return denied
+    result, error = _forest_area_change(_owner_ring('forest', forest_id),
+                                        request.args.get('months', 12, type=int))
+    if error:
+        return jsonify({"error": error}), 400
+    result.update({'forest_id': forest_id, 'forest_name': forest.name})
+    return jsonify(result), 200
+
+
+def _carbon_from_geojson(geojson_data, crop_name=None, property_type='farm', tree_type=None):
     """Polygon / MultiPolygon (1er polygone), Feature ou FeatureCollection."""
     geom = geojson_data or {}
     if geom.get('type') == 'FeatureCollection':
@@ -228,7 +275,7 @@ def _carbon_from_geojson(geojson_data, crop_name=None, property_type='farm'):
     ring = None
     if geom.get('type') in ('Polygon', 'MultiPolygon'):
         ring = ring_from_report_coordinates(geom.get('coordinates'))
-    carbon, error = _carbon_for_ring(ring, crop_name, property_type)
+    carbon, error = _carbon_for_ring(ring, crop_name, property_type, tree_type=tree_type)
     return carbon, ring, error
 
 
@@ -241,6 +288,9 @@ async def forestReport(forest_id):
     forest = Forest.query.filter_by(id=forest_id).first()
     if not forest:
         return jsonify({"error": "Forest not found"}), 404
+    denied = check_owner_access(forest, 'forest')
+    if denied:
+        return denied
     forest_info = {
         'farm_id':      forest.id,
         'name':         forest.name,
@@ -264,6 +314,9 @@ async def farmerReport(farm_id):
     farm = Farm.query.filter_by(farm_id=farm_id).first()
     if not farm:
         return jsonify({"error": "Farm not found"}), 404
+    denied = check_owner_access(farm, 'farm')
+    if denied:
+        return denied
     data, status_code = await gfw_async(owner_type='farmer', owner_id=farm_id)
     if status_code != 200:
         return jsonify(data), status_code
@@ -280,6 +333,9 @@ async def CarbonReport(farm_id):
     farm = Farm.query.filter_by(farm_id=farm_id).first()
     if not farm:
         return jsonify({"error": "Farm not found"}), 404
+    denied = check_owner_access(farm, 'farm')
+    if denied:
+        return denied
     farm_info = _build_farm_info(farm)
     carbon, ring, error = _farm_carbon(farm, farm_info)
     if error:
@@ -294,6 +350,9 @@ async def CarbonReportforest(forest_id):
     forest = Forest.query.filter_by(id=forest_id).first()
     if not forest:
         return jsonify({"error": "Forest not found"}), 404
+    denied = check_owner_access(forest, 'forest')
+    if denied:
+        return denied
     forest_info = {
         'name':         forest.name,
         'tree_type':    forest.tree_type,
@@ -322,8 +381,16 @@ def _send_pdf(pdf_bytes: bytes, filename: str, as_attachment: bool = True, brows
     # la taille dépasse leur seuil, quel que soit Content-Disposition.
     # Le frontend re-type le blob en 'application/pdf' lui-même après coup.
     mimetype = 'application/octet-stream' if browser_safe else 'application/pdf'
-    return send_file(tmp.name, mimetype=mimetype,
-                     as_attachment=as_attachment, download_name=filename)
+    response = send_file(tmp.name, mimetype=mimetype,
+                         as_attachment=as_attachment, download_name=filename)
+    # ✅ PDF conservé 7 jours + en-tête X-Report-Token (re-téléchargement après reload)
+    return attach_stored_report(response, pdf_bytes, filename)
+
+
+@bp.route('/stored-report/<token>', methods=['GET'])
+def stored_report(token):
+    """Re-téléchargement d'un PDF déjà généré (voir app/utils/stored_reports.py)."""
+    return send_stored_report(token)
 
 
 @bp.route('/farm/<string:farm_id>/eudr-pdf', methods=['POST'])
@@ -340,6 +407,9 @@ async def farm_eudr_pdf(farm_id):  # <-- Changé en 'async def' pour pouvoir uti
     farm = Farm.query.filter_by(farm_id=farm_id).first()
     if not farm:
         return jsonify({"error": "Farm not found"}), 404
+    denied = check_owner_access(farm, 'farm')
+    if denied:
+        return denied
 
     # 3. Récupération asynchrone des données GFW
     data, status_code = await gfw_async(owner_type='farmer', owner_id=farm_id)
@@ -374,6 +444,9 @@ async def eudr_forest_pdf(forest_id):
     forest = Forest.query.filter_by(id=forest_id).first()
     if not forest:
         return jsonify({"error": "Forest not found"}), 404
+    denied = check_owner_access(forest, 'forest')
+    if denied:
+        return denied
 
     forest_info = {
         'name':         forest.name,
@@ -410,6 +483,9 @@ async def carbon_farm_pdf(farm_id):
     farm = Farm.query.filter_by(farm_id=farm_id).first()
     if not farm:
         return jsonify({"error": "Farm not found"}), 404
+    denied = check_owner_access(farm, 'farm')
+    if denied:
+        return denied
 
     farm_info = _build_farm_info(farm)
     carbon, ring, error = _farm_carbon(farm, farm_info)
@@ -441,6 +517,9 @@ async def carbon_forest_pdf(forest_id):
     forest = Forest.query.filter_by(id=forest_id).first()
     if not forest:
         return jsonify({"error": "Forest not found"}), 404
+    denied = check_owner_access(forest, 'forest')
+    if denied:
+        return denied
 
     forest_info = {
         'name':         forest.name,
@@ -452,12 +531,16 @@ async def carbon_forest_pdf(forest_id):
     carbon, ring, error = _forest_carbon(forest_id)
     if error:
         return jsonify({"error": error}), 400
+    area_change, area_error = _forest_area_change(ring)
+    if area_error:
+        print(f'[carbon_forest_pdf] area change unavailable: {area_error}')
 
     try:
         pdf_bytes = build_carbon_forest_pdf(
             forest_id   = forest_id,
             forest_info = forest_info,
             carbon      = carbon,
+            area_change = area_change,
             coords      = ring,
             logo_parrot = LOGO_PARROT,
             logo_agri   = LOGO_AGRI,
@@ -498,10 +581,13 @@ def guest_eudr_pdf():
 
     if not gfw_data or not isinstance(gfw_data, dict):
         return jsonify({"error": "Missing or invalid 'report' data"}), 400
+    denied = check_guest_report_access('reporteudrguest', req_data.get('phone'))
+    if denied:
+        return denied
 
     farm_info          = req_data.get('farm_info') or {}
     forest_map_base64  = req_data.get('forest_map_image')
-    guest_id           = req_data.get('guest_id') or farm_info.get('farm_id') or 'GUEST'
+    guest_id           = farm_info.get('farm_id') or req_data.get('guest_id') or 'GUEST'
     agent_id           = req_data.get('agent_id')
 
     try:
@@ -532,6 +618,7 @@ def guest_carbon_pdf():
         "report": {...},     # sinon : dict groupé (format CarbonReportFromFile),
                              # seules ses coordonnées sont utilisées
         "crop": "...",       # optionnel : culture (modèle AGB par culture)
+        "property_type": "farm" | "forest",  # forest → rapport forêt (surface boisée mensuelle)
         "farm_info": {...},  # optionnel
         "guest_id": "..."    # optionnel
       }
@@ -539,41 +626,69 @@ def guest_carbon_pdf():
     Sentinel-2 du polygone, jamais reprises du report envoyé.
     """
     req_data = request.json or {}
+    denied = check_guest_report_access('reportcarbonguest', req_data.get('phone'))
+    if denied:
+        return denied
     gfw_data = req_data.get('report')
 
     farm_info  = req_data.get('farm_info') or {}
-    guest_id   = req_data.get('guest_id') or farm_info.get('farm_id') or 'GUEST'
+    guest_id   = farm_info.get('farm_id') or req_data.get('guest_id') or 'GUEST'
     agent_id   = req_data.get('agent_id')
     crop_name  = req_data.get('crop') or next(
         (c.get('crop') for c in reversed(farm_info.get('crops') or []) if c.get('crop')), None)
 
+    is_forest = str(req_data.get('property_type') or '').lower() == 'forest'
+    property_type = 'forest' if is_forest else 'farm'
+    tree_type = farm_info.get('tree_type') if is_forest else None
     if req_data.get('geojson'):
-        carbon, ring, error = _carbon_from_geojson(req_data['geojson'], crop_name)
+        carbon, ring, error = _carbon_from_geojson(req_data['geojson'], crop_name, property_type,
+                                                   tree_type=tree_type)
     elif isinstance(gfw_data, dict) and gfw_data:
         first = next((items[0] for items in gfw_data.values() if isinstance(items, list) and items), {})
         ring = ring_from_report_coordinates(first.get('coordinates'))
-        carbon, error = _carbon_for_ring(ring, crop_name)
+        carbon, error = _carbon_for_ring(ring, crop_name, property_type, tree_type=tree_type)
     else:
         return jsonify({"error": "Missing 'geojson' or 'report' data"}), 400
     if error:
         return jsonify({"error": error}), 400
 
     try:
-        pdf_bytes = build_carbon_farm_pdf(
-            farm_id     = str(guest_id),
-            farm_info   = farm_info,
-            carbon      = carbon,
-            coords      = ring,
-            logo_parrot = LOGO_PARROT,
-            logo_agri   = LOGO_AGRI,
-        )
+        if is_forest:
+            # Modèle AGB forêt (calculé ci-dessus) + surface boisée mensuelle
+            area_change, area_error = _forest_area_change(ring)
+            if area_error:
+                print(f'[guest_carbon_pdf] area change unavailable: {area_error}')
+            pdf_bytes = build_carbon_forest_pdf(
+                forest_id   = str(guest_id),
+                forest_info = {
+                    'name':         farm_info.get('name') or farm_info.get('farm_id') or str(guest_id),
+                    'tree_type':    farm_info.get('tree_type') or 'N/A',
+                    'date_created': 'N/A',
+                    'date_updated': 'N/A',
+                },
+                carbon      = carbon,
+                area_change = area_change,
+                coords      = ring,
+                logo_parrot = LOGO_PARROT,
+                logo_agri   = LOGO_AGRI,
+            )
+        else:
+            pdf_bytes = build_carbon_farm_pdf(
+                farm_id     = str(guest_id),
+                farm_info   = farm_info,
+                carbon      = carbon,
+                coords      = ring,
+                logo_parrot = LOGO_PARROT,
+                logo_agri   = LOGO_AGRI,
+            )
     except Exception as e:
         import traceback
         traceback.print_exc()
         return jsonify({"error": f"Génération PDF échouée: {str(e)}"}), 500
 
     _log_gfw('guest_carbon_pdf', 'guest', guest_id, agent_id=agent_id)
-    return _send_pdf(pdf_bytes, f'Carbon_Report_{guest_id}.pdf', as_attachment=False, browser_safe=True)
+    kind = 'Forest_Carbon' if is_forest else 'Farmland_Carbon'
+    return _send_pdf(pdf_bytes, f'{kind}_Report_{guest_id}.pdf', as_attachment=False, browser_safe=True)
 
 
 # ============================================
@@ -780,6 +895,9 @@ def export_agents_revenue_csv():
 
 @bp.route('/Geojson/ReportFromFile', methods=['POST'])
 async def report_from_file():
+    denied = check_guest_report_access('reporteudrguest')
+    if denied:
+        return denied
     if 'file' not in request.files:
         return jsonify({'error': 'No file provided'}), 400
     file = request.files['file']
@@ -819,6 +937,9 @@ async def report_from_file():
 
 @bp.route('/Geojson/CarbonReportFromFile', methods=['POST'])
 async def carbon_report_from_file():
+    denied = check_guest_report_access('reportcarbonguest')
+    if denied:
+        return denied
     if 'file' not in request.files:
         return jsonify({'error': 'No file provided'}), 400
     file = request.files['file']
@@ -900,8 +1021,9 @@ def generate_pdf():
         return jsonify({"error": f"PDF generation failed: {str(e)}"}), 500
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
     tmp.write(pdf_bytes); tmp.close()
-    return send_file(tmp.name, mimetype='application/pdf',
-                     as_attachment=True, download_name=filename)
+    response = send_file(tmp.name, mimetype='application/pdf',
+                         as_attachment=True, download_name=filename)
+    return attach_stored_report(response, pdf_bytes, filename)
 
 
 @bp.route('/generate-receipt', methods=['POST'])

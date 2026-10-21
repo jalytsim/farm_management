@@ -1,5 +1,6 @@
 from alertspest import fetch_weather_data, detect_gdd_and_pest_alerts
 import requests
+from app.routes.api_notifications import deliver_sms
 
 ADMIN_PHONE = "256783130358"
 
@@ -80,14 +81,13 @@ def run_gdd_pest_check(app):
 
                     for phone in recipients:
                         try:
-                            response = requests.post(
-                                "http://localhost:5000/api/notifications/sms",
-                                json={"phone": phone, "message": final_msg}
-                            )
-                            if response.status_code == 200:
+                            # Appel direct (la route HTTP exige maintenant un JWT)
+                            status_code = deliver_sms(phone, final_msg)
+
+                            if status_code == 200:
                                 print(f"[SENT] Pest alert SMS sent to {phone}")
                             else:
-                                print(f"[FAILED] SMS not sent to {phone}: {response.text}")
+                                print(f"[FAILED] SMS not sent to {phone}: HTTP {status_code}")
                         except Exception as sms_error:
                             print(f"[ERROR] SMS sending error to {phone}: {sms_error}")
                 else:

@@ -58,12 +58,18 @@ def start_scheduler(app):
         scheduler = BackgroundScheduler()
         scheduler.add_job(lambda: run_weather_check(app), 'cron', hour=22, minute=59)
         scheduler.add_job(lambda: run_gdd_pest_check(app), 'cron', hour=23, minute=00)
+
+        # Abonnements : crée chaque matin les prochaines livraisons
+        from app.routes.subscriptions import run_subscription_cycle
+        scheduler.add_job(lambda: run_subscription_cycle(app), 'cron', hour=6, minute=0)
+
         scheduler.start()
         print("[OK] Scheduler lance dans le process principal.")
     else:
         print("[i] Ce n'est pas le process principal, scheduler ignore.")
 
 
+        
 def init_extensions(app):
     """Initialize Flask extensions."""
     db.init_app(app)
@@ -99,7 +105,7 @@ def register_blueprints(app):
         api_blog, api_hscode,
         ecommerce, ecommerce_customers,
         auction, api_tree_co2,ecommerce_stats,api_crop_variety,api_quality,api_receipt,
-        api_warehouse,
+        api_warehouse, subscriptions,
     )
 
     blueprints = [
@@ -120,7 +126,7 @@ def register_blueprints(app):
         api_blog.bp, api_hscode.bp,
         ecommerce.bp, ecommerce_customers.bp,
         auction.bp, api_tree_co2.bp,ecommerce_stats.bp,api_crop_variety.bp, api_quality.bp,api_receipt.bp,
-        api_warehouse.bp,
+        api_warehouse.bp, subscriptions.bp,
     ]
 
     for blueprint in blueprints:
@@ -199,6 +205,15 @@ def create_app():
 
     app = Flask(__name__)
     app.config.from_object(Config)
+
+    # 🔒 Les valeurs par défaut de SECRET_KEY / JWT_SECRET_KEY sont dans le code
+    # (donc sur GitHub) : sans variables d'environnement, n'importe qui pourrait
+    # signer un JWT admin ou un lien de rapport. On le signale très visiblement.
+    for key in ('SECRET_KEY', 'JWT_SECRET_KEY'):
+        if not os.getenv(key):
+            app.logger.critical(
+                "[SECURITY] %s n'est pas défini dans l'environnement : la valeur par défaut "
+                "publique du code est utilisée. Définissez-le dans .env avant la mise en prod.", key)
 
     init_extensions(app)
     register_blueprints(app)

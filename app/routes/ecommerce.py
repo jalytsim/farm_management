@@ -33,11 +33,10 @@ from app.models import (
 from app.utils.dpo_payment import DPOPayment
 from app.utils.decorators import admin_required, current_user_id
 from app.utils.storage import get_storage, build_key, LocalStorage
+from app.utils.site_url import site_url
 
 bp = Blueprint('ecommerce', __name__, url_prefix='/api/ecommerce')
 
-FRONTEND_URL = "https://www.nkusu.com"
-BACKEND_URL = "https://www.nkusu.com/api"
 
 ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
 MAX_IMAGE_SIZE_MB = 5
@@ -552,8 +551,12 @@ def _build_order_items(cart_items):
                 "per currency."
             )
 
-        total += product.price * qty
-        order_items.append((product, qty))
+        # La colonne price est déclarée Numeric mais la base de prod la renvoie
+        # en float : float * Decimal levait un TypeError (« Unexpected server
+        # error » au paiement). On passe toujours par Decimal.
+        price = _dec(product.price, 'Price')
+        total += price * qty
+        order_items.append((product, qty, price))
 
     return order_items, total, (currency or 'USD'), None
 
@@ -630,10 +633,10 @@ def initiate_checkout():
         db.session.add(order)
         db.session.flush()
 
-        for product, qty in order_items:
+        for product, qty, price in order_items:
             db.session.add(EcoOrderItem(
                 order_id=order.id, product_id=product.id,
-                quantity=qty, unit_price=product.price, unit=product.unit,
+                quantity=qty, unit_price=price, unit=product.unit,
             ))
         db.session.commit()
 
@@ -643,9 +646,10 @@ def initiate_checkout():
         result = DPOPayment().create_payment_token(
             amount=float(total), currency=currency,
             reference=f"NKU-SHOP-{order.id}",
-            redirect_url=f"{BACKEND_URL}/ecommerce/checkout/success",
-            back_url=f"{BACKEND_URL}/ecommerce/checkout/cancelled",
+            redirect_url=f"{site_url()}/api/ecommerce/checkout/success",
+            back_url=f"{site_url()}/api/ecommerce/checkout/cancelled",
             customer_phone=phone, customer_email=email,
+            description=f"Nkusu Services - Shop order NKU-SHOP-{order.id}",
         )
 
         if not result.get('success'):
@@ -784,6 +788,10 @@ def _confirm_order_paid(order_id):
             if lot:
                 lot.status = 'sold'
 
+
+    from app.routes.subscriptions import on_order_paid
+    on_order_paid(order)
+
     db.session.commit()
     return order
 
@@ -821,23 +829,23 @@ def verify_checkout(trans_token):
 def checkout_success():
     trans_token = request.args.get('TransactionToken')
     if not trans_token:
-        return redirect(f"{FRONTEND_URL}/shop/payment/error?error=Missing+token")
+        return redirect(f"{site_url()}/shop/payment/error?error=Missing+token")
     try:
         order = EcoOrder.query.filter_by(dpo_trans_token=trans_token).first()
         if order:
             _confirm_order_paid(order.id)
-        return redirect(f"{FRONTEND_URL}/shop/payment/success?TransactionToken={trans_token}")
+        return redirect(f"{site_url()}/shop/payment/success?TransactionToken={trans_token}")
     except Exception:
         db.session.rollback()
         traceback.print_exc()
-        return redirect(f"{FRONTEND_URL}/shop/payment/error?error=Server+error")
+        return redirect(f"{site_url()}/shop/payment/error?error=Server+error")
 
 
 @bp.route('/checkout/cancelled', methods=['GET'])
 def checkout_cancelled():
     """L'acheteur peut encore payer après avoir annulé — on ne touche pas au statut."""
     trans_token = request.args.get('TransactionToken')
-    return redirect(f"{FRONTEND_URL}/shop/payment/cancelled?TransactionToken={trans_token}")
+    return redirect(f"{site_url()}/shop/payment/cancelled?TransactionToken={trans_token}")
 
 
 # ==================== COMMANDES (ADMIN) ====================

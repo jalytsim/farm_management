@@ -1,5 +1,6 @@
 from alerts import fetch_weather_data, detect_anomalies
 import requests
+from app.routes.api_notifications import deliver_sms
 
 ADMIN_PHONE = "256783130358"  # Admin receives all alerts
 
@@ -69,15 +70,13 @@ def run_weather_check(app):
 
                     for phone in recipients:
                         try:
-                            response = requests.post("http://localhost:5000/api/notifications/sms", json={
-                                "phone": phone,
-                                "message": final_message
-                            })
+                            # Appel direct (la route HTTP exige maintenant un JWT)
+                            status_code = deliver_sms(phone, final_message)
 
-                            if response.status_code == 200:
+                            if status_code == 200:
                                 print(f"[SENT] SMS sent to {phone}")
                             else:
-                                print(f"[FAILED] Could not send SMS to {phone}: {response.text}")
+                                print(f"[FAILED] Could not send SMS to {phone}: HTTP {status_code}")
 
                         except Exception as sms_error:
                             print(f"[ERROR] SMS sending error to {phone}: {sms_error}")
