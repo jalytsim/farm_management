@@ -276,6 +276,41 @@ def _yearly_history(series, soc_co2e_mg):
     return out
 
 
+def _monthly_flux(series, gross_growth_co2e=None):
+    """
+    Émissions / absorptions / net de chacun des 12 derniers mois (Mg CO2e et Mg C).
+      Δ_m = (stock du mois − stock du même mois un an plus tôt) / 12
+      Ferme : absorption = max(Δ_m, 0) ; émission = max(−Δ_m, 0)
+      Forêt : absorption = max(croissance IPCC / 12, Δ_m) ; émission = absorption − Δ_m
+      Net = émission − absorption  (< 0 → puits, > 0 → source)
+    Les mois sans lecture un an plus tôt sont omis.
+    """
+    by_month = {r['date'][:7]: r['_stock']['co2e_mg'] for r in series if r['date']}
+    out = []
+    for month in sorted(by_month)[-BALANCE_MONTHS:]:
+        prev = (datetime.strptime(month, '%Y-%m') - relativedelta(years=1)).strftime('%Y-%m')
+        if prev not in by_month:
+            continue
+        d = (by_month[month] - by_month[prev]) / BALANCE_MONTHS
+        if gross_growth_co2e is None:
+            rem, emi = max(d, 0.0), max(-d, 0.0)
+        else:
+            rem = max(gross_growth_co2e / BALANCE_MONTHS, d)
+            emi = rem - d
+        out.append({
+            'month':          month,
+            'emissions_c':    round(emi / CO2_C_RATIO, 4),
+            'removals_c':     round(rem / CO2_C_RATIO, 4),
+            'net_c':          round((emi - rem) / CO2_C_RATIO, 4),
+            'emissions_co2e': round(emi, 4),
+            'removals_co2e':  round(rem, 4),
+            'net_co2e':       round(emi - rem, 4),
+            'stock_c':        round(by_month[month] / CO2_C_RATIO, 4),
+            '_delta': d, '_emissions': emi, '_removals': rem,
+        })
+    return out
+
+
 def compute_carbon_from_indices(rows, area_ha, crop_name=None, property_type='farm', soc=None,
                                 tree_type=None, ring=None):
     """
@@ -335,6 +370,7 @@ def compute_carbon_from_indices(rows, area_ha, crop_name=None, property_type='fa
         delta_method = f'stock {start["date"]} → {end["date"]} (less than 2 years of history)'
 
     growth = None
+    gross_growth = None
     if property_type == 'forest':
         g, g_source = forest_growth_rate(tree_type, fetch_elevation(ring))
         gross_growth = area_ha * g * (1 + BGB_RATIO) * CARBON_RATIO * CO2_C_RATIO
@@ -346,6 +382,20 @@ def compute_carbon_from_indices(rows, area_ha, crop_name=None, property_type='fa
     else:
         removals, emissions = max(delta, 0.0), max(-delta, 0.0)
         flux_method = 'IPCC stock-difference: removals = max(ΔStock, 0); emissions = max(−ΔStock, 0)'
+
+    # Flux mois par mois sur les 12 derniers mois : chaque mois contribue
+    # 1/12 de sa variation sur un an (stock du mois − même mois l'an dernier),
+    # ce qui neutralise la saison. Quand les 12 mois ont leur paire, les
+    # totaux annuels deviennent la somme des mois (le net vaut alors −ΔStock).
+    monthly = _monthly_flux(series, gross_growth)
+    if len(monthly) == BALANCE_MONTHS:
+        delta = sum(m['_delta'] for m in monthly)
+        emissions = sum(m['_emissions'] for m in monthly)
+        removals = sum(m['_removals'] for m in monthly)
+        delta_method = (f'sum over {monthly[0]["month"]} → {monthly[-1]["month"]} of each month\'s '
+                        'stock minus the same month one year earlier, ÷ 12')
+        flux_method += ' (computed month by month, then summed over the year)'
+    monthly_out = [{k: v for k, v in m.items() if not k.startswith('_')} for m in monthly]
 
     soc_c_mg = soc_co2e_mg = None
     if soc and soc.get('ocs_t_c_ha') is not None:
@@ -373,6 +423,11 @@ def compute_carbon_from_indices(rows, area_ha, crop_name=None, property_type='fa
         'emissions':     round(emissions, 4),
         'removals':      round(removals, 4),
         'net':           round(emissions - removals, 4),
+        # Mêmes flux en Mg C (unité des graphiques) : CO2e ÷ 44/12
+        'emissions_c':   round(emissions / CO2_C_RATIO, 4),
+        'removals_c':    round(removals / CO2_C_RATIO, 4),
+        'net_c':         round((emissions - removals) / CO2_C_RATIO, 4),
+        'monthly_flux':  monthly_out,
         'sar_filled_months': [r['date'] for r in series if r['sar_filled']],
         'stock_above_c': round(end['_stock']['above_c_mg'], 4),
         'stock_below_c': round(end['_stock']['below_c_mg'], 4),

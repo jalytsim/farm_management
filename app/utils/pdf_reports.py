@@ -24,6 +24,7 @@ import matplotlib
 matplotlib.use('Agg')                     # pas de GUI
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+import matplotlib.dates as mdates
 from datetime import datetime
 # Alias: reportlab.graphics.shapes.Polygon (importé plus bas) écrasait celui de shapely,
 # ce qui faisait échouer le calcul de surface du PDF (Project Area "Not available").
@@ -1094,33 +1095,36 @@ def _carbon_table(vals: dict, width: float = CONTENT_W) -> Table:
                            borderPadding=4, alignment=TA_CENTER)
         )
 
+    def c_and_co2e(c, bold=False):
+        b0, b1 = ('<b>', '</b>') if bold else ('', '')
+        return [Paragraph(f'{b0}{c:.4f}{b1}', _styles()['body']),
+                Paragraph(f'{b0}{c * CO2_PER_C:.4f}{b1}', _styles()['body'])]
+
+    net_c = vals['net_c']
     rows = [
-        [Paragraph('<b>Category</b>',              _styles()['body_bold']),
-         Paragraph('<b>Value (Mg CO<sub>2</sub>e)</b>', _styles()['body_bold'])],
-        [Paragraph('Carbon Gross Emissions',             _styles()['body']),
-         badge_cell(vals['emissions'], BADGE_COLORS['emissions'])],
-        [Paragraph('Carbon Gross Absorption (Removals)', _styles()['body']),
-         badge_cell(vals['removals'],  BADGE_COLORS['removals'])],
-        [Paragraph('Carbon Net Emissions',               _styles()['body']),
-         badge_cell(vals['net'],
-                    BADGE_COLORS['net_pos'] if vals['net'] >= 0 else BADGE_COLORS['net_neg'])],
-        [Paragraph('Carbon Stock (Aboveground)', _styles()['body']),
-         Paragraph(f"{vals['stock_above_c']:.4f} Mg C", _styles()['body'])],
-        [Paragraph('Carbon Stock (Belowground)', _styles()['body']),
-         Paragraph(f"{vals['stock_below_c']:.4f} Mg C", _styles()['body'])],
+        [Paragraph('<b>Category</b>',                 _styles()['body_bold']),
+         Paragraph('<b>Mg C</b>',                     _styles()['body_bold']),
+         Paragraph('<b>Mg CO<sub>2</sub>e</b>',       _styles()['body_bold'])],
+        [Paragraph('Carbon Emissions (per year)',     _styles()['body']),
+         badge_cell(vals['emissions_c'], BADGE_COLORS['emissions']),
+         Paragraph(f"{vals['emissions']:.4f}", _styles()['body'])],
+        [Paragraph('Carbon Absorption (per year)',    _styles()['body']),
+         badge_cell(vals['removals_c'], BADGE_COLORS['removals']),
+         Paragraph(f"{vals['removals']:.4f}", _styles()['body'])],
+        [Paragraph(f"Carbon Net Emissions (per year): {_sink_label(net_c)}", _styles()['body']),
+         badge_cell(net_c, BADGE_COLORS['net_pos'] if net_c >= 0 else BADGE_COLORS['net_neg']),
+         Paragraph(f"{vals['net']:.4f}", _styles()['body'])],
+        [Paragraph('Carbon Stock (Aboveground)', _styles()['body']), *c_and_co2e(vals['stock_above_c'])],
+        [Paragraph('Carbon Stock (Belowground)', _styles()['body']), *c_and_co2e(vals['stock_below_c'])],
     ]
     if vals.get('stock_soc_c') is not None:
         rows.append([Paragraph(f"Soil Organic Carbon ({(vals.get('soc') or {}).get('depth', '0-30cm')})",
-                               _styles()['body']),
-                     Paragraph(f"{vals['stock_soc_c']:.4f} Mg C", _styles()['body'])])
+                               _styles()['body']), *c_and_co2e(vals['stock_soc_c'])])
     if vals.get('stock_total_c') is not None:
         rows.append([Paragraph('<b>Total Carbon Stock</b>', _styles()['body']),
-                     Paragraph(f"<b>{vals['stock_total_c']:.4f} Mg C</b><br/>"
-                               f"{vals['stock_total_co2e_mg']:.4f} Mg CO<sub>2</sub>e", _styles()['body'])])
+                     *c_and_co2e(vals['stock_total_c'], bold=True)])
 
-    # Largeur imposée par l'appelant : à côté du camembert, la table pleine
-    # largeur débordait et sa colonne de valeurs passait sous le graphique.
-    t = Table(rows, colWidths=[width * 0.58, width * 0.42])
+    t = Table(rows, colWidths=[width * 0.52, width * 0.24, width * 0.24])
     t.setStyle(TableStyle([
         ('BACKGROUND',   (0, 0), (-1, 0),   GREEN),
         ('TEXTCOLOR',    (0, 0), (-1, 0),   WHITE),
@@ -1135,18 +1139,35 @@ def _carbon_table(vals: dict, width: float = CONTENT_W) -> Table:
     return t
 
 
-def _carbon_status_badge(net_positive: bool) -> Table:
-    """Bannière 'Net Carbon Source/Sink' (icône vectorielle + texte) —
+# Mg CO2e = Mg C × 3.67 (44/12) — même facteur que la chaîne de calcul (tree_co2_utils)
+from app.utils.tree_co2_utils import CO2_C_RATIO as CO2_PER_C
+
+
+def _sink_label(net) -> str:
+    """Convention du rapport : net négatif = puits, positif = source."""
+    return 'Carbon Source' if net > 0 else 'Carbon Sink' if net < 0 else 'Neutral'
+
+
+def _carbon_status_badge(carbon: dict) -> Table:
+    """Bannière stock total (Mg CO2e) + statut puits / source du flux net —
     factorisée car identique entre le rapport ferme et le rapport forêt."""
-    status_label = 'Net Carbon Source' if net_positive else 'Net Carbon Sink'
+    net_c = carbon['net_c']
+    net_positive = net_c > 0
+    total_co2e = carbon.get('stock_total_co2e_mg') or 0
+    total_c = carbon.get('stock_total_c') or 0
     bg    = RED_LIGHT if net_positive else GREEN_LIGHT
     color = RED if net_positive else colors.HexColor('#1b5e20')
     icon  = _icon_warn(color=RED) if net_positive else _icon_ok(color=colors.HexColor('#1b5e20'))
 
-    header = _icon_text_row(icon, status_label, ParagraphStyle(
+    header = _icon_text_row(icon, f'Total Carbon: {total_co2e:,.2f} Mg CO2e', ParagraphStyle(
         'nb', fontName='Helvetica-Bold', fontSize=12, textColor=color,
     ))
-    t = Table([[header]], colWidths=[CONTENT_W])
+    sub = Paragraph(
+        f"{total_c:,.2f} Mg C stored (biomass + soil). Net flux over the last 12 months: "
+        f"<b>{net_c:+.4f} Mg C</b> ({carbon['net']:+.4f} Mg CO<sub>2</sub>e), "
+        f"<b>{_sink_label(net_c)}</b> (negative = sink, positive = source).",
+        ParagraphStyle('nbs', fontName='Helvetica', fontSize=8.5, textColor=BLACK, leading=11))
+    t = Table([[header], [sub]], colWidths=[CONTENT_W])
     t.setStyle(TableStyle([
         ('BACKGROUND',   (0, 0), (-1, -1), bg),
         ('BOX',          (0, 0), (-1, -1), 1, GRAY_BORDER),
@@ -1183,40 +1204,146 @@ def _carbon_indices_table(carbon: dict) -> Table:
     return t
 
 
+def _conversion_note(st: dict) -> Paragraph:
+    return Paragraph('Unit conversion: Mg CO<sub>2</sub>e = Mg C × 3.67 (44/12); '
+                     'Mg C = Mg CO<sub>2</sub>e ÷ 3.67. 1 Mg = 1 tonne.', st['small'])
+
+
 def _carbon_summary_elems(carbon: dict, st: dict) -> list:
-    """Tableau émissions / absorptions / stock + camembert."""
-    emissions, removals, net = carbon['emissions'], carbon['removals'], carbon['net']
+    """Tableau émissions / absorptions / net / stock, en Mg C et Mg CO2e."""
     elems = []
     elems += _section_bar('Carbon Assessment Summary', st)
-    pie = _pie_chart_image({
-        'Gross Emissions': abs(emissions),
-        'Gross Removals':  abs(removals),
-        'Net Flux':        abs(net),
-        'Carbon Stock':    abs(carbon.get('stock_total_c')
-                               or carbon['stock_above_c'] + carbon['stock_below_c']),
-    }, size=60 * mm)
-    side_t = Table([[_carbon_table(carbon, CONTENT_W - 70 * mm), pie]], colWidths=[CONTENT_W - 68 * mm, 68 * mm])
-    side_t.setStyle(TableStyle([
-        ('VALIGN',       (0, 0), (-1, -1), 'TOP'),
-        ('LEFTPADDING',  (0, 0), (-1, -1), 0),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
-    ]))
-    elems.append(side_t)
+    elems.append(_carbon_table(carbon))
+    elems.append(Spacer(1, 2 * mm))
+    elems.append(_conversion_note(st))
     elems.append(Spacer(1, 5 * mm))
     return elems
 
 
-def _carbon_assessment_elems(carbon: dict, st: dict, summary: bool = True) -> list:
-    """Indices + méthode, précédés du résumé carbone (forêt uniquement : summary=True)."""
+def _flux_bar_chart(months, values, title, color, signed=False):
+    """Barres mensuelles en Mg C ; signed : rouge > 0 (source), vert < 0 (puits)."""
+    x = [datetime.strptime(m, '%Y-%m') for m in months]
+    fig, ax = plt.subplots(figsize=(3.7, 2.3), facecolor='white')
+    bar_colors = [('#e53935' if v > 0 else '#43a047') for v in values] if signed else color
+    ax.bar(x, values, width=20, color=bar_colors, alpha=0.85)
+    if signed:
+        ax.axhline(0, color='#555555', linewidth=0.8)
+    ax.set_title(title, fontsize=8, fontweight='bold')
+    ax.set_ylabel('Mg C', fontsize=7)
+    ax.tick_params(labelsize=6)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %y'))
+    plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
+    ax.grid(alpha=0.3, axis='y')
+    fig.tight_layout()
+    return _line_chart_image(fig, width=CONTENT_W / 2 - 2 * mm, ratio=2.3 / 3.7)
+
+
+def _cumulative_chart(months, net_values):
+    """Bilan net cumulé sur l'année (Mg C) : sous zéro = carbone absorbé."""
+    x = [datetime.strptime(m, '%Y-%m') for m in months]
+    cum, total = [], 0.0
+    for v in net_values:
+        total += v
+        cum.append(total)
+    fig, ax = plt.subplots(figsize=(3.7, 2.3), facecolor='white')
+    ax.plot(x, cum, color='#2d7a2d', marker='o', markersize=3, linewidth=1.5)
+    ax.fill_between(x, cum, 0, where=[c < 0 for c in cum], color='#43a047', alpha=0.2, interpolate=True)
+    ax.fill_between(x, cum, 0, where=[c > 0 for c in cum], color='#e53935', alpha=0.2, interpolate=True)
+    ax.axhline(0, color='#555555', linewidth=0.8)
+    ax.set_title('Cumulative Net Balance (− = absorbed)', fontsize=8, fontweight='bold')
+    ax.set_ylabel('Mg C', fontsize=7)
+    ax.tick_params(labelsize=6)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %y'))
+    plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
+    ax.grid(alpha=0.3)
+    fig.tight_layout()
+    return _line_chart_image(fig, width=CONTENT_W / 2 - 2 * mm, ratio=2.3 / 3.7)
+
+
+def _annual_flux_tiles(carbon: dict) -> Table:
+    """Chiffres annuels : émissions, absorption, net (Mg C, Mg CO2e en dessous)."""
+    def tile(label, c, co2e, color, extra='', sign=''):
+        return Paragraph(
+            f'<font size="8" color="#666666">{label}</font><br/>'
+            f'<font size="14" color="{color}"><b>{c:{sign}.4f} Mg C</b></font><br/>'
+            f'<font size="8">{co2e:{sign}.4f} Mg CO<sub>2</sub>e{extra}</font>',
+            ParagraphStyle('tile', fontName='Helvetica', fontSize=9, leading=16, alignment=TA_CENTER))
+    net_c = carbon['net_c']
+    net_color = '#e53935' if net_c > 0 else '#2e7d32'
+    t = Table([[
+        tile('Emissions (12 months)', carbon['emissions_c'], carbon['emissions'], '#e53935'),
+        tile('Absorption (12 months)', carbon['removals_c'], carbon['removals'], '#2e7d32'),
+        tile('Net Emissions (12 months)', net_c, carbon['net'], net_color,
+             f'<br/><b>{_sink_label(net_c)}</b>', sign='+'),
+    ]], colWidths=[CONTENT_W / 3] * 3)
+    t.setStyle(TableStyle([
+        ('BOX',          (0, 0), (-1, -1), 0.5, GRAY_BORDER),
+        ('INNERGRID',    (0, 0), (-1, -1), 0.5, GRAY_BORDER),
+        ('BACKGROUND',   (0, 0), (-1, -1), GRAY_BG),
+        ('VALIGN',       (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING',   (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING',(0, 0), (-1, -1), 6),
+    ]))
+    return t
+
+
+def _carbon_flux_elems(carbon: dict, st: dict) -> list:
+    """Bilan des 12 derniers mois : chiffres annuels, un graphique par
+    paramètre (émissions, absorption, net) + bilan cumulé, tableau mensuel."""
+    monthly = carbon.get('monthly_flux') or []
+    elems = _section_bar('Carbon Balance: Last 12 Months', st)
+    elems.append(_annual_flux_tiles(carbon))
+    elems.append(Spacer(1, 3 * mm))
+    if not monthly:
+        elems.append(Paragraph('Monthly detail unavailable: less than 13 months of satellite '
+                               'readings for this parcel.', st['small']))
+        elems.append(Spacer(1, 5 * mm))
+        return elems
+
+    months = [m['month'] for m in monthly]
+    charts = [
+        _flux_bar_chart(months, [m['emissions_c'] for m in monthly], 'Carbon Emissions', '#e53935'),
+        _flux_bar_chart(months, [m['removals_c'] for m in monthly], 'Carbon Absorption', '#43a047'),
+        _flux_bar_chart(months, [m['net_c'] for m in monthly],
+                        'Carbon Net Emissions (+ source / − sink)', None, signed=True),
+        _cumulative_chart(months, [m['net_c'] for m in monthly]),
+    ]
+    grid = Table([charts[:2], charts[2:]], colWidths=[CONTENT_W / 2] * 2)
+    grid.setStyle(TableStyle([('LEFTPADDING', (0, 0), (-1, -1), 0), ('RIGHTPADDING', (0, 0), (-1, -1), 0)]))
+    elems.append(grid)
+    elems.append(Spacer(1, 3 * mm))
+
+    w = CONTENT_W / 6
+    elems.append(_simple_table(
+        ['Month', 'Emissions (Mg C)', 'Absorption (Mg C)', 'Net (Mg C)', 'Net (Mg CO2e)', 'Status'],
+        [[m['month'], _fmt(m['emissions_c'], 4), _fmt(m['removals_c'], 4),
+          _fmt(m['net_c'], 4, signed=True), _fmt(m['net_co2e'], 4, signed=True), _sink_label(m['net_c'])]
+         for m in monthly]
+        + [['<b>Year</b>', f"<b>{carbon['emissions_c']:.4f}</b>", f"<b>{carbon['removals_c']:.4f}</b>",
+            f"<b>{carbon['net_c']:+.4f}</b>", f"<b>{carbon['net']:+.4f}</b>",
+            f"<b>{_sink_label(carbon['net_c'])}</b>"]],
+        [w * 0.8, w * 1.05, w * 1.05, w, w * 1.05, w * 1.05]))
+    elems.append(Spacer(1, 2 * mm))
+    elems.append(Paragraph(
+        "Each month counts 1/12 of its change over one year (that month's stock minus the same month "
+        'a year earlier), which removes the seasonal swing; the 12 months add up to the yearly figure.',
+        st['small']))
+    elems.append(_conversion_note(st))
+    elems.append(Spacer(1, 5 * mm))
+    return elems
+
+
+def _carbon_assessment_elems(carbon: dict, st: dict) -> list:
+    """Résumé carbone, bilan 12 mois, indices, historique et méthode."""
     net = carbon['net']
     net_positive = net >= 0
     elems = []
 
-    if summary:
-        elems += _carbon_summary_elems(carbon, st)
+    elems += _carbon_summary_elems(carbon, st)
+    elems += _carbon_flux_elems(carbon, st)
 
-    elems += _section_bar('Vegetation Indices (Sentinel-2)', st)
-    elems.append(_carbon_indices_table(carbon))
+    elems.append(KeepTogether(_section_bar('Vegetation Indices (Sentinel-2)', st)
+                              + [_carbon_indices_table(carbon)]))
     elems.append(Spacer(1, 5 * mm))
 
     elems += _carbon_history_elems(carbon, st)
@@ -1259,7 +1386,8 @@ def _carbon_assessment_elems(carbon: dict, st: dict, summary: bool = True) -> li
                        'using a per-parcel regression of each index on Sentinel-1 VH backscatter and RVI.'))
     interp += [
         ('<b>Net Flux</b>',        f'Emissions − Removals: {"positive (net source)" if net_positive else "negative (net sink)"}. '
-                                   f'Current value: {net:.4f} Mg CO<sub>2</sub>e.'),
+                                   f"Current value: {carbon['net_c']:.4f} Mg C = {net:.4f} Mg CO<sub>2</sub>e."),
+        ('<b>Units</b>',           'Charts are in Mg C (tonnes of carbon). Mg CO<sub>2</sub>e = Mg C × 3.67 (44/12).'),
     ]
     for w in carbon.get('warnings') or []:
         interp.append(('<b>Note</b>', w))
@@ -1327,21 +1455,21 @@ def _carbon_history_elems(carbon: dict, st: dict) -> list:
     yearly = carbon.get('history_yearly') or []
     if len(history) < 2:
         return []
-    soc_co2e = (carbon.get('stock_soc_c') or 0) * 3.67
+    soc_c = carbon.get('stock_soc_c') or 0
 
     dates = [datetime.strptime(h['date'][:10], '%Y-%m-%d') for h in history]
-    biomass = [h['stock_co2e_mg'] for h in history]
+    biomass = [h['stock_co2e_mg'] / CO2_PER_C for h in history]
     fig, ax = plt.subplots(figsize=(7.5, 3.1), facecolor='white')
     ax.plot(dates, biomass, color='#2d7a2d', linewidth=1.4, marker='o', markersize=2.5,
             label='Biomass stock (AGB + BGB)')
-    if soc_co2e:
-        ax.plot(dates, [b + soc_co2e for b in biomass], color='#8d6e63', linewidth=1.4,
+    if soc_c:
+        ax.plot(dates, [b + soc_c for b in biomass], color='#8d6e63', linewidth=1.4,
                 label='Total stock (biomass + SOC)')
     for y in yearly:
-        ax.hlines(y['biomass_stock_co2e_mg'], datetime(y['year'], 1, 1), datetime(y['year'], 12, 31),
+        ax.hlines(y['biomass_stock_co2e_mg'] / CO2_PER_C, datetime(y['year'], 1, 1), datetime(y['year'], 12, 31),
                   colors='#fb8c00', linestyles='dashed', linewidth=1)
     ax.plot([], [], color='#fb8c00', linestyle='dashed', label='Yearly mean (biomass)')
-    ax.set_ylabel('Mg CO$_2$e', fontsize=8)
+    ax.set_ylabel('Mg C', fontsize=8)
     ax.tick_params(labelsize=7)
     ax.grid(alpha=0.3)
     ax.legend(fontsize=7, frameon=False, loc='upper left')
@@ -1353,16 +1481,23 @@ def _carbon_history_elems(carbon: dict, st: dict) -> list:
         direction = 'increasing (sink)' if trend > 0 else 'decreasing (source)' if trend < 0 else 'stable'
         elems.append(Paragraph(
             f"Trend {carbon.get('history_from')} → {carbon.get('history_to')}: "
-            f"<b>{trend:+.4f} Mg CO<sub>2</sub>e / year</b>, {direction}.", st['body']))
+            f"<b>{trend / CO2_PER_C:+.4f} Mg C / year</b> ({trend:+.4f} Mg CO<sub>2</sub>e / year), "
+            f"{direction}.", st['body']))
     elems.append(Spacer(1, 3 * mm))
     if yearly:
-        w = CONTENT_W / 5
+        def c(v, signed=False):
+            return _fmt(None if v is None else v / CO2_PER_C, 4, signed)
+        w = CONTENT_W / 6
         elems.append(_simple_table(
-            ['Year', 'Readings', 'Biomass stock (Mg CO2e)', 'Change vs previous year', 'Total incl. SOC (Mg CO2e)'],
-            [[y['year'], y['readings'], _fmt(y['biomass_stock_co2e_mg'], 4),
-              _fmt(y.get('change_co2e_mg'), 4, signed=True), _fmt(y['total_stock_co2e_mg'], 4)]
+            ['Year', 'Readings', 'Biomass stock (Mg C)', 'Change vs previous year (Mg C)',
+             'Total incl. SOC (Mg C)', 'Total incl. SOC (Mg CO2e)'],
+            [[y['year'], y['readings'], c(y['biomass_stock_co2e_mg']),
+              c(y.get('change_co2e_mg'), signed=True), c(y['total_stock_co2e_mg']),
+              _fmt(y['total_stock_co2e_mg'], 4)]
              for y in yearly],
-            [w * 0.6, w * 0.7, w * 1.2, w * 1.3, w * 1.2]))
+            [w * 0.6, w * 0.7, w * 1.1, w * 1.3, w * 1.1, w * 1.2]))
+        elems.append(Spacer(1, 2 * mm))
+        elems.append(_conversion_note(st))
     elems.append(Spacer(1, 5 * mm))
     return elems
 
@@ -1446,7 +1581,7 @@ def build_carbon_farm_pdf(
     elems.append(Spacer(1, 5 * mm))
 
     # ── Net status badge ──────────────────────────────────────────────────────
-    elems.append(_carbon_status_badge(carbon['net'] >= 0))
+    elems.append(_carbon_status_badge(carbon))
     elems.append(Spacer(1, 5 * mm))
 
     # ── Farm info ─────────────────────────────────────────────────────────────
@@ -1465,7 +1600,7 @@ def build_carbon_farm_pdf(
     elems.append(_info_table(rows))
     elems.append(Spacer(1, 5 * mm))
 
-    elems += _carbon_assessment_elems(carbon, st, summary=False)
+    elems += _carbon_assessment_elems(carbon, st)
 
     # ── Satellite map ─────────────────────────────────────────────────────────
     if coords:
@@ -1512,7 +1647,7 @@ def build_carbon_forest_pdf(
     ))
     elems.append(Spacer(1, 5 * mm))
 
-    elems.append(_carbon_status_badge(carbon['net'] >= 0))
+    elems.append(_carbon_status_badge(carbon))
     elems.append(Spacer(1, 5 * mm))
 
     elems += _section_bar('Forest Information', st)
@@ -1618,12 +1753,18 @@ def build_tree_co2_pdf(
  
     # ── Totaux ───────────────────────────────────────────────────────────────
     elems += _section_bar('CO2 Sequestration Summary', st)
+    def mg_c(kg_co2, per_year=False):
+        unit = ' / yr' if per_year else ''
+        return (f"{kg_co2 / 1000 / CO2_PER_C:.4f} Mg C{unit}  "
+                f"({kg_co2 / 1000:.4f} Mg CO2e{unit} = {kg_co2:.2f} kg CO2)")
     totals_rows = [
-        ('Total CO2 Sequestered (lifetime)', f"{totals.get('total_co2_sequestered_kg', 0):.2f} kg"),
-        ('Total CO2 / year (measured avg)',  f"{totals.get('total_co2_annual_avg_kg', 0):.2f} kg/yr"),
-        ('Total CO2 / year (sigmoid model)', f"{totals.get('total_co2_annual_sigmoid_kg', 0):.2f} kg/yr"),
+        ('Total Carbon Stored (lifetime)',       mg_c(totals.get('total_co2_sequestered_kg', 0))),
+        ('Carbon Absorbed / year (measured avg)', mg_c(totals.get('total_co2_annual_avg_kg', 0), True)),
+        ('Carbon Absorbed / year (sigmoid model)', mg_c(totals.get('total_co2_annual_sigmoid_kg', 0), True)),
     ]
     elems.append(_info_table(totals_rows))
+    elems.append(Spacer(1, 2 * mm))
+    elems.append(_conversion_note(st))
     elems.append(Spacer(1, 5 * mm))
  
     # ── Détail par arbre ─────────────────────────────────────────────────────
@@ -1706,7 +1847,7 @@ def build_forest_biomass_index_pdf(
         '(same conversion chain as the per-tree measured report). This satellite-index '
         'estimate is a generic approximation for forests without a full tree inventory: '
         'it is NOT calibrated on local field plots and should not replace ground '
-        'measurements or GFW data for regulatory submissions without local validation.'
+        'measurements for regulatory submissions without local validation.'
     )
     elems.append(Paragraph(note2, ParagraphStyle(
         'note2', fontName='Helvetica', fontSize=8, textColor=MUTED, leading=11,
