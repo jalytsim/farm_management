@@ -18,6 +18,7 @@ FEATURE_LABELS = {
     'reporteudrguest':   'EUDR Compliance Report',
     'eudrsubmission':    'EUDR DDS Submission',
     'qrexport':          'QR Code Export',
+    'receipt_verification': 'Warehouse Receipt Verification',
 }
 
 PAYMENT_METHOD_LABELS = {

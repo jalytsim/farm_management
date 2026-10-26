@@ -617,6 +617,12 @@ class Pays(db.Model):
         return (f"<Pays(id={self.id}, code={self.code}, "
                 f"alpha2={self.alpha2}, alpha3={self.alpha3})>")
 
+# Marchandises acceptées par un entrepôt (vide = toutes acceptées)
+store_crop = db.Table(
+    'store_crop',
+    db.Column('store_id', db.Integer, db.ForeignKey('store.id'), primary_key=True),
+    db.Column('crop_id', db.Integer, db.ForeignKey('crop.id'), primary_key=True),
+)
 
 class Store(db.Model):
     __tablename__ = 'store'
@@ -634,6 +640,12 @@ class Store(db.Model):
     inventory_count = db.Column(db.Integer, default=0)
     sales_count = db.Column(db.Integer, default=0)
     revenue = db.Column(db.Float, default=0.0)
+        # ── Entrepôt certifié (bourse 2tume) ─────────────────────────────────────
+    code            = db.Column(db.String(20), unique=True, nullable=True)       # WH-KLA-01
+    is_certified    = db.Column(db.Boolean, nullable=False, default=False, server_default='0')
+    capacity_tonnes = db.Column(db.Numeric(12, 3), nullable=True)
+    accepted_crops  = db.relationship('Crop', secondary='store_crop', lazy='subquery',
+                                      backref=db.backref('stores', lazy=True))
     last_stock_update = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     date_created = db.Column(db.DateTime, default=datetime.utcnow)
     date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

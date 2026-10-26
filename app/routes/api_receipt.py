@@ -1,17 +1,23 @@
+import time
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
-from flask import Blueprint, jsonify, request
+import requests
+from flask import Blueprint, jsonify, request, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from app import db
 from app.models import (
     WarehouseReceipt, WarehouseReceiptFarm, WarehouseReceiptMeasurement,
     Store, Crop, CropVariety, Grade, Farm, User, QualityParameter,
+    FeaturePrice, PaidFeatureAccess,
     RECEIPT_STATUSES, DEPOSITOR_TYPES, OPEN_RECEIPT_STATUSES,
 )
 from app.utils.grading_utils import evaluate_grade, applicable_parameters
 from app.utils.serials_utils import serial_from_id
+from app.utils.feature_payment_utils import create_payment_attempt
+from app.utils.dpo_payment import DPOPayment
+from app.utils.site_url import on_site
 from app.routes.api_qr import save_qr_in_db
 from app.utils.warehouse_utils import log_movement
 
@@ -22,6 +28,12 @@ ZERO = Decimal('0')
 
 # Who may receive a delivery and issue a receipt.
 RECEIVING_ROLES = {'admin', 'warehouse_operator', 'qa_tester'}
+
+# ★ Vérification payante : le prix et la durée d'accès se règlent dans l'écran
+#   Features (FeaturePrice 'receipt_verification'), comme pour les rapports.
+VERIFICATION_FEATURE = 'receipt_verification'
+# Chaque paiement est rattaché à UN reçu : son txn_id commence par ce préfixe.
+VERIFICATION_TXN_PREFIX = 'WRV-'
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -316,34 +328,190 @@ def get_receipt(id):
     return jsonify(receipt.to_dict(with_detail=True))
 
 
-# ── Public verification: no token, this is the point of the QR ───────────────
-@bp.route('/verify/<serial>', methods=['GET'])
-def verify_receipt(serial):
-    """Anyone scanning the QR — a buyer, a bank — can check the receipt.
+# ── Public verification ──────────────────────────────────────────────────────
+#  ★ MODIFIÉ — deux niveaux :
+#    · GRATUIT  : le reçu existe, il est authentique, son statut, la
+#                 marchandise et l'entrepôt. Assez pour repérer un faux.
+#    · PAYANT   : grade, mesures, poids, déposant, fermes d'origine. Débloqué
+#                 par un paiement rattaché à CE reçu (txn_id 'WRV-<serial>-…').
+#  Prix et durée d'accès : FeaturePrice 'receipt_verification' (écran Features).
+# ─────────────────────────────────────────────────────────────────────────────
+def _receipt_by_serial(serial):
+    return WarehouseReceipt.query.filter_by(serial=(serial or '').strip().upper()).first()
 
-    Deliberately limited: enough to trust the document, nothing commercial.
-    Prices, the depositor's account and the farm list stay private.
-    """
-    receipt = WarehouseReceipt.query.filter_by(serial=serial.strip().upper()).first()
-    if not receipt:
-        return jsonify({"valid": False, "message": "No receipt with this serial number."}), 404
 
-    return jsonify({
+def _verification_price():
+    """{devise: prix} configuré pour la vérification détaillée, ou None."""
+    feature = FeaturePrice.query.filter_by(feature_name=VERIFICATION_FEATURE).first()
+    if not feature or not feature.prices:
+        return None, None
+    return ({p.currency: float(p.price) for p in feature.prices},
+            {'currency': feature.default_currency, 'duration_days': feature.duration_days})
+
+
+def _public_summary(receipt):
+    store = receipt.store
+    return {
         "valid": True,
         "serial": receipt.serial,
         "status": receipt.status,
-        "warehouse": receipt.store.name if receipt.store else None,
-        "warehouse_code": receipt.store.code if receipt.store else None,
-        "country": receipt.store.country if receipt.store else None,
+        "warehouse": store.name if store else None,
+        "warehouse_code": store.code if store else None,
+        "country": store.country if store else None,
         "commodity": receipt.crop.name if receipt.crop else None,
         "variety": receipt.variety.name if receipt.variety else None,
+        "received_at": receipt.received_at.isoformat() if receipt.received_at else None,
+    }
+
+
+def _full_detail(receipt):
+    data = _public_summary(receipt)
+    data.update({
         "grade": receipt.grade.grade_value if receipt.grade else None,
         "net_weight_kg": float(receipt.net_weight_kg or 0),
+        "released_weight_kg": float(receipt.released_weight_kg or 0),
         "remaining_weight_kg": float(receipt.remaining_weight_kg or 0),
-        "received_at": receipt.received_at.isoformat() if receipt.received_at else None,
         "depositor": receipt.depositor_name,
+        "depositor_type": receipt.depositor_type,
         "quality": [m.to_dict() for m in receipt.measurements],
+        "farms": [{"farm_id": f.farm_id, "farm_name": f.farm_name,
+                   "weight_kg": float(f.weight_kg or 0)} for f in receipt.farms],
     })
+    return data
+
+
+@bp.route('/verify/<serial>', methods=['GET'])
+def verify_receipt(serial):
+    """GRATUIT — anyone scanning the QR can check that the receipt is genuine."""
+    receipt = _receipt_by_serial(serial)
+    if not receipt:
+        return jsonify({"valid": False, "message": "No receipt with this serial number."}), 404
+
+    prices, info = _verification_price()
+    data = _public_summary(receipt)
+    data["detail_prices"] = prices                      # None = vérification détaillée non configurée
+    data["detail_currency"] = info['currency'] if info else None
+    data["detail_duration_days"] = info['duration_days'] if info else None
+    return jsonify(data)
+
+
+@bp.route('/verify/<serial>/pay', methods=['POST'])
+def pay_receipt_verification(serial):
+    """Lance le paiement du détail d'UN reçu. Pas de compte nécessaire.
+
+    Body : { "payment_method": "dpo" | "mobile_money",
+             "phone_number": "...", "email": "...", "currency": "UGX" }
+
+    La vérification du paiement passe par les routes existantes :
+      Mobile Money → /api/payments/status/<txn_id>
+      DPO          → /api/payments/dpo/verify/<trans_token>
+    La réponse contient `access_key`, à renvoyer à /verify/<serial>/detail.
+    """
+    receipt = _receipt_by_serial(serial)
+    if not receipt:
+        return jsonify({"error": "No receipt with this serial number."}), 404
+
+    data = request.get_json(silent=True) or {}
+    method = (data.get('payment_method') or 'dpo').lower()
+    if method not in ('dpo', 'mobile_money'):
+        return jsonify({"error": f"Unknown payment method: {method}"}), 400
+
+    phone = (data.get('phone_number') or '').strip()
+    email = (data.get('email') or '').strip()
+    msisdn = ''.join(ch for ch in phone if ch.isdigit())
+    if method == 'mobile_money' and len(msisdn) < 9:
+        return jsonify({"error": "A valid phone number is required for Mobile Money"}), 400
+
+    txn_id = f"{VERIFICATION_TXN_PREFIX}{receipt.serial}-{int(time.time() * 1000)}"
+    payment, amount_or_error = create_payment_attempt(
+        guest_phone_number=phone or None,
+        feature_name=VERIFICATION_FEATURE,
+        txn_id=txn_id,
+        payment_method=method,
+        currency=data.get('currency'),
+    )
+    if not payment:
+        return jsonify({"error": amount_or_error}), 400
+    amount = amount_or_error
+
+    # ── Mobile Money ─────────────────────────────────────────────────────────
+    if method == 'mobile_money':
+        try:
+            res = requests.post(
+                current_app.config["MOBILE_MONEY_API_URL"],
+                params={"amount": amount, "msisdn": msisdn, "txnId": txn_id},
+                verify=current_app.config["MOBILE_MONEY_VERIFY_SSL"],
+                timeout=15,
+            )
+        except requests.RequestException:
+            payment.payment_status = 'failed'
+            db.session.commit()
+            return jsonify({"success": False, "error": "Mobile Money provider unreachable"}), 502
+        if res.status_code >= 400:
+            payment.payment_status = 'failed'
+            db.session.commit()
+            return jsonify({"success": False, "error": res.text or "Mobile Money request rejected"}), 400
+
+        return jsonify({"success": True, "payment_method": "mobile_money",
+                        "txn_id": txn_id, "access_key": txn_id, "msg": res.text,
+                        "amount": float(amount), "currency": payment.currency}), 200
+
+    # ── DPO (carte) ──────────────────────────────────────────────────────────
+    result = DPOPayment().create_payment_token(
+        amount=float(amount), currency=payment.currency, reference=txn_id,
+        redirect_url=on_site(current_app.config["DPO_REDIRECT_URL"]),
+        back_url=on_site(current_app.config["DPO_BACK_URL"]),
+        customer_phone=phone, customer_email=email,
+        description=f"Nkusu Services - {payment.narrative}",
+    )
+    if not result.get('success'):
+        payment.payment_status = 'failed'
+        db.session.commit()
+        return jsonify({"success": False, "error": result.get('error'),
+                        "result_code": result.get('result_code')}), 400
+
+    payment.dpo_trans_token = result['trans_token']
+    payment.dpo_trans_ref = result['trans_ref']
+    db.session.commit()
+    return jsonify({"success": True, "payment_method": "dpo",
+                    "payment_url": result['payment_url'],
+                    "trans_token": result['trans_token'],
+                    "access_key": result['trans_token'],
+                    "amount": float(amount), "currency": payment.currency}), 200
+
+
+@bp.route('/verify/<serial>/detail', methods=['GET'])
+def verify_receipt_detail(serial):
+    """PAYANT — le détail complet, si ?key= correspond à un paiement réussi,
+    non expiré, et fait pour CE reçu."""
+    receipt = _receipt_by_serial(serial)
+    if not receipt:
+        return jsonify({"error": "No receipt with this serial number."}), 404
+
+    key = (request.args.get('key') or '').strip()
+    if not key:
+        return jsonify({"error": "Payment required to see the full details."}), 402
+
+    access = PaidFeatureAccess.query.filter(
+        PaidFeatureAccess.feature_name == VERIFICATION_FEATURE,
+        db.or_(PaidFeatureAccess.txn_id == key, PaidFeatureAccess.dpo_trans_token == key),
+    ).first()
+
+    # Un paiement fait pour un autre reçu ne débloque pas celui-ci.
+    if not access or not (access.txn_id or '').startswith(
+            f"{VERIFICATION_TXN_PREFIX}{receipt.serial}-"):
+        return jsonify({"error": "This access key is not valid for this receipt."}), 403
+
+    if access.payment_status != 'success':
+        return jsonify({"status": "pending", "error": "Payment not confirmed yet."}), 402
+
+    if access.access_expires_at and access.access_expires_at < datetime.utcnow():
+        return jsonify({"status": "expired", "error": "Your access to this receipt has expired."}), 410
+
+    data = _full_detail(receipt)
+    data["access_expires_at"] = (access.access_expires_at.isoformat()
+                                 if access.access_expires_at else None)
+    return jsonify(data)
 
 
 # ── Release: goods leave the warehouse ───────────────────────────────────────
