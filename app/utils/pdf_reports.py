@@ -1291,8 +1291,8 @@ def _carbon_flux_elems(carbon: dict, st: dict) -> list:
     """Bilan des 12 derniers mois : chiffres annuels, un graphique par
     paramètre (émissions, absorption, net) + bilan cumulé, tableau mensuel."""
     monthly = carbon.get('monthly_flux') or []
-    elems = _section_bar('Carbon Balance: Last 12 Months', st)
-    elems.append(_annual_flux_tiles(carbon))
+    elems = [KeepTogether(_section_bar('Carbon Balance: Last 12 Months', st)
+                          + [_annual_flux_tiles(carbon)])]
     elems.append(Spacer(1, 3 * mm))
     if not monthly:
         elems.append(Paragraph('Monthly detail unavailable: less than 13 months of satellite '
@@ -1313,21 +1313,33 @@ def _carbon_flux_elems(carbon: dict, st: dict) -> list:
     elems.append(grid)
     elems.append(Spacer(1, 3 * mm))
 
+    # 12 mois couverts : les totaux annuels SONT la somme des mois. Sinon la
+    # ligne de total additionne les mois affichés et le dit.
+    complete = len(monthly) == 12
+    total = {k: sum(m[k] for m in monthly) for k in ('emissions_c', 'removals_c', 'net_c', 'net_co2e')}
+    total_label = '<b>Year</b>' if complete else f'<b>Total ({len(monthly)} months)</b>'
     w = CONTENT_W / 6
     elems.append(_simple_table(
         ['Month', 'Emissions (Mg C)', 'Absorption (Mg C)', 'Net (Mg C)', 'Net (Mg CO2e)', 'Status'],
-        [[m['month'], _fmt(m['emissions_c'], 4), _fmt(m['removals_c'], 4),
-          _fmt(m['net_c'], 4, signed=True), _fmt(m['net_co2e'], 4, signed=True), _sink_label(m['net_c'])]
+        [[m['month'] + ('*' if m.get('interpolated') else ''), _fmt(m['emissions_c'], 4),
+          _fmt(m['removals_c'], 4), _fmt(m['net_c'], 4, signed=True),
+          _fmt(m['net_co2e'], 4, signed=True), _sink_label(m['net_c'])]
          for m in monthly]
-        + [['<b>Year</b>', f"<b>{carbon['emissions_c']:.4f}</b>", f"<b>{carbon['removals_c']:.4f}</b>",
-            f"<b>{carbon['net_c']:+.4f}</b>", f"<b>{carbon['net']:+.4f}</b>",
-            f"<b>{_sink_label(carbon['net_c'])}</b>"]],
+        + [[total_label, f"<b>{total['emissions_c']:.4f}</b>", f"<b>{total['removals_c']:.4f}</b>",
+            f"<b>{total['net_c']:+.4f}</b>", f"<b>{total['net_co2e']:+.4f}</b>",
+            f"<b>{_sink_label(total['net_c'])}</b>"]],
         [w * 0.8, w * 1.05, w * 1.05, w, w * 1.05, w * 1.05]))
     elems.append(Spacer(1, 2 * mm))
-    elems.append(Paragraph(
-        "Each month counts 1/12 of its change over one year (that month's stock minus the same month "
-        'a year earlier), which removes the seasonal swing; the 12 months add up to the yearly figure.',
-        st['small']))
+    notes = ("Each month counts 1/12 of its change over one year (that month's stock minus the same month "
+             'a year earlier), which removes the seasonal swing; the 12 months add up to the yearly figure.')
+    if any(m.get('interpolated') for m in monthly):
+        notes += (' * Cloudy month without a usable reading (this month or the same month a year '
+                  'earlier): stock interpolated between the neighbouring months.')
+    if not complete:
+        notes += (f' Only {len(monthly)} of the last 12 months could be computed (longer cloudy gaps): '
+                  'the yearly figures above compare the mean stock of the last 12 months with the '
+                  'previous 12 instead.')
+    elems.append(Paragraph(notes, st['small']))
     elems.append(_conversion_note(st))
     elems.append(Spacer(1, 5 * mm))
     return elems

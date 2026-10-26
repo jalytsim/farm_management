@@ -72,6 +72,7 @@ logger = logging.getLogger(__name__)
 
 HISTORY_MONTHS = 60   # historique carbone : 5 ans
 BALANCE_MONTHS = 12   # fenêtre émissions / absorptions
+MAX_GAP_MONTHS = 3    # mois manquants consécutifs interpolés au plus (flux mensuels)
 SOC_DEPTH = '0-30cm'
 
 REPORT_INDICES = ('ndvi', 'evi', 'savi', 'ndre')
@@ -283,15 +284,43 @@ def _monthly_flux(series, gross_growth_co2e=None):
       Ferme : absorption = max(Δ_m, 0) ; émission = max(−Δ_m, 0)
       Forêt : absorption = max(croissance IPCC / 12, Δ_m) ; émission = absorption − Δ_m
       Net = émission − absorption  (< 0 → puits, > 0 → source)
-    Les mois sans lecture un an plus tôt sont omis.
+    Un mois sans lecture (nuageux, Sentinel-1 non retenu) est interpolé
+    linéairement entre les mois connus qui l'encadrent (trou ≤ MAX_GAP_MONTHS) ;
+    sinon le mois est omis.
     """
     by_month = {r['date'][:7]: r['_stock']['co2e_mg'] for r in series if r['date']}
+    if not by_month:
+        return []
+    known = sorted(by_month)
+
+    def stock_at(month):
+        """(stock Mg CO2e, interpolé ?) ou (None, False)."""
+        if month in by_month:
+            return by_month[month], False
+        before = [m for m in known if m < month]
+        after = [m for m in known if m > month]
+        if not before or not after:
+            return None, False
+        m0, m1 = before[-1], after[0]
+        t = lambda m: datetime.strptime(m, '%Y-%m')
+        span = relativedelta(t(m1), t(m0))
+        span_months = span.years * 12 + span.months
+        if span_months - 1 > MAX_GAP_MONTHS:
+            return None, False
+        k = relativedelta(t(month), t(m0))
+        frac = (k.years * 12 + k.months) / span_months
+        return by_month[m0] + frac * (by_month[m1] - by_month[m0]), True
+
+    last = datetime.strptime(known[-1], '%Y-%m')
     out = []
-    for month in sorted(by_month)[-BALANCE_MONTHS:]:
-        prev = (datetime.strptime(month, '%Y-%m') - relativedelta(years=1)).strftime('%Y-%m')
-        if prev not in by_month:
+    for i in range(BALANCE_MONTHS - 1, -1, -1):
+        month = (last - relativedelta(months=i)).strftime('%Y-%m')
+        prev = (last - relativedelta(months=i + 12)).strftime('%Y-%m')
+        cur_stock, cur_interp = stock_at(month)
+        prev_stock, prev_interp = stock_at(prev)
+        if cur_stock is None or prev_stock is None:
             continue
-        d = (by_month[month] - by_month[prev]) / BALANCE_MONTHS
+        d = (cur_stock - prev_stock) / BALANCE_MONTHS
         if gross_growth_co2e is None:
             rem, emi = max(d, 0.0), max(-d, 0.0)
         else:
@@ -305,7 +334,8 @@ def _monthly_flux(series, gross_growth_co2e=None):
             'emissions_co2e': round(emi, 4),
             'removals_co2e':  round(rem, 4),
             'net_co2e':       round(emi - rem, 4),
-            'stock_c':        round(by_month[month] / CO2_C_RATIO, 4),
+            'stock_c':        round(cur_stock / CO2_C_RATIO, 4),
+            'interpolated':   cur_interp or prev_interp,
             '_delta': d, '_emissions': emi, '_removals': rem,
         })
     return out
