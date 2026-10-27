@@ -4,6 +4,7 @@ from sqlalchemy import and_, or_
 from sqlalchemy.exc import IntegrityError
 from flask import current_app
 from app.models import PaidFeatureAccess, FeaturePrice, db
+from app.utils.fx import MOBILE_MONEY_CURRENCY, to_ugx
 
 logger = logging.getLogger(__name__)
 
@@ -90,12 +91,30 @@ def create_payment_attempt(user_id=None, guest_phone_number=None, feature_name=N
     if not feature:
         return None, "Unknown feature"
 
-    # feature.price n'existe plus depuis la migration multi-devises.
-    # price_for() cherche dans FeaturePriceCurrency pour cette devise,
-    # et retombe sur default_currency si elle n'y est pas configurée.
-    amount = feature.price_for(currency)
-    if amount is None:
-        return None, f"No price configured for '{feature_name}' in {currency}"
+    prices = {p.currency: p.price for p in feature.prices}
+    if payment_method == 'mobile_money':
+        # Mobile Money (IO) ne prélève qu'en UGX : prix UGX s'il est configuré,
+        # sinon le prix par défaut (ex. USD) converti au taux du jour.
+        currency = MOBILE_MONEY_CURRENCY
+        amount = prices.get(MOBILE_MONEY_CURRENCY)
+        if amount is None:
+            base = prices.get(feature.default_currency)
+            if base is None:
+                return None, f"No price configured for '{feature_name}'"
+            amount, rate = to_ugx(base, feature.default_currency)
+            if amount is None:
+                return None, "Exchange rate unavailable, please pay by card (DPO)"
+            logger.info("[Payment] %s: %s %s -> %s UGX (rate %s)",
+                        feature_name, base, feature.default_currency, amount, rate)
+    else:
+        # Devise demandée si elle est tarifée, sinon la devise par défaut de la
+        # feature — avec SA devise, jamais un prix USD étiqueté UGX.
+        amount = prices.get(currency)
+        if amount is None:
+            currency = feature.default_currency
+            amount = prices.get(currency)
+        if amount is None:
+            return None, f"No price configured for '{feature_name}' in {currency}"
 
     access_expires_at = (
         datetime.utcnow() + timedelta(days=feature.duration_days)

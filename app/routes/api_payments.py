@@ -15,6 +15,7 @@ from app.utils.feature_payment_utils import (
 )
 from app.models import PaidFeatureAccess, FeaturePrice, db
 from app.utils.dpo_payment import DPOPayment
+from app.utils.fx import to_ugx
 from app.utils.site_url import on_site, site_url
 
 logger = logging.getLogger(__name__)
@@ -171,7 +172,7 @@ def initiate_dpo_payment():
 
     result = dpo.create_payment_token(
         amount=amount,
-        currency=currency,
+        currency=payment.currency,   # devise réellement tarifée (peut différer de la demande)
         reference=txn_id,
         redirect_url=on_site(current_app.config["DPO_REDIRECT_URL"]),
         back_url=on_site(current_app.config["DPO_BACK_URL"]),
@@ -193,7 +194,7 @@ def initiate_dpo_payment():
             "trans_token": result['trans_token'],
             "trans_ref": result['trans_ref'],
             "amount": float(amount),
-            "currency": currency,
+            "currency": payment.currency,
             "txn_id": txn_id,
             "narrative": payment.narrative,
         }), 200
@@ -246,6 +247,22 @@ def verify_dpo_payment(trans_token):
 
 
 # ==================== ROUTES COMMUNES ====================
+
+@api_payments_bp.route('/fx/ugx', methods=['GET'])
+def quote_ugx():
+    """Montant Mobile Money (UGX, taux du jour) d'un prix : ?amount=10&currency=USD.
+    Sert au front à afficher ce qui sera réellement prélevé sur le téléphone."""
+    currency = (request.args.get('currency') or '').upper()
+    try:
+        amount = float(request.args.get('amount', ''))
+    except ValueError:
+        return jsonify({"error": "Invalid amount"}), 400
+
+    ugx, rate = to_ugx(amount, currency)
+    if ugx is None:
+        return jsonify({"error": f"No exchange rate for {currency}"}), 503
+    return jsonify({"amount": float(ugx), "currency": "UGX", "rate": float(rate)}), 200
+
 
 @api_payments_bp.route('/access/<feature_name>', methods=['GET'])
 def check_access(feature_name):

@@ -39,8 +39,10 @@ from app.utils.dpo_payment import DPOPayment
 from app.utils.decorators import admin_required, current_user_id
 from app.utils.site_url import site_url
 from app.routes.ecommerce import (
-    _dec, _normalize_msisdn, MOBILE_MONEY_CURRENCIES, ZERO, PAID_STATUSES,
+    _dec, _normalize_msisdn, ZERO, PAID_STATUSES,
+    mobile_money_amount, mobile_money_payload,
 )
+from app.utils.fx import ugx_rate
 from app.routes.api_notifications import deliver_sms
 
 logger = logging.getLogger(__name__)
@@ -110,9 +112,10 @@ def _create_delivery_order(sub, delivery_date):
 
 def _check_mobile_money(currency, phone):
     """Retourne un message d'erreur, ou None si Mobile Money est utilisable."""
-    if currency not in MOBILE_MONEY_CURRENCIES:
-        return (f"Mobile Money is only available for orders in "
-                f"{', '.join(sorted(MOBILE_MONEY_CURRENCIES))}. Please pay by card (DPO).")
+    # IO prélève en UGX : il faut un taux du jour pour convertir la devise du produit.
+    if ugx_rate(currency) is None:
+        return (f"Mobile Money is not available for orders in {currency} "
+                f"right now. Please pay by card (DPO).")
     if len(_normalize_msisdn(phone)) < 9:
         return "A valid phone number is required for Mobile Money"
     return None
@@ -128,6 +131,7 @@ def _start_payment(order, method, phone, email):
         err = _check_mobile_money(order.currency, phone)
         if err:
             return {"success": False, "error": err}, 400
+        ugx, rate = mobile_money_amount(order)
 
         txn_id = f"NKUSUB{order.id}T{int(time.time())}"
         order.payment_method = 'mobile_money'
@@ -138,7 +142,7 @@ def _start_payment(order, method, phone, email):
         try:
             res = requests.post(
                 current_app.config["MOBILE_MONEY_API_URL"],
-                params={"amount": order.total_amount,
+                params={"amount": ugx,
                         "msisdn": _normalize_msisdn(phone), "txnId": txn_id},
                 verify=current_app.config["MOBILE_MONEY_VERIFY_SSL"],
                 timeout=15,
@@ -158,7 +162,7 @@ def _start_payment(order, method, phone, email):
         return {
             "success": True, "order_id": order.id,
             "payment_method": "mobile_money", "txn_id": txn_id, "msg": res.text,
-            "amount": float(order.total_amount), "currency": order.currency,
+            **mobile_money_payload(order, ugx, rate),
         }, 200
 
     # ── DPO (carte) ──────────────────────────────────────────────────────────

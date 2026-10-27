@@ -46,6 +46,9 @@ class Config:
         'https://188.166.125.28/nkusu-iot/api/nkusu-iot/payments'
     )
     MOBILE_MONEY_VERIFY_SSL = os.getenv('MOBILE_MONEY_VERIFY_SSL', 'false').lower() == 'true'
+    # Mobile Money ne prélève qu'en UGX : les prix USD sont convertis au taux du
+    # jour (utils/fx.py). Ce taux ne sert que si l'API de change ne répond pas.
+    UGX_PER_USD = os.getenv('UGX_PER_USD', '4100')
 
     # ── Paiements : DPO Pay ───────────────────────────────────────────────────
     FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://www.nkusu.com')

@@ -34,6 +34,7 @@ from app.utils.dpo_payment import DPOPayment
 from app.utils.decorators import admin_required, current_user_id
 from app.utils.storage import get_storage, build_key, LocalStorage
 from app.utils.site_url import site_url
+from app.utils.fx import MOBILE_MONEY_CURRENCY, to_ugx, ugx_rate
 
 bp = Blueprint('ecommerce', __name__, url_prefix='/api/ecommerce')
 
@@ -561,10 +562,21 @@ def _build_order_items(cart_items):
     return order_items, total, (currency or 'USD'), None
 
 
-# Mobile Money (passerelle Nkusu, la même que pour les rapports invités) ne
-# prélève qu'en shillings ougandais. Une commande dans une autre devise passe
-# par DPO.
-MOBILE_MONEY_CURRENCIES = {'UGX'}
+# Mobile Money (passerelle Nkusu IO, la même que pour les rapports invités) ne
+# prélève qu'en shillings ougandais. La commande garde sa devise (ex. USD) ;
+# seul le montant envoyé à IO est converti au taux du jour.
+def mobile_money_amount(order):
+    """(montant UGX à prélever, taux) pour une commande, ou (None, None) sans taux."""
+    return to_ugx(order.total_amount, order.currency)
+
+
+def mobile_money_payload(order, ugx, rate):
+    """Montants renvoyés au front après le lancement d'un paiement Mobile Money."""
+    return {
+        "amount": float(order.total_amount), "currency": order.currency,
+        "charged_amount": float(ugx), "charged_currency": MOBILE_MONEY_CURRENCY,
+        "exchange_rate": float(rate),
+    }
 
 
 def _normalize_msisdn(phone):
@@ -614,10 +626,9 @@ def initiate_checkout():
 
         msisdn = _normalize_msisdn(phone)
         if payment_method == 'mobile_money':
-            if currency not in MOBILE_MONEY_CURRENCIES:
-                return jsonify({"error": f"Mobile Money is only available for orders in "
-                                         f"{', '.join(sorted(MOBILE_MONEY_CURRENCIES))}. "
-                                         f"Please pay by card (DPO)."}), 400
+            if ugx_rate(currency) is None:
+                return jsonify({"error": f"Mobile Money is not available for orders in {currency} "
+                                         f"right now. Please pay by card (DPO)."}), 400
             if len(msisdn) < 9:
                 return jsonify({"error": "A valid phone number is required for Mobile Money"}), 400
 
@@ -684,6 +695,13 @@ def _start_mobile_money(order, msisdn):
     rend aussi cherchable depuis l'admin des commandes. payment_method dit
     laquelle des deux passerelles l'a émise.
     """
+    ugx, rate = mobile_money_amount(order)
+    if ugx is None:
+        order.status = 'payment_failed'
+        db.session.commit()
+        return jsonify({"success": False,
+                        "error": "Exchange rate unavailable, please pay by card (DPO)"}), 400
+
     txn_id = f"NKUSHOP{order.id}T{int(time.time())}"
     order.dpo_trans_ref = txn_id
     db.session.commit()
@@ -691,7 +709,7 @@ def _start_mobile_money(order, msisdn):
     try:
         res = requests.post(
             current_app.config["MOBILE_MONEY_API_URL"],
-            params={"amount": order.total_amount, "msisdn": msisdn, "txnId": txn_id},
+            params={"amount": ugx, "msisdn": msisdn, "txnId": txn_id},
             verify=current_app.config["MOBILE_MONEY_VERIFY_SSL"],
             timeout=15,
         )
@@ -712,7 +730,7 @@ def _start_mobile_money(order, msisdn):
         "payment_method": "mobile_money",
         "txn_id": txn_id,
         "msg": res.text,
-        "amount": float(order.total_amount), "currency": order.currency,
+        **mobile_money_payload(order, ugx, rate),
     }), 200
 
 
