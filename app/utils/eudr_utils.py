@@ -858,6 +858,11 @@ TRACES_ERROR_HINTS = {
     'EUDR-API-AMEND-NOT-ALLOWED-FOR-STATUS':
         "TRACES is still processing this DDS (status SUBMITTED). It can be amended once it is "
         "AVAILABLE, usually a few minutes after submission: wait and try again.",
+    # Vu en prod le 28/10/2026 sur une DDS AVAILABLE de 2025.
+    'EUDR-API-AMEND-OR-WITHDRAW-DDS-NOT-POSSIBLE':
+        "TRACES no longer allows amending or withdrawing this DDS: it is only possible for a "
+        "short time after submission and while the DDS has not been referenced (e.g. in a customs "
+        "declaration). Submit a new DDS instead.",
     'EUDR-COMMODITIES-SPECIES-INFORMATION-EMPTY':
         "Timber products require a scientific name and a common name.",
     'EUDR-COMMODITIES-PRODUCER-GEO-AREA-INVALID':
