@@ -18,9 +18,25 @@ from app.utils.decorators import permission_required, load_current_user
 DDS_PERMISSION = 'eudr_dds'
 from dateutil import parser  # pip install python-dateutil si nécessaire
 import os
+import requests
 
 
 api_eudr_bp = Blueprint('api_eudr', __name__, url_prefix='/api/eudr')
+
+
+@api_eudr_bp.errorhandler(requests.exceptions.RequestException)
+def traces_unreachable(e):
+    """TRACES injoignable (TLS, réseau, timeout) : 502 lisible au lieu d'un 500 Flask.
+    Après un timeout de lecture, la DDS a pu être enregistrée : vérifier avant de resoumettre."""
+    print("🔥 TRACES unreachable:", type(e).__name__, str(e)[:500], flush=True)
+    timeout = isinstance(e, requests.exceptions.ReadTimeout)
+    return jsonify({
+        "status": 502,
+        "error": "TRACES did not answer in time." if timeout else "TRACES could not be reached.",
+        "hint": ("The statement may still have been registered: use Get by Internal Ref "
+                 "before submitting again.") if timeout else "Please try again in a few minutes.",
+        "detail": f"{type(e).__name__}: {str(e)[:300]}",
+    }), 502
 
 
 def _hs_code_error(statement):

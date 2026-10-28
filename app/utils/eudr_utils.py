@@ -1,6 +1,9 @@
 import json
 import re
 import requests
+import certifi
+import tempfile
+import time
 import os
 import base64
 import hashlib
@@ -24,6 +27,28 @@ NS_V3 = "http://ec.europa.eu/tracesnt/certificate/eudr/due-diligence-statement/v
 # ⚠️ 'volume' n'existe PAS dans GoodsMeasureType en V3 (supprimé depuis V2) —
 # ne pas l'envoyer, le serveur le rejette.
 NS_COMMON = "http://ec.europa.eu/tracesnt/certificate/eudr/common/v3"
+
+# TRACES est servi par la génération Y de Let's Encrypt (Root YR → YR1..3),
+# absente de certifi : quand TRACES n'envoie pas le certificat croisé par ISRG
+# Root X1, la vérification échouait ("unable to get local issuer certificate",
+# 27/10/2026). On ajoute à certifi les racines et intermédiaires officiels
+# (app/certs/letsencrypt-gen-y.pem, téléchargés depuis letsencrypt.org/certificates).
+_GEN_Y_CERTS = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'certs', 'letsencrypt-gen-y.pem')
+_ca_bundle_path = None
+
+
+def _ca_bundle():
+    """Chemin d'un bundle certifi + génération Y, construit une fois par process."""
+    global _ca_bundle_path
+    if _ca_bundle_path and os.path.exists(_ca_bundle_path):
+        return _ca_bundle_path
+    if not os.path.exists(_GEN_Y_CERTS):
+        return certifi.where()
+    path = os.path.join(tempfile.gettempdir(), f'nkusu-eudr-ca-bundle-{os.getpid()}.pem')
+    with open(certifi.where(), 'rb') as base, open(_GEN_Y_CERTS, 'rb') as extra, open(path, 'wb') as out:
+        out.write(base.read() + b'\n' + extra.read())
+    _ca_bundle_path = path
+    return path
 
 
 def _txt(value):
@@ -287,7 +312,16 @@ class EUDRClient:
             <soapenv:Header>{self._generate_security()}</soapenv:Header>
             <soapenv:Body>{body}</soapenv:Body>
         </soapenv:Envelope>"""
-        return requests.post(self.service_url, data=envelope, headers={"Content-Type": "text/xml"}, verify=True)
+        # Seuls les échecs avant l'envoi (poignée de main TLS, connexion) sont
+        # retentés : après un timeout de lecture, une DDS a pu être créée chez TRACES.
+        for attempt in range(3):
+            try:
+                return requests.post(self.service_url, data=envelope, headers={"Content-Type": "text/xml"},
+                                     verify=_ca_bundle(), timeout=(15, 120))
+            except (requests.exceptions.SSLError, requests.exceptions.ConnectTimeout):
+                if attempt == 2:
+                    raise
+                time.sleep(2 * (attempt + 1))
 
     # ------------------------------------------------------------------
     # Bloc opérateur : construit soit <representedOperator> (si représentant),
