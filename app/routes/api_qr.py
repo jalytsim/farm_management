@@ -2,7 +2,8 @@ from flask import Blueprint, request, jsonify, send_file, render_template
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.models import QRCode, User
 from app import db
-import hashlib, base64, tempfile, json
+import hashlib, base64, tempfile, json, io
+import qrcode
 from playwright.sync_api import sync_playwright
 from sqlalchemy import func
 from datetime import datetime
@@ -74,6 +75,15 @@ def generate_pdf_with_playwright(html_content):
 
         browser.close()
         return pdf_buffer
+
+
+def qr_png_data_uri(data: dict) -> str:
+    # QR généré ici : avant, le repr Python du dict partait non encodé dans l'URL
+    # de api.qrserver.com (un & ou # dans les données tronquait le QR)
+    img = qrcode.make(json.dumps(data, ensure_ascii=False), box_size=8, border=2)
+    buf = io.BytesIO()
+    img.save(buf, format='PNG')
+    return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
 
 
 # -----------------------------------------------------------
@@ -150,7 +160,8 @@ def generate_pdfs():
         receipts = []
         for qr_data in qr_data_list:
             save_qr_in_db(qr_data, user_id, description, qr_type=qr_type)
-            receipt_html = render_template('qrcode.html', description=description, qr_data=qr_data)
+            receipt_html = render_template('qrcode.html', description=description,
+                                           qr_src=qr_png_data_uri(qr_data))
             receipts.append(receipt_html)
 
         html_content = prepare_multi_receipt_html(receipts)
