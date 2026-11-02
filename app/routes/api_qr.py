@@ -439,13 +439,11 @@ def qr_by_batch():
 # C'est là qu'arrive le QR imprimé (/trace/<hash>). Tout ce qu'on sait du reçu :
 # fermes (identité, district, groupement, GPS, cultures déclarées), culture,
 # catégorie, grade, entrepôt, émetteur. Volontairement exclus : CIN et
-# numéro d'identité nationale ; téléphones masqués sauf les 3 derniers chiffres.
+# numéro d'identité nationale. Téléphones affichés en entier (demande client).
 
-def _mask_phone(phone):
-    digits = re.sub(r'\D', '', str(phone or ''))
-    if len(digits) < 4:
-        return None
-    return '•' * (len(digits) - 3) + digits[-3:]
+def _phone(phone):
+    phone = str(phone or '').strip()
+    return phone or None
 
 
 def _safe(fn, default=None):
@@ -503,7 +501,7 @@ def _farm_public(farm, receipt_phone=None, qty=None):
         'farmer_group': group.name if group else None,
         'geolocation': farm.geolocation,
         'gender': farm.gender,
-        'phone': _mask_phone(receipt_phone or farm.phonenumber or farm.phonenumber2),
+        'phone': _phone(receipt_phone or farm.phonenumber or farm.phonenumber2),
         'quantity_kg': qty,
         'crops': crops,
     }
