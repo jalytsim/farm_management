@@ -1,8 +1,10 @@
-from flask import Blueprint, request, jsonify, send_file, render_template
+from flask import Blueprint, request, jsonify, send_file, render_template, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from app.models import QRCode, User
+from app.models import (QRCode, User, Farm, District, FarmerGroup, FarmData, Crop,
+                        Grade, ProduceCategory, Store, Forest)
 from app import db
-import hashlib, base64, tempfile, json, io
+from app.utils.site_url import site_url
+import hashlib, base64, json, io, re
 import qrcode
 from playwright.sync_api import sync_playwright
 from sqlalchemy import func
@@ -10,6 +12,10 @@ from datetime import datetime
 
 
 bp = Blueprint('api_qr', __name__, url_prefix='/api/qrcode')
+
+# Un reçu par lot 1..batch_number : sans plafond, un numéro de lot comme 2026
+# demandait 2026 reçus (~500 pages) à Chromium sur un serveur à 2 vCPU.
+MAX_RECEIPTS = 100
 
 
 # -----------------------------------------------------------
@@ -77,13 +83,17 @@ def generate_pdf_with_playwright(html_content):
         return pdf_buffer
 
 
-def qr_png_data_uri(data: dict) -> str:
-    # QR généré ici : avant, le repr Python du dict partait non encodé dans l'URL
-    # de api.qrserver.com (un & ou # dans les données tronquait le QR)
-    img = qrcode.make(json.dumps(data, ensure_ascii=False), box_size=8, border=2)
+def qr_png_data_uri(content: str) -> str:
+    img = qrcode.make(content, box_size=8, border=2)
     buf = io.BytesIO()
     img.save(buf, format='PNG')
     return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+
+
+def public_trace_url(qr: QRCode) -> str:
+    # Le QR imprimé ouvre la page publique de traçabilité de CE reçu
+    # (fermes, culture, grade, entrepôt), au lieu d'un JSON illisible au scan.
+    return f"{site_url()}/trace/{qr.hash_md5}"
 
 
 # -----------------------------------------------------------
@@ -100,7 +110,9 @@ def save_qr_in_db(data: dict, user_id: int, description: str = None, qr_type: st
     data_b64 = base64.b64encode(data_str.encode()).decode()
 
     # Vérifie si déjà existant
-    qr = QRCode.query.filter_by(hash_md5=hash_md5, created_by=user_id).first()
+    # hash_md5 est UNIQUE en base : filtrer aussi par created_by faisait planter
+    # (IntegrityError) quand un autre utilisateur avait déjà émis le même reçu.
+    qr = QRCode.query.filter_by(hash_md5=hash_md5).first()
     if not qr:
         qr = QRCode(
             hash_md5=hash_md5,
@@ -154,24 +166,32 @@ def generate_pdfs():
             return jsonify({"error": "Invalid JSON payload. 'qr_data_list' is required."}), 400
 
         qr_data_list = data['qr_data_list']
+        if not isinstance(qr_data_list, list) or not qr_data_list:
+            return jsonify({"error": "'qr_data_list' must be a non-empty list."}), 400
+        if len(qr_data_list) > MAX_RECEIPTS:
+            return jsonify({"error": f"At most {MAX_RECEIPTS} receipts per PDF "
+                                     f"({len(qr_data_list)} requested)."}), 400
         description = data.get('description', "Automatically generated receipt by Nkusu.")
         qr_type = data.get('qr_type', "default")
 
-        receipts = []
+        receipts, hashes = [], []
         for qr_data in qr_data_list:
-            save_qr_in_db(qr_data, user_id, description, qr_type=qr_type)
+            qr = save_qr_in_db(qr_data, user_id, description, qr_type=qr_type)
+            hashes.append(qr.hash_md5)
             receipt_html = render_template('qrcode.html', description=description,
-                                           qr_src=qr_png_data_uri(qr_data))
+                                           qr_src=qr_png_data_uri(public_trace_url(qr)))
             receipts.append(receipt_html)
 
         html_content = prepare_multi_receipt_html(receipts)
         pdf_buffer = generate_pdf_with_playwright(html_content)
 
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
-        temp_file.write(pdf_buffer)
-        temp_file.close()
-
-        return send_file(temp_file.name, as_attachment=True, download_name='receipts.pdf', mimetype='application/pdf')
+        # En mémoire : le fichier temporaire d'avant n'était jamais supprimé
+        resp = send_file(io.BytesIO(pdf_buffer), as_attachment=True,
+                         download_name='receipts.pdf', mimetype='application/pdf')
+        # Le front affiche le lien public de chaque reçu sous l'aperçu
+        resp.headers['X-Trace-Hashes'] = ','.join(hashes)
+        resp.headers['Access-Control-Expose-Headers'] = 'X-Trace-Hashes, Content-Disposition'
+        return resp
 
     except Exception as e:
         import traceback
@@ -412,3 +432,168 @@ def qr_by_batch():
             })
 
     return jsonify({"error": "QR not found"}), 404
+
+# -----------------------------------------------------------
+# 🔹 API PUBLIQUE : page de traçabilité d'un reçu QR (sans compte)
+# -----------------------------------------------------------
+# C'est là qu'arrive le QR imprimé (/trace/<hash>). Tout ce qu'on sait du reçu :
+# fermes (identité, district, groupement, GPS, cultures déclarées), culture,
+# catégorie, grade, entrepôt, émetteur. Volontairement exclus : CIN et
+# numéro d'identité nationale ; téléphones masqués sauf les 3 derniers chiffres.
+
+def _mask_phone(phone):
+    digits = re.sub(r'\D', '', str(phone or ''))
+    if len(digits) < 4:
+        return None
+    return '•' * (len(digits) - 3) + digits[-3:]
+
+
+def _safe(fn, default=None):
+    # Page publique : une info annexe illisible (colonne absente en prod, donnée
+    # corrompue) ne doit pas faire tomber toute la page en 500.
+    try:
+        return fn()
+    except Exception:
+        current_app.logger.exception("QR public trace: enrichment failed")
+        db.session.rollback()
+        return default
+
+
+def _iso(d):
+    return d.isoformat() if d else None
+
+
+def _find_farm(value):
+    value = str(value or '').strip()
+    if not value:
+        return None
+    farm = Farm.query.get(int(value)) if value.isdigit() else None
+    return farm or Farm.query.filter_by(farm_id=value).first()
+
+
+def _farm_public(farm, receipt_phone=None, qty=None):
+    district = District.query.get(farm.district_id) if farm.district_id else None
+    group = FarmerGroup.query.get(farm.farmergroup_id) if farm.farmergroup_id else None
+    records = _safe(lambda: FarmData.query.filter_by(farm_id=farm.farm_id)
+                    .order_by(FarmData.date_created.desc()).limit(20).all(), [])
+    crops = []
+    for r in records:
+        crop = Crop.query.get(r.crop_id)
+        crops.append({
+            'crop': crop.name if crop else None,
+            'land_type': r.land_type,
+            'tilled_land_size': r.tilled_land_size,
+            'planting_date': _iso(r.planting_date),
+            'harvest_date': _iso(r.harvest_date),
+            'season': r.season,
+            'quality': r.quality,
+            'quantity': r.quantity,
+            'expected_yield': r.expected_yield,
+            'actual_yield': r.actual_yield,
+            'number_of_trees': r.number_of_tree,
+            'hs_code': r.hs_code,
+        })
+    return {
+        'farm_id': farm.farm_id,
+        'name': farm.name,
+        'subcounty': farm.subcounty,
+        'country': farm.country,
+        'district': district.name if district else None,
+        'region': district.region if district else None,
+        'farmer_group': group.name if group else None,
+        'geolocation': farm.geolocation,
+        'gender': farm.gender,
+        'phone': _mask_phone(receipt_phone or farm.phonenumber or farm.phonenumber2),
+        'quantity_kg': qty,
+        'crops': crops,
+    }
+
+
+@bp.route('/public/<string:hash_md5>', methods=['GET'])
+def public_trace(hash_md5):
+    if not re.fullmatch(r'[0-9a-f]{32}', hash_md5 or ''):
+        return jsonify({"error": "Invalid code."}), 400
+    qr = QRCode.query.filter_by(hash_md5=hash_md5).first()
+    if not qr:
+        return jsonify({"error": "This QR code is not registered on Nkusu."}), 404
+
+    data = qr.data_dict
+    # Lu avant les enrichissements : _safe() peut faire un rollback qui expire qr
+    meta = {'hash': qr.hash_md5, 'type': qr.qr_type, 'description': qr.description,
+            'issued_at': _iso(qr.date_created), 'created_by': qr.created_by}
+
+    # Fermes : clés farm_<i>_id / _phone / _qty du formulaire
+    indices = sorted({int(m.group(1)) for k in data
+                      for m in [re.fullmatch(r'farm_(\d+)_id', k)] if m})
+    farms = []
+    for i in indices:
+        raw_id = data.get(f'farm_{i}_id')
+        farm = _find_farm(raw_id)
+        if farm:
+            farms.append(_farm_public(farm, data.get(f'farm_{i}_phone'), data.get(f'farm_{i}_qty')))
+        elif raw_id:
+            farms.append({'farm_id': str(raw_id), 'name': None, 'unknown': True,
+                          'quantity_kg': data.get(f'farm_{i}_qty'), 'crops': []})
+
+    # Culture / catégorie / grade (Produce : crop_id + Crop_grade ; Export : crop + crop_grade)
+    crop_ref = str(data.get('crop_id') or data.get('crop') or '').strip()
+    crop = Crop.query.get(int(crop_ref)) if crop_ref.isdigit() else None
+    category = crop.category.name if crop and crop.category else None
+    if not category:
+        cat_ref = str(data.get('crop_category') or '').strip()
+        cat = ProduceCategory.query.get(int(cat_ref)) if cat_ref.isdigit() else None
+        category = cat.name if cat else (data.get('produceCategory') or cat_ref or None)
+    grade_value = data.get('Crop_grade') or data.get('crop_grade')
+    grade = (_safe(lambda: Grade.query.filter_by(crop_id=crop.id, grade_value=grade_value).first())
+             if crop and grade_value else None)
+    product = {
+        'category': category,
+        'crop': crop.name if crop else None,
+        'grade': grade_value,
+        'grade_description': grade.description if grade else None,
+        'variety': _safe(lambda: grade.variety.name if grade and grade.variety else None),
+    }
+
+    # Entrepôt
+    store = None
+    store_ref = str(data.get('store_id') or '').strip()
+    if store_ref.isdigit():
+        s = _safe(lambda: Store.query.get(int(store_ref)))
+        if s:
+            store = {
+                'name': s.name, 'code': s.code, 'location': s.location,
+                'district': s.district, 'country': s.country, 'type': s.store_type,
+                'certified': bool(s.is_certified), 'phone': s.phone_number, 'email': s.email,
+            }
+    if not store and data.get('store_name'):
+        store = {'name': data.get('store_name')}
+
+    # Forêt (reçus Conservation)
+    forest = None
+    forest_ref = str(data.get('forest_id') or '').strip()
+    if forest_ref.isdigit():
+        f = _safe(lambda: Forest.query.get(int(forest_ref)))
+        if f:
+            forest = {'name': f.name, 'tree_type': f.tree_type, 'country': f.country}
+
+    issuer = _safe(lambda: User.query.get(meta['created_by'])) if meta['created_by'] else None
+
+    # Le reste des champs du reçu, tels que saisis (sans les clés de fermes
+    # déjà détaillées ni les identifiants internes)
+    hidden = {'crop_id', 'store_id'}
+    details = {k: v for k, v in data.items()
+               if not k.startswith('farm_') and k not in hidden and v not in (None, '')}
+
+    return jsonify({
+        'hash': meta['hash'],
+        'type': meta['type'],
+        'description': meta['description'],
+        'issued_at': meta['issued_at'],
+        'issuer': (issuer.company_name or issuer.username) if issuer else None,
+        'batch_number': data.get('batch_number'),
+        'farms': farms,
+        'product': product,
+        'store': store,
+        'forest': forest,
+        'details': details,
+    })
