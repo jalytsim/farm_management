@@ -68,3 +68,53 @@ def to_ugx(amount, currency):
     if rate is None or amount is None:
         return None, None
     return Decimal(math.ceil(Decimal(str(amount)) * rate)), rate
+
+
+# ── Conversion entre deux devises quelconques (paiement carte Cybersource) ──
+
+# Devises sans décimales (ISO 4217, exposant 0) : montant arrondi à l'unité.
+ZERO_DECIMAL_CURRENCIES = {'UGX', 'JPY', 'KRW', 'XOF', 'XAF', 'RWF', 'BIF', 'CLP', 'VND',
+                           'GNF', 'KMF', 'DJF', 'PYG', 'VUV', 'XPF', 'ISK'}
+
+_pair_cache = {}   # {(de, vers): (date, taux)}
+
+
+def fx_rate(from_currency, to_currency):
+    """Nombre d'unités de `to_currency` pour 1 `from_currency`, au taux du jour. None si inconnu."""
+    src, dst = (from_currency or '').upper(), (to_currency or '').upper()
+    if src == dst:
+        return Decimal(1)
+    if dst == MOBILE_MONEY_CURRENCY:
+        return ugx_rate(src)
+    today = date.today()
+    cached = _pair_cache.get((src, dst))
+    if cached and cached[0] == today:
+        return cached[1]
+    try:
+        data = requests.get(RATES_URL.format(base=src), timeout=10).json()
+        rate = data.get('rates', {}).get(dst) if data.get('result') == 'success' else None
+        if rate:
+            rate = Decimal(str(rate))
+            _pair_cache[(src, dst)] = (today, rate)
+            logger.info("[FX] 1 %s = %s %s (%s)", src, rate, dst, today)
+            return rate
+        logger.warning("[FX] No %s rate for %s: %s", dst, src, data.get('error-type'))
+    except (requests.RequestException, ValueError):
+        logger.exception("[FX] Rate API unreachable for %s", src)
+    return cached[1] if cached else None
+
+
+def round_up_amount(amount, currency):
+    """Arrondi supérieur au centime (ou à l'unité pour les devises sans décimales)."""
+    amount = Decimal(str(amount))
+    if (currency or '').upper() in ZERO_DECIMAL_CURRENCIES:
+        return Decimal(math.ceil(amount))
+    return Decimal(math.ceil(amount * 100)) / 100
+
+
+def convert(amount, from_currency, to_currency):
+    """(montant converti arrondi au-dessus, taux) ou (None, None)."""
+    rate = fx_rate(from_currency, to_currency)
+    if rate is None or amount is None:
+        return None, None
+    return round_up_amount(Decimal(str(amount)) * rate, to_currency), rate
