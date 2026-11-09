@@ -2163,6 +2163,47 @@ class CropCalibrationPlot(db.Model):
             'date_created': self.date_created.isoformat() if self.date_created else None,
         }
 
+class ForestCalibrationPlot(db.Model):
+    """
+    Parcelle d'inventaire forestier servant à calibrer la relation indice
+    Sentinel-2 → biomasse des forêts (forest_calibration_utils.py), à la place
+    du modèle NDVI générique (tree_co2_utils.NDVI_AGB_A / NDVI_AGB_B).
+    AGB = Σ Chave 2014 des arbres mesurés / surface de la parcelle ;
+    indices = Sentinel-2 du polygone de la forêt autour de la date de mesure.
+    """
+    __tablename__ = 'forest_calibration_plot'
+    id             = db.Column(db.Integer, primary_key=True)
+    # Pas de ForeignKey, comme crop_calibration_plot (collations du dump MariaDB).
+    forest_id      = db.Column(db.Integer, nullable=False, index=True)
+    measured_on    = db.Column(db.Date, nullable=False)
+    plot_area_m2   = db.Column(db.Float, nullable=False)
+    n_trees        = db.Column(db.Integer, nullable=False)
+    mean_dbh_cm    = db.Column(db.Float, nullable=True)
+    mean_height_m  = db.Column(db.Float, nullable=True)
+    wood_density   = db.Column(db.Float, nullable=False)
+    trees_json     = db.Column(db.Text, nullable=True)   # [[D cm, H m], ...] mesurés
+    agb_t_ha       = db.Column(db.Float, nullable=False)
+    ndvi           = db.Column(db.Float, nullable=True)
+    evi            = db.Column(db.Float, nullable=True)
+    savi           = db.Column(db.Float, nullable=True)
+    ndre           = db.Column(db.Float, nullable=True)
+    index_date     = db.Column(db.String(10), nullable=True)
+    notes          = db.Column(db.String(255), nullable=True)
+    created_by     = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    date_created   = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id, 'forest_id': self.forest_id,
+            'measured_on': self.measured_on.isoformat() if self.measured_on else None,
+            'plot_area_m2': self.plot_area_m2, 'n_trees': self.n_trees,
+            'mean_dbh_cm': self.mean_dbh_cm, 'mean_height_m': self.mean_height_m,
+            'wood_density': self.wood_density, 'agb_t_ha': self.agb_t_ha,
+            'ndvi': self.ndvi, 'evi': self.evi, 'savi': self.savi, 'ndre': self.ndre,
+            'index_date': self.index_date, 'notes': self.notes,
+            'date_created': self.date_created.isoformat() if self.date_created else None,
+        }
+
 class Subscription(db.Model):
     """Un client reçoit X kg d'un produit toutes les N semaines.
     À chaque échéance, le cron crée une EcoOrder normale (payée via DPO)."""

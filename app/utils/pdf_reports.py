@@ -1856,10 +1856,14 @@ def build_forest_biomass_index_pdf(
     note2 = (
         f"{biomass.get('model', '')}. Total biomass = 1.2 x AGB (20% belowground). "
         'Dry weight = 72.5% of biomass, carbon = 50% of dry weight, CO2 = carbon x 3.67 '
-        '(same conversion chain as the per-tree measured report). This satellite-index '
-        'estimate is a generic approximation for forests without a full tree inventory: '
-        'it is NOT calibrated on local field plots and should not replace ground '
-        'measurements for regulatory submissions without local validation.'
+        '(same conversion chain as the per-tree measured report). ' + (
+            'The index model is calibrated on local forest inventory plots (tree diameters and '
+            'heights, Chave et al. 2014) against Sentinel-2 at the measurement dates; it remains '
+            'an estimate with the RMSE stated above.'
+            if biomass.get('calibrated') else
+            'This satellite-index estimate is a generic approximation for forests without a full '
+            'tree inventory: it is NOT calibrated on local field plots and should not replace ground '
+            'measurements for regulatory submissions without local validation.')
     )
     elems.append(Paragraph(note2, ParagraphStyle(
         'note2', fontName='Helvetica', fontSize=8, textColor=MUTED, leading=11,
@@ -2032,7 +2036,7 @@ def _sat_agb_elems(agb, st):
         f"({_fmt(sm.get('forecast_change_pct'), 1, signed=True)} %).", st['body']))
     if agb.get('agb_model') == 'generic_ndvi':
         elems.append(Paragraph(
-            'Note: generic NDVI biomass model (no field calibration for this crop yet). It is very sensitive to NDVI '
+            'Note: generic NDVI biomass model (no local field calibration yet). It is very sensitive to NDVI '
             '(+0.1 NDVI ≈ ×1.9 AGB), so quarter-to-quarter swings reflect canopy greenness more than real biomass change.',
             ParagraphStyle('agbn', parent=st['small'], textColor=ORANGE)))
     if fc:

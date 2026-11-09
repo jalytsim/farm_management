@@ -155,7 +155,7 @@ def _compute_forest_biomass_index(forest_id):
     latest = max(ndvi_rows, key=lambda r: r['date'])
 
     try:
-        biomass = compute_forest_biomass_from_index(latest['ndvi'], area_ha, index_date=latest['date'])
+        biomass = compute_forest_biomass_from_index(latest['ndvi'], area_ha, index_date=latest['date'], indices=latest)
     except Exception as e:
         import traceback; traceback.print_exc()
         return None, str(e), 500

@@ -609,7 +609,7 @@ def guest_carbon_extra():
         if not area_ha:
             return jsonify({'error': 'Could not compute area from polygon'}), 400
         try:
-            result['biomass'] = compute_forest_biomass_from_index(_ndvi_value(latest), area_ha, index_date=latest['date'])
+            result['biomass'] = compute_forest_biomass_from_index(_ndvi_value(latest), area_ha, index_date=latest['date'], indices=latest)
             result['area_ha'] = round(area_ha, 4)
         except Exception as e:
             logger.error(f'[guest_carbon_extra] biomass calc failed: {e}\n{traceback.format_exc()}')
@@ -843,6 +843,68 @@ def crop_calibration_delete_plot(plot_id):
     from app import db
     from app.models import CropCalibrationPlot
     plot = CropCalibrationPlot.query.get(plot_id)
+    if not plot:
+        return jsonify({'error': 'Plot not found'}), 404
+    db.session.delete(plot)
+    db.session.commit()
+    return jsonify({'deleted': plot_id}), 200
+
+
+# ── Calibration indice → biomasse des forêts (parcelles d'inventaire) ──
+
+@sentinel_bp.route('/forest-calibration', methods=['GET'])
+@jwt_required()
+def forest_calibration_status():
+    """État du modèle forêt + parcelles d'inventaire enregistrées."""
+    _, denied = _require_admin()
+    if denied:
+        return denied
+    from app.models import Forest, ForestCalibrationPlot
+    from app.utils.forest_calibration_utils import RULES, calibration_status
+    from app.utils.tree_co2_utils import NDVI_AGB_A, NDVI_AGB_B
+    plots = ForestCalibrationPlot.query.order_by(ForestCalibrationPlot.measured_on.desc()).all()
+    forests = Forest.query.order_by(Forest.name).all()
+    names = {f.id: f.name for f in forests}
+    return jsonify({
+        'status':  calibration_status(),
+        'forests': [{'id': f.id, 'name': f.name, 'tree_type': f.tree_type} for f in forests],
+        'plots':   [{**p.to_dict(), 'forest_name': names.get(p.forest_id)} for p in plots],
+        'rules':   RULES,
+        'generic_formula': f'AGB (t/ha) = {NDVI_AGB_A} × exp({NDVI_AGB_B} × NDVI)',
+    }), 200
+
+
+@sentinel_bp.route('/forest-calibration/plots', methods=['POST'])
+@jwt_required()
+def forest_calibration_add_plot():
+    """Body : {forest_id, measured_on, plot_area_m2, trees, wood_density?, notes?}"""
+    user, denied = _require_admin()
+    if denied:
+        return denied
+    from app.models import Forest
+    from app.utils.forest_calibration_utils import create_plot
+    data = request.get_json(silent=True) or {}
+    try:
+        forest = Forest.query.get(int(data.get('forest_id')))
+    except (TypeError, ValueError):
+        forest = None
+    if not forest:
+        return jsonify({'error': 'Forest not found'}), 404
+    plot, error = create_plot(forest, data, user_id=user.id)
+    if error:
+        return jsonify({'error': error}), 400
+    return jsonify({**plot.to_dict(), 'forest_name': forest.name}), 201
+
+
+@sentinel_bp.route('/forest-calibration/plots/<int:plot_id>', methods=['DELETE'])
+@jwt_required()
+def forest_calibration_delete_plot(plot_id):
+    _, denied = _require_admin()
+    if denied:
+        return denied
+    from app import db
+    from app.models import ForestCalibrationPlot
+    plot = ForestCalibrationPlot.query.get(plot_id)
     if not plot:
         return jsonify({'error': 'Plot not found'}), 404
     db.session.delete(plot)

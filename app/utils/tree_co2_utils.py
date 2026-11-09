@@ -208,15 +208,40 @@ def calculate_agb_per_ha_from_ndvi(ndvi: float) -> float:
     return NDVI_AGB_A * math.exp(NDVI_AGB_B * ndvi)
 
 
-def compute_forest_biomass_from_index(ndvi: float, area_ha: float, index_date: str = None) -> dict:
+def _index_float(row, idx):
+    v = (row or {}).get(idx)
+    v = v.get('value') if isinstance(v, dict) else v   # historique guest : {value, raw, ...}
+    return float(v) if v is not None else None
+
+
+def compute_forest_biomass_from_index(ndvi: float, area_ha: float, index_date: str = None,
+                                      indices: dict = None) -> dict:
     """
     Biomasse forêt entière (AGB/BGB/CO2) estimée depuis le NDVI moyen (Sentinel-2)
     et la surface (ha) du polygone — même chaîne de conversion biomasse→CO2 que
     calculate_biomass_and_co2() (mesure arbre par arbre), pour rester cohérent
     dans toute l'app, seule la source de l'AGB change (indice satellite au lieu
     de diamètre/hauteur mesurés).
+
+    indices : ligne Sentinel complète (ndvi, evi, savi, ndre…). Si le modèle
+    calibré sur les parcelles d'inventaire (forest_calibration_utils) est actif
+    et que son indice est présent, il remplace le modèle NDVI générique.
     """
-    agb_per_ha_mg = calculate_agb_per_ha_from_ndvi(ndvi)
+    from app.utils.forest_calibration_utils import active_model
+
+    model, note = active_model()
+    agb_per_ha_mg = None
+    if model:
+        idx = model['indices'][0]
+        val = _index_float(indices, idx) if indices else (ndvi if idx == 'ndvi' else None)
+        if val is not None:
+            agb_per_ha_mg = model['fn']({idx: val})
+        else:
+            note = f'{idx.upper()} missing on the reading used: generic model applied'
+    calibrated = agb_per_ha_mg is not None
+    if not calibrated:
+        agb_per_ha_mg = calculate_agb_per_ha_from_ndvi(ndvi)
+
     agb_total_kg  = agb_per_ha_mg * area_ha * 1000.0  # Mg/ha -> kg total
     result = calculate_biomass_and_co2(agb_total_kg)
     result.update({
@@ -224,8 +249,12 @@ def compute_forest_biomass_from_index(ndvi: float, area_ha: float, index_date: s
         'ndvi_date':     index_date,
         'area_ha':       round(area_ha, 4),
         'agb_per_ha_mg': round(agb_per_ha_mg, 2),
-        'model':         f'AGB(Mg/ha) = {NDVI_AGB_A} * exp({NDVI_AGB_B} * NDVI), generic estimate, requires local calibration',
+        'calibrated':    calibrated,
+        'model':         model['formula'] if calibrated else
+                         f'AGB(Mg/ha) = {NDVI_AGB_A} * exp({NDVI_AGB_B} * NDVI), generic estimate, requires local calibration',
     })
+    if not calibrated and note:
+        result['calibration_note'] = note
     return result
 
 
