@@ -19,7 +19,7 @@ RECEIPT_STATUSES = ('issued', 'pledged', 'partially_released', 'released', 'sold
 # Statuses where the goods are still physically in the warehouse.
 OPEN_RECEIPT_STATUSES = ('issued', 'pledged', 'partially_released')
 DEPOSITOR_TYPES = ('farmer', 'cooperative', 'sacco', 'aggregator', 'trader', 'other')
-SUB_FREQUENCIES = (1, 2, 3)          # livraison toutes les N semaines
+SUB_FREQUENCIES = (1, 2, 3, 4)          # livraison toutes les N semaines
 SUB_STATUSES    = ('pending', 'active', 'paused', 'cancelled')
 
 ZERO = Decimal('0')
@@ -2183,6 +2183,7 @@ class Subscription(db.Model):
     quantity_kg      = db.Column(db.Numeric(12, 3), nullable=False)
     frequency_weeks  = db.Column(db.SmallInteger, nullable=False)
     shipping_address = db.Column(db.Text, nullable=False)
+    shipping_country = db.Column(db.String(2), nullable=True)
 
     status             = db.Column(db.String(20), nullable=False, default='pending', index=True)
     next_delivery_date = db.Column(db.Date, nullable=False, index=True)
@@ -2230,7 +2231,9 @@ class Subscription(db.Model):
 
     def to_dict(self, for_admin=False):
         p = self.product
-        unit_price = Decimal(str(p.price)) if p and p.price is not None else None        
+        from app.utils.pricing import regional_price
+        unit_price = (regional_price(p.price, p.currency, self.shipping_country)
+                      if p and p.price is not None else None)
         data = {
             'id': self.id,
             'product_id': self.product_id,
@@ -2244,6 +2247,7 @@ class Subscription(db.Model):
             'order_step': _f(p.order_step) if p else None,
             'frequency_weeks': self.frequency_weeks,
             'shipping_address': self.shipping_address,
+            'shipping_country': self.shipping_country,
             'status': self.status,
             'next_delivery_date': self.next_delivery_date.isoformat() if self.next_delivery_date else None,
             'date_created': self.date_created.isoformat() if self.date_created else None,
@@ -2284,3 +2288,12 @@ class SubscriptionOrder(db.Model):
             'status': self.order.status if self.order else None,
             'total_amount': _f(self.order.total_amount) if self.order else None,
         }
+class PriceRegion(db.Model):
+    __tablename__ = 'priceregion'
+
+    id           = db.Column(db.Integer, primary_key=True)
+    code         = db.Column(db.String(30), nullable=False, unique=True)
+    name         = db.Column(db.String(100), nullable=False)
+    multiplier   = db.Column(db.Numeric(6, 3), nullable=False, default=1)
+    position     = db.Column(db.Integer, nullable=False, default=0)
+    date_updated = db.Column(db.DateTime, default=datetime.utcnow)

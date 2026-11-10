@@ -18,6 +18,9 @@
 #  La vérification du paiement ne change pas : le front utilise les routes
 #  existantes /api/ecommerce/checkout/verify/<token> (DPO) et
 #  /api/ecommerce/checkout/mobile/status/<txn_id> (Mobile Money).
+#
+#  Prix : prix régional (app/utils/pricing.py) selon le pays de livraison
+#  enregistré sur l'abonnement (shipping_country).
 # =============================================================================
 
 import time
@@ -40,10 +43,13 @@ from app.utils.decorators import admin_required, current_user_id
 from app.utils.site_url import site_url
 from app.routes.ecommerce import (
     _dec, _normalize_msisdn, ZERO, PAID_STATUSES,
-    mobile_money_amount, mobile_money_payload,
 )
-from app.utils.fx import ugx_rate
+
+# Mobile Money (passerelle Nkusu) ne prélève qu'en shillings ougandais.
+# Défini ici pour ne pas dépendre du nom de la constante dans ecommerce.py.
+MOBILE_MONEY_CURRENCIES = {'UGX'}
 from app.routes.api_notifications import deliver_sms
+from app.utils.pricing import regional_price, normalize_country
 
 logger = logging.getLogger(__name__)
 
@@ -79,13 +85,15 @@ def manage_url(sub):
 
 
 def _create_delivery_order(sub, delivery_date):
-    """Crée une EcoOrder normale pour une échéance, au prix COURANT du produit.
+    """Crée une EcoOrder normale pour une échéance, au prix COURANT du produit,
+    ajusté à la région du pays de livraison.
 
     Le stock n'est PAS décrémenté ici : comme pour la boutique, c'est
     _confirm_order_paid qui le fait, au moment du paiement.
     """
     product = sub.product
-    price = _dec(product.price, 'Price')
+    price = regional_price(_dec(product.price, 'Price'), product.currency,
+                           getattr(sub, 'shipping_country', None))
     order = EcoOrder(
         user_id=sub.user_id,
         guest_email=sub.guest_email,
@@ -112,10 +120,9 @@ def _create_delivery_order(sub, delivery_date):
 
 def _check_mobile_money(currency, phone):
     """Retourne un message d'erreur, ou None si Mobile Money est utilisable."""
-    # IO prélève en UGX : il faut un taux du jour pour convertir la devise du produit.
-    if ugx_rate(currency) is None:
-        return (f"Mobile Money is not available for orders in {currency} "
-                f"right now. Please pay by card (DPO).")
+    if currency not in MOBILE_MONEY_CURRENCIES:
+        return (f"Mobile Money is only available for orders in "
+                f"{', '.join(sorted(MOBILE_MONEY_CURRENCIES))}. Please pay by card (DPO).")
     if len(_normalize_msisdn(phone)) < 9:
         return "A valid phone number is required for Mobile Money"
     return None
@@ -131,7 +138,6 @@ def _start_payment(order, method, phone, email):
         err = _check_mobile_money(order.currency, phone)
         if err:
             return {"success": False, "error": err}, 400
-        ugx, rate = mobile_money_amount(order)
 
         txn_id = f"NKUSUB{order.id}T{int(time.time())}"
         order.payment_method = 'mobile_money'
@@ -142,7 +148,7 @@ def _start_payment(order, method, phone, email):
         try:
             res = requests.post(
                 current_app.config["MOBILE_MONEY_API_URL"],
-                params={"amount": ugx,
+                params={"amount": order.total_amount,
                         "msisdn": _normalize_msisdn(phone), "txnId": txn_id},
                 verify=current_app.config["MOBILE_MONEY_VERIFY_SSL"],
                 timeout=15,
@@ -162,7 +168,7 @@ def _start_payment(order, method, phone, email):
         return {
             "success": True, "order_id": order.id,
             "payment_method": "mobile_money", "txn_id": txn_id, "msg": res.text,
-            **mobile_money_payload(order, ugx, rate),
+            "amount": float(order.total_amount), "currency": order.currency,
         }, 200
 
     # ── DPO (carte) ──────────────────────────────────────────────────────────
@@ -267,7 +273,7 @@ def create_subscription():
                 f"in steps of {_qty_txt(product.order_step or 1)} kg")}), 400
 
         if not Subscription.is_valid_frequency(data.get('frequency_weeks')):
-            return jsonify({"error": "Delivery frequency must be every 1, 2 or 3 weeks"}), 400
+            return jsonify({"error": "Delivery frequency must be every 1, 2, 3 or 4 weeks"}), 400
         weeks = int(data.get('frequency_weeks'))
 
         # La 1re livraison part tout de suite : il faut le stock maintenant.
@@ -280,6 +286,10 @@ def create_subscription():
         address = (data.get('shipping_address') or '').strip()
         if not guest_name or not phone or not address:
             return jsonify({"error": "Name, phone number and shipping address are required"}), 400
+
+        country = normalize_country(data.get('shipping_country'))
+        if not country:
+            return jsonify({"error": "Delivery country is required"}), 400
 
         method = (data.get('payment_method') or 'dpo').lower()
         if method not in ('dpo', 'mobile_money'):
@@ -300,7 +310,8 @@ def create_subscription():
             quantity_kg=qty,
             frequency_weeks=weeks,
             shipping_address=address,
-            status='pending',                       # actif une fois la 1re livraison payée
+            shipping_country=country,
+            status='pending',                      # actif une fois la 1re livraison payée
             next_delivery_date=today + timedelta(weeks=weeks),
         )
         db.session.add(sub)

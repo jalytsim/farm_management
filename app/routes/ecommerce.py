@@ -35,6 +35,7 @@ from app.utils.decorators import admin_required, current_user_id
 from app.utils.storage import get_storage, build_key, LocalStorage
 from app.utils.site_url import site_url
 from app.utils.fx import MOBILE_MONEY_CURRENCY, to_ugx, ugx_rate
+from app.utils.pricing import regional_price, normalize_country
 
 bp = Blueprint('ecommerce', __name__, url_prefix='/api/ecommerce')
 
@@ -512,7 +513,7 @@ def delete_product(id):
 
 # ==================== CHECKOUT DPO ====================
 
-def _build_order_items(cart_items):
+def _build_order_items(cart_items, country=None):
     """Valide le panier et recalcule le total côté serveur.
 
     Retourne (items, total, currency, erreur). Le front n'est jamais cru sur
@@ -555,7 +556,7 @@ def _build_order_items(cart_items):
         # La colonne price est déclarée Numeric mais la base de prod la renvoie
         # en float : float * Decimal levait un TypeError (« Unexpected server
         # error » au paiement). On passe toujours par Decimal.
-        price = _dec(product.price, 'Price')
+        price = regional_price(_dec(product.price, 'Price'), product.currency, country)
         total += price * qty
         order_items.append((product, qty, price))
 
@@ -620,7 +621,11 @@ def initiate_checkout():
         if payment_method not in ('dpo', 'mobile_money'):
             return jsonify({"error": f"Unknown payment method: {payment_method}"}), 400
 
-        order_items, total, currency, err = _build_order_items(cart_items)
+        country = normalize_country(data.get("shipping_country"))
+        if not country:
+            return jsonify({"error": "Delivery country is required"}), 400
+
+        order_items, total, currency, err = _build_order_items(cart_items, country)
         if err:
             return jsonify({"error": err}), 400
 
