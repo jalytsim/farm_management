@@ -215,9 +215,13 @@ def _agb_model(crop_name, property_type):
     Priorité : modèle calibré sur les parcelles de mesure Nkusu (cultures
     pérennes, crop_calibration_utils) > régression publiée (INDEX_MODELS) >
     modèle NDVI générique. note : pourquoi le modèle calibré n'est pas actif.
+    Forêts : modèle calibré sur les parcelles d'inventaire
+    (forest_calibration_utils) > modèle NDVI générique.
     """
     if property_type != 'farm':
-        return GENERIC_MODEL, None
+        from app.utils.forest_calibration_utils import active_model as forest_model
+        calibrated, note = forest_model()
+        return (calibrated, None) if calibrated else (GENERIC_MODEL, note)
     from app.utils.crop_calibration_utils import active_model
     calibrated, note = active_model(crop_name)
     if calibrated:

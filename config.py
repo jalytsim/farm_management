@@ -64,6 +64,27 @@ class Config:
     DPO_COMPANY_TOKEN = os.getenv('DPO_COMPANY_TOKEN')
     DPO_SERVICE_TYPE = os.getenv('DPO_SERVICE_TYPE')
 
+    # ── Cybersource (Unified Checkout) : cartes, fonctionnalités payantes ────
+    # CYBERSOURCE_ENV : 'test' (apitest.cybersource.com) ou 'production'.
+    CYBERSOURCE_ENV = os.getenv('CYBERSOURCE_ENV', 'test')
+    CYBERSOURCE_MERCHANT_ID = os.getenv('CYBERSOURCE_MERCHANT_ID')
+    CYBERSOURCE_KEY_ID = os.getenv('CYBERSOURCE_KEY_ID')
+    CYBERSOURCE_SECRET_KEY = os.getenv('CYBERSOURCE_SECRET_KEY')
+    # Devises proposées au paiement par carte. Celles qui n'ont pas de prix
+    # configuré sont converties depuis la devise par défaut de la feature.
+    # La banque acquéreuse peut en refuser certaines : à ajuster ici.
+    CYBERSOURCE_CURRENCIES = [
+        c.strip().upper()
+        for c in os.getenv('CYBERSOURCE_CURRENCIES',
+                           'USD,EUR,GBP,CHF,CAD,AUD,JPY,CNY,AED,INR,ZAR,KES,UGX,TZS,RWF,XOF,XAF,NGN,GHS,MAD').split(',')
+        if c.strip()
+    ]
+    # Origines de dev autorisées à afficher le formulaire carte (en plus de
+    # SITE_URLS). Cybersource n'accepte que du HTTPS : lancer Vite en https.
+    CYBERSOURCE_DEV_ORIGINS = [
+        o.strip() for o in os.getenv('CYBERSOURCE_DEV_ORIGINS', 'https://localhost:5173').split(',') if o.strip()
+    ]
+
     # ── Devises ───────────────────────────────────────────────────────────────
     SUPPORTED_CURRENCIES = [
         c.strip().upper()

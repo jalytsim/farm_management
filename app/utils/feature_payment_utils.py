@@ -4,7 +4,7 @@ from sqlalchemy import and_, or_
 from sqlalchemy.exc import IntegrityError
 from flask import current_app
 from app.models import PaidFeatureAccess, FeaturePrice, db
-from app.utils.fx import MOBILE_MONEY_CURRENCY, to_ugx
+from app.utils.fx import MOBILE_MONEY_CURRENCY, convert, to_ugx
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +25,7 @@ FEATURE_LABELS = {
 PAYMENT_METHOD_LABELS = {
     'mobile_money': 'Mobile Money',
     'dpo':          'Card / DPO Pay',
+    'cybersource':  'Card / Cybersource',
 }
 
 
@@ -77,6 +78,27 @@ def payment_narrative(access, features_by_name=None):
     )
 
 
+def card_amount(feature, currency):
+    """
+    Montant d'un paiement carte Cybersource dans `currency` : prix configuré
+    dans cette devise s'il existe, sinon le prix par défaut de la feature
+    converti au taux du jour (arrondi au-dessus). Retourne (montant, erreur).
+    """
+    prices = {p.currency: p.price for p in feature.prices}
+    currency = currency.upper()
+    if prices.get(currency) is not None:
+        return prices[currency], None
+    base = prices.get(feature.default_currency)
+    if base is None:
+        return None, f"No price configured for '{feature.feature_name}'"
+    amount, rate = convert(base, feature.default_currency, currency)
+    if amount is None:
+        return None, f"Exchange rate unavailable for {currency}, please choose another currency"
+    logger.info("[Payment] %s: %s %s -> %s %s (rate %s)",
+                feature.feature_name, base, feature.default_currency, amount, currency, rate)
+    return amount, None
+
+
 def create_payment_attempt(user_id=None, guest_phone_number=None, feature_name=None,
                             txn_id=None, payment_method='mobile_money', currency=None,
                             agent_id=None):
@@ -84,6 +106,8 @@ def create_payment_attempt(user_id=None, guest_phone_number=None, feature_name=N
     default_currency = current_app.config.get("DEFAULT_CURRENCY", "UGX")
 
     currency = (currency or default_currency).upper()
+    if payment_method == 'cybersource':
+        supported = current_app.config.get("CYBERSOURCE_CURRENCIES", ["USD"])
     if currency not in supported:
         return None, f"Unsupported currency: {currency}"
 
@@ -106,6 +130,10 @@ def create_payment_attempt(user_id=None, guest_phone_number=None, feature_name=N
                 return None, "Exchange rate unavailable, please pay by card (DPO)"
             logger.info("[Payment] %s: %s %s -> %s UGX (rate %s)",
                         feature_name, base, feature.default_currency, amount, rate)
+    elif payment_method == 'cybersource':
+        amount, error = card_amount(feature, currency)
+        if amount is None:
+            return None, error
     else:
         # Devise demandée si elle est tarifée, sinon la devise par défaut de la
         # feature — avec SA devise, jamais un prix USD étiqueté UGX.

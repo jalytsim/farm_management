@@ -246,6 +246,181 @@ def verify_dpo_payment(trans_token):
     return jsonify({"success": False, "status": "pending"}), 202
 
 
+# ==================== PAIEMENTS CARTE CYBERSOURCE ====================
+# Unified Checkout : le formulaire carte s'affiche dans la page (bibliothèque
+# Cybersource), le numéro de carte ne passe jamais par nos serveurs. Le
+# montant et la devise sont figés en base à l'initiation ; /complete débite
+# toujours ce montant-là. L'id de transaction Cybersource est rangé dans
+# PaidFeatureAccess.dpo_trans_ref (colonne de référence prestataire).
+
+def _cybersource_origin():
+    """Origine de la page qui affichera le formulaire, si elle est autorisée."""
+    origin = (request.headers.get('Origin') or '').rstrip('/')
+    allowed = [u.rstrip('/') for u in current_app.config['SITE_URLS']]
+    if current_app.config.get('CYBERSOURCE_ENV') != 'production':
+        allowed += current_app.config.get('CYBERSOURCE_DEV_ORIGINS', [])
+    return origin if origin in allowed else site_url()
+
+
+def _cybersource_allowed(user_id):
+    """
+    Clés de test (CYBERSOURCE_ENV != 'production') : la carte de test 4111…
+    ouvrirait l'accès gratuitement, donc réservé aux admins connectés.
+    En production : ouvert à tous (comptes et invités).
+    """
+    from app.models import User
+    from app.utils.cybersource_payment import is_configured
+    if not is_configured():
+        return False
+    if current_app.config.get('CYBERSOURCE_ENV') == 'production':
+        return True
+    user = User.query.get(user_id) if user_id else None
+    return bool(user and user.is_admin)
+
+
+@api_payments_bp.route('/cybersource/currencies', methods=['GET'])
+def cybersource_currencies():
+    return jsonify({
+        "enabled": _cybersource_allowed(_get_current_user_id()),
+        "test_mode": current_app.config.get('CYBERSOURCE_ENV') != 'production',
+        "currencies": current_app.config.get("CYBERSOURCE_CURRENCIES", []),
+    }), 200
+
+
+@api_payments_bp.route('/cybersource/quote', methods=['GET'])
+def cybersource_quote():
+    """Montant carte d'une feature dans une devise : ?feature_name=reportcarbonguest&currency=EUR."""
+    from app.utils.feature_payment_utils import card_amount
+    currency = (request.args.get('currency') or '').upper()
+    if currency not in current_app.config.get("CYBERSOURCE_CURRENCIES", []):
+        return jsonify({"error": f"Unsupported currency: {currency}"}), 400
+    feature = FeaturePrice.query.filter_by(feature_name=request.args.get('feature_name')).first()
+    if not feature:
+        return jsonify({"error": "Unknown feature"}), 404
+    amount, error = card_amount(feature, currency)
+    if amount is None:
+        return jsonify({"error": error}), 503
+    return jsonify({"amount": float(amount), "currency": currency}), 200
+
+
+@api_payments_bp.route('/cybersource/initiate', methods=['POST'])
+def initiate_cybersource_payment():
+    from app.utils.cybersource_payment import CybersourceError, create_capture_context
+
+    user_id = _get_current_user_id()
+    if not _cybersource_allowed(user_id):
+        return jsonify({"error": "Card payment (Cybersource) is not available"}), 403
+    data = request.get_json(silent=True) or {}
+    feature_name = data.get("feature_name")
+    phone = data.get("phone_number", "")
+    currency = (data.get("currency") or "USD").upper()
+    if not feature_name:
+        return jsonify({"error": "Missing feature_name"}), 400
+    if not user_id and not phone:
+        return jsonify({"error": "Phone number is required"}), 400
+
+    txn_id = f"CYB-{user_id or 'GUEST'}-{int(datetime.now().timestamp() * 1000)}"
+    try:
+        payment, amount = create_payment_attempt(
+            user_id=user_id,
+            guest_phone_number=None if user_id else phone,
+            feature_name=feature_name,
+            txn_id=txn_id,
+            payment_method='cybersource',
+            currency=currency,
+            agent_id=data.get("agent_id"),
+        )
+    except Exception:
+        logger.exception("create_payment_attempt failed for Cybersource")
+        return jsonify({"error": "Internal server error"}), 500
+    if not payment:
+        return jsonify({"error": amount}), 400
+
+    try:
+        capture_context = create_capture_context(payment.amount, payment.currency, _cybersource_origin())
+    except (CybersourceError, requests.RequestException) as e:
+        payment.payment_status = "failed"
+        db.session.commit()
+        return jsonify({"error": str(e) if isinstance(e, CybersourceError) else "Card payment service unreachable"}), 502
+
+    return jsonify({
+        "success": True,
+        "capture_context": capture_context,
+        "txn_id": txn_id,
+        "amount": float(payment.amount),
+        "currency": payment.currency,
+        "narrative": payment.narrative,
+    }), 200
+
+
+@api_payments_bp.route('/cybersource/complete', methods=['POST'])
+def complete_cybersource_payment():
+    """Body : {txn_id, transient_token, email?}. Débite le montant figé en base."""
+    from app.utils.cybersource_payment import pay_with_transient_token
+    data = request.get_json(silent=True) or {}
+    txn_id, token = data.get("txn_id"), data.get("transient_token")
+    if not txn_id or not token:
+        return jsonify({"error": "txn_id and transient_token are required"}), 400
+
+    # Verrou de ligne : deux /complete simultanés ne débitent pas deux fois.
+    payment = (PaidFeatureAccess.query
+               .filter_by(txn_id=txn_id, payment_method='cybersource')
+               .with_for_update().first())
+    if not payment:
+        db.session.rollback()
+        return jsonify({"error": "Payment not found"}), 404
+    if payment.payment_status == "success":
+        db.session.commit()
+        return jsonify({"success": True, "status": "paid"}), 200
+    if payment.payment_status != "pending":
+        db.session.commit()
+        return jsonify({"success": False, "status": "failed",
+                        "error": "This payment can no longer be completed, please start again."}), 409
+
+    payment.payment_status = "processing"
+    db.session.commit()
+
+    try:
+        result = pay_with_transient_token(token, payment.amount, payment.currency, txn_id,
+                                          email=data.get("email") or None)
+    except requests.RequestException:
+        logger.exception("[Cybersource] payment call failed for %s", txn_id)
+        result = {'status': 'error', 'message': None, 'transaction_id': None}
+
+    payment.dpo_trans_ref = result.get('transaction_id') or payment.dpo_trans_ref
+    if result['status'] == 'paid':
+        payment.payment_status = "success"
+        payment.verified_at = datetime.utcnow()
+        db.session.commit()
+        return jsonify({"success": True, "status": "paid"}), 200
+    if result['status'] == 'pending':
+        payment.payment_status = "review"     # à confirmer dans le Business Center
+        db.session.commit()
+        return jsonify({"success": False, "status": "pending",
+                        "error": "Your payment is under review. Access opens once it is approved."}), 202
+    if result['status'] == 'error':
+        # Erreur système Cybersource : on ne sait pas si la banque a débité.
+        # Statut à part, à rapprocher dans le Business Center (id rangé ci-dessus).
+        payment.payment_status = "error"
+        db.session.commit()
+        return jsonify({"success": False, "status": "failed",
+                        "error": "The card payment service had a problem and could not confirm your payment. "
+                                 "If your card was charged, contact support with reference " + txn_id + "."}), 502
+    payment.payment_status = "failed"
+    db.session.commit()
+    return jsonify({"success": False, "status": "failed",
+                    "error": f"Payment declined{': ' + result['message'] if result.get('message') else ''}."}), 402
+
+
+@api_payments_bp.route('/cybersource/status/<txn_id>', methods=['GET'])
+def cybersource_payment_status(txn_id):
+    payment = PaidFeatureAccess.query.filter_by(txn_id=txn_id, payment_method='cybersource').first()
+    if not payment:
+        return jsonify({"error": "Payment not found"}), 404
+    status = {"success": "paid", "failed": "failed"}.get(payment.payment_status, "pending")
+    return jsonify({"status": status}), 200
+
+
 # ==================== ROUTES COMMUNES ====================
 
 @api_payments_bp.route('/fx/ugx', methods=['GET'])
