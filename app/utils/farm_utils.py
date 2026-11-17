@@ -172,17 +172,15 @@ def create_farm(user=None, name=None, subcounty=None, farmergroup_id=None, distr
     base_farm_id = f"{user_id_start}FA"
 
     # Query the database for the latest farm_id with the same base
-    last_farm = Farm.query.filter(Farm.farm_id.like(f"{base_farm_id}%")).order_by(Farm.farm_id.desc()).first()
-    print(last_farm)
-
-    if last_farm:
-        # Extract the last numeric part of the farm_id and increment it
-        last_number = int(last_farm.farm_id.replace(base_farm_id, ""))
-        new_number = last_number + 1
-        print(new_number)
-    else:
-        # Start with 1 if no previous farm_id exists
-        new_number = 1
+    # Plus grand suffixe NUMÉRIQUE : trier par longueur puis texte, sinon
+    # « ...FA9999 » passe devant « ...FA10000 » et l'id généré existe déjà.
+    candidates = (db.session.query(Farm.farm_id)
+                  .filter(Farm.farm_id.like(f"{base_farm_id}%"))
+                  .order_by(func.length(Farm.farm_id).desc(), Farm.farm_id.desc())
+                  .limit(50))
+    last_number = max((int(fid[len(base_farm_id):]) for (fid,) in candidates
+                       if fid[len(base_farm_id):].isdigit()), default=0)
+    new_number = last_number + 1
     # Ensure the number is 4 digits long
     farm_id = f"{base_farm_id}{str(new_number).zfill(4)}"
     print(farm_id)
