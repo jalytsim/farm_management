@@ -85,6 +85,9 @@ COOP_ALIASES = [
     # Cawodisa = Cowadisa (confirmé) ; couvre COWDISA, KAWODISA, Cowadise, « CAWODISA PM »…
     (re.compile(r'^[ck][ao]w[aos]?dis\w*\b.*$'), 'cawodisa'),
 ]
+# Exportateurs nationaux : toujours un compte et un groupe propres, même si un client
+# (ex. zomboArabica en prod) a déjà créé un groupe du même nom pour ses fermiers.
+OWN_ACCOUNT_GROUPS = {'kawacom', 'kyagalanyi', 'great lakes coffee company'}
 
 # Noms geoBoundaries → noms de la table district.
 DISTRICT_ALIASES = {'ssembabule': 'sembabule', 'kalanga': 'kalangala', 'kitagwenga': 'kitagwenda',
@@ -624,6 +627,10 @@ def main():
         gkey = lambda name: coop_key(name) or clean(name).lower()
         db_groups = {}
         for g in FarmerGroup.query.order_by(FarmerGroup.id):
+            if gkey(g.name) in OWN_ACCOUNT_GROUPS:
+                owner = User.query.get(g.created_by) if g.created_by else None
+                if not (owner and owner.email.endswith('@' + ACCOUNT_EMAIL_DOMAIN)):
+                    continue        # groupe homonyme d'un client : on ne s'y rattache pas
             db_groups.setdefault(gkey(g.name), g)
         labels = sorted({p['farm']['group'] for p in parcels})
         missing_groups = [l for l in labels if gkey(l) not in db_groups]
