@@ -1,10 +1,14 @@
-from flask import Blueprint, jsonify, request
+import gzip
+import json
+
+from flask import Blueprint, jsonify, make_response, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
 from flask_login import current_user
 from sqlalchemy import func
 from app.models import Point, User
 from app.utils.point_utils import create_point, delete_point, delete_point_by_owner, update_point, get_point_by_id
 from app import db
+from app.utils import map_cache
 
 bp = Blueprint('api_points', __name__, url_prefix='/api/points')
 
@@ -152,6 +156,47 @@ def update_point_route(point_id):
         return jsonify({'message': 'Point updated successfully.'}), 200
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
+
+def _gzip_json_response(blob):
+    """blob = JSON déjà compressé gzip ; décompressé seulement si le client ne gère pas gzip."""
+    if 'gzip' in request.headers.get('Accept-Encoding', '').lower():
+        resp = make_response(blob)
+        resp.headers['Content-Encoding'] = 'gzip'
+    else:
+        resp = make_response(gzip.decompress(blob))
+    resp.headers['Content-Type'] = 'application/json'
+    resp.headers['Cache-Control'] = 'private, no-cache'
+    resp.headers['Vary'] = 'Accept-Encoding'
+    return resp
+
+
+@bp.route('/map/<owner_type>/centroids', methods=['GET'])
+@jwt_required()
+def map_centroids(owner_type):
+    """Un point + une surface par ferme/forêt : {count, total_area_m2, ids, coords, areas}."""
+    if owner_type not in ('farmer', 'forest', 'tree'):
+        return jsonify({'error': 'invalid owner_type'}), 400
+    user = User.query.get(get_jwt_identity()['id'])
+    return _gzip_json_response(map_cache.centroids_gz(db, owner_type, user))
+
+
+@bp.route('/map/<owner_type>/polygons', methods=['GET'])
+@jwt_required()
+def map_polygons(owner_type):
+    """Contours GeoJSON des entités visibles : ?bbox=ouest,sud,est,nord."""
+    if owner_type not in ('farmer', 'forest', 'tree'):
+        return jsonify({'error': 'invalid owner_type'}), 400
+    try:
+        west, south, east, north = (float(v) for v in request.args.get('bbox', '').split(','))
+    except ValueError:
+        return jsonify({'error': 'bbox=west,south,east,north required'}), 400
+    user = User.query.get(get_jwt_identity()['id'])
+    geojson, n = map_cache.polygons_in_bbox(db, owner_type, user, west, south, east, north)
+    if geojson is None:
+        return jsonify({'too_many': True, 'count': n, 'limit': map_cache.MAX_BBOX_ENTITIES})
+    geojson['count'] = n
+    return _gzip_json_response(gzip.compress(json.dumps(geojson, separators=(',', ':')).encode(), 5))
+
 
 @bp.route('/getallbyownertype/<owner_type>', methods=['GET'])
 @jwt_required()

@@ -83,29 +83,17 @@ def _compute_area_ha_from_coords(coords):
 
 def _build_area_map_from_points():
     """
-    Charge tous les Points 'farmer' en une seule requête,
-    calcule la superficie de chaque ferme depuis son polygone.
-    Retourne {farm_id(str): area_ha(float)}.
+    {farm_id(str): area_ha(float)} des fermes qui ont un polygone.
+
+    Réutilise les surfaces du cache cartographique (app.utils.map_cache) : avant,
+    chaque appel chargeait les 1,2 M de points en objets ORM (plusieurs minutes).
+    Les points sont rattachés aux fermes par Farm.farm_id (Point.owner_id).
     """
-    all_points = (
-        Point.query
-        .filter_by(owner_type='farmer')
-        .order_by(Point.owner_id, Point.id)
-        .all()
-    )
-
-    from collections import defaultdict
-    groups = defaultdict(list)
-    for p in all_points:
-        groups[str(p.owner_id)].append((p.longitude, p.latitude))
-
-    area_map = {}
-    for owner_id, coords in groups.items():
-        area_ha = _compute_area_ha_from_coords(coords)
-        if area_ha is not None:
-            area_map[owner_id] = area_ha
-
-    return area_map
+    from types import SimpleNamespace
+    from app.utils import map_cache
+    data = map_cache.centroids(db, 'farmer', SimpleNamespace(is_admin=True, id=0))
+    return {oid: round(m2 / 10_000, 4)
+            for oid, m2 in zip(data['ids'], data['areas']) if m2 > 0}
 
 
 def _get_fallback_acreage_map():
@@ -135,7 +123,8 @@ def get_farm_area_ha(farm_db_id, area_map, fallback_map, farm_farm_id):
       'gps'      → calculé depuis le polygone Points
       'declared' → tilled_land_size saisi manuellement
     """
-    poly_area = area_map.get(str(farm_db_id))
+    # Point.owner_id contient le farm_id (ex. « CAWOFA0001 »), pas la clé primaire
+    poly_area = area_map.get(str(farm_farm_id))
     if poly_area is not None:
         return poly_area, 'gps'
     return round(float(fallback_map.get(farm_farm_id, 0.0)), 4), 'declared'

@@ -198,6 +198,32 @@ def register_binary_transport(app):
         return response
 
 
+def register_json_compression(app, min_size=20_000):
+    """
+    Compresse en gzip les grosses réponses JSON (listes de 50 000+ fermes…).
+    nginx (serveur partagé) ne compresse que le HTML : on le fait ici.
+    Enregistré en premier → exécuté en dernier parmi les after_request.
+    """
+    import gzip
+    from flask import request
+
+    @app.after_request
+    def _gzip_json(response):
+        if (response.mimetype != 'application/json' or response.direct_passthrough
+                or response.status_code < 200 or response.status_code >= 300
+                or 'Content-Encoding' in response.headers
+                or 'gzip' not in request.headers.get('Accept-Encoding', '').lower()):
+            return response
+        data = response.get_data()
+        if len(data) < min_size:
+            return response
+        response.set_data(gzip.compress(data, compresslevel=5))
+        response.headers['Content-Encoding'] = 'gzip'
+        response.headers['Content-Length'] = str(len(response.get_data()))
+        response.vary.add('Accept-Encoding')
+        return response
+
+
 def create_app():
     lock_path = os.path.join(tempfile.gettempdir(), "farm_scheduler.lock")
     if os.path.exists(lock_path):
@@ -205,6 +231,7 @@ def create_app():
 
     app = Flask(__name__)
     app.config.from_object(Config)
+    register_json_compression(app)
 
     # 🔒 Les valeurs par défaut de SECRET_KEY / JWT_SECRET_KEY sont dans le code
     # (donc sur GitHub) : sans variables d'environnement, n'importe qui pourrait
@@ -222,6 +249,8 @@ def create_app():
 
     with app.app_context():
         from app.models import User  # noqa: F401
+        from app.utils import map_cache
+        map_cache.register_invalidation()   # cache des cartes vidé à chaque écriture de Point
 
     start_scheduler(app)
 
