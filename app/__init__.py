@@ -56,8 +56,14 @@ def _alembic_compare_type(context, inspected_column, metadata_column,
 def start_scheduler(app):
     if os.environ.get("RUN_MAIN") == "true":
         scheduler = BackgroundScheduler()
-        scheduler.add_job(lambda: run_weather_check(app), 'cron', hour=22, minute=59)
-        scheduler.add_job(lambda: run_gdd_pest_check(app), 'cron', hour=23, minute=00)
+        # Alertes météo / ravageurs par SMS (fermier + admin) : une requête météo et
+        # potentiellement un SMS PAR FERME. Désactivées par défaut depuis l'import de
+        # 53 000 fermes ; WEATHER_SMS_ALERTS=1 dans .env pour les réactiver.
+        if os.environ.get("WEATHER_SMS_ALERTS") == "1":
+            scheduler.add_job(lambda: run_weather_check(app), 'cron', hour=22, minute=59)
+            scheduler.add_job(lambda: run_gdd_pest_check(app), 'cron', hour=23, minute=00)
+        else:
+            print("[i] Alertes SMS meteo/ravageurs desactivees (WEATHER_SMS_ALERTS != 1).")
 
         # Abonnements : crée chaque matin les prochaines livraisons
         from app.routes.subscriptions import run_subscription_cycle
