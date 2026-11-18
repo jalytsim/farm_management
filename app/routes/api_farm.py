@@ -72,7 +72,7 @@ def index():
     identity = get_jwt_identity()
     user_id  = identity['id']
     page     = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 6, type=int)
+    per_page = min(max(request.args.get('per_page', 6, type=int), 1), 100)
     search   = request.args.get('search', '').strip()
 
     user = User.query.get(user_id)
@@ -95,6 +95,12 @@ def index():
                 Farm.government_id.ilike(like),
             )
         )
+        # FarmSelect : d'abord les noms qui COMMENCENT par la recherche, puis les farm_id
+        query = query.order_by(
+            case((Farm.name.ilike(f'{search}%'), 0), (Farm.farm_id.ilike(f'{search}%'), 1), else_=2),
+            Farm.name)
+    else:
+        query = query.order_by(Farm.id)
 
     farms = query.paginate(page=page, per_page=per_page, error_out=False)
 
@@ -129,6 +135,39 @@ def all():
         farms=farms_list,
         total_farms=len(farms_list),
     )
+
+
+@bp.route('/alert-targets')
+@jwt_required()
+def alert_targets():
+    """
+    Fermes à surveiller pour les alertes météo / ravageurs, en une requête :
+    position GPS, téléphone et cultures (avant : 2 à 3 requêtes par ferme côté navigateur).
+      → {farms: [{id, name, lat, lon, phonenumber, crops}], skipped: [{id, name, reason}], total}
+    """
+    from sqlalchemy import text
+    user = User.query.get(get_jwt_identity()['id'])
+    scope = '' if user.is_admin else 'WHERE f.created_by = :uid'
+    rows = db.session.execute(text(
+        'SELECT f.farm_id, f.name, f.geolocation, f.phonenumber, f.phonenumber2, '
+        '       GROUP_CONCAT(DISTINCT c.name ORDER BY c.name SEPARATOR "|") '
+        'FROM farm f '
+        'LEFT JOIN farmdata fd ON fd.farm_id = f.farm_id '
+        'LEFT JOIN crop c ON c.id = fd.crop_id '
+        f'{scope} GROUP BY f.id ORDER BY f.id'), {'uid': user.id})
+    farms, skipped = [], []
+    for farm_id, name, geo, phone1, phone2, crops in rows:
+        try:
+            lat, lon = (float(v) for v in (geo or '').split(','))
+            if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+                raise ValueError
+        except ValueError:
+            skipped.append({'id': farm_id, 'name': name,
+                            'reason': 'missing geolocation' if not geo else f'invalid geolocation "{geo}"'})
+            continue
+        farms.append({'id': farm_id, 'name': name, 'lat': round(lat, 5), 'lon': round(lon, 5),
+                      'phonenumber': phone1 or phone2, 'crops': crops.split('|') if crops else []})
+    return jsonify(farms=farms, skipped=skipped, total=len(farms) + len(skipped))
 
 
 @bp.route('/create', methods=['POST'])
